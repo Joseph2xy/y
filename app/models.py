@@ -1,0 +1,135 @@
+from __future__ import annotations
+
+from enum import StrEnum
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class HealthResponse(BaseModel):
+    status: str = "ok"
+
+
+class SchemaColumn(BaseModel):
+    name: str = Field(min_length=1)
+    data_type: str = Field(min_length=1)
+    is_nullable: bool
+    ordinal_position: int = Field(gt=0)
+    default: str | None = None
+
+
+class SchemaTable(BaseModel):
+    schema_name: str = Field(min_length=1)
+    table_name: str = Field(min_length=1)
+    table_type: str = Field(min_length=1)
+    columns: list[SchemaColumn] = Field(default_factory=list)
+
+
+class SchemaContext(BaseModel):
+    tables: list[SchemaTable] = Field(default_factory=list)
+
+
+class ContextPolicy(BaseModel):
+    blocked_schemas: list[str] = Field(default_factory=list)
+    blocked_tables: list[str] = Field(default_factory=list)
+    blocked_columns: list[str] = Field(default_factory=list)
+    blocked_functions: list[str] = Field(default_factory=lambda: ["pg_sleep"])
+    max_row_count: int = Field(default=100_000, gt=0, le=1_000_000)
+    max_export_bytes: int = Field(default=50_000_000, gt=0)
+    statement_timeout_ms: int = Field(default=30_000, gt=0)
+    lock_timeout_ms: int = Field(default=5_000, gt=0)
+
+
+class ContextDocument(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    context: str
+    schema_context: SchemaContext = Field(alias="schema")
+    policy: ContextPolicy
+
+
+class ContextUpdate(BaseModel):
+    context: str = Field(min_length=1)
+    policy: ContextPolicy
+
+
+class ContextScanResponse(ContextDocument):
+    table_count: int
+    column_count: int
+
+
+class SQLValidationRequest(BaseModel):
+    sql: str = Field(min_length=1)
+
+
+class SQLValidationResponse(BaseModel):
+    valid: bool
+    errors: list[str] = Field(default_factory=list)
+
+
+class ExportCreateRequest(BaseModel):
+    intent: "CSVIntent"
+    sql: str = Field(min_length=1)
+
+
+class ExportCreateResponse(BaseModel):
+    export_id: str
+    row_count: int
+    byte_count: int
+    columns: list[str]
+    download_url: str
+
+
+class SessionCreateResponse(BaseModel):
+    session: "ExportSession"
+
+
+class SessionMessageRequest(BaseModel):
+    message: ChatMessage
+
+
+class SessionIntentApprovalRequest(BaseModel):
+    intent: "CSVIntent"
+
+
+class SessionExportRequest(BaseModel):
+    sql: str = Field(min_length=1)
+
+
+class CSVColumnIntent(BaseModel):
+    name: str = Field(min_length=1)
+    description: str = Field(min_length=1)
+    source_hint: str | None = None
+
+
+class CSVIntent(BaseModel):
+    summary: str = Field(min_length=1)
+    row_meaning: str = Field(min_length=1)
+    columns: list[CSVColumnIntent] = Field(min_length=1)
+    filters: list[str] = Field(default_factory=list)
+    derived_fields: list[str] = Field(default_factory=list)
+    assumptions: list[str] = Field(default_factory=list)
+    max_row_count: int = Field(default=1000, gt=0, le=100_000)
+
+
+class SessionStatus(StrEnum):
+    DRAFTING_INTENT = "drafting_intent"
+    AWAITING_APPROVAL = "awaiting_approval"
+    GENERATING_SQL = "generating_sql"
+    VALIDATING_SQL = "validating_sql"
+    EXPORTING = "exporting"
+    COMPLETE = "complete"
+    FAILED = "failed"
+
+
+class ChatMessage(BaseModel):
+    role: str = Field(pattern="^(user|assistant|system)$")
+    content: str = Field(min_length=1)
+
+
+class ExportSession(BaseModel):
+    id: str
+    status: SessionStatus = SessionStatus.DRAFTING_INTENT
+    messages: list[ChatMessage] = Field(default_factory=list)
+    approved_intent: CSVIntent | None = None
+    export_id: str | None = None
+    last_error: str | None = None
