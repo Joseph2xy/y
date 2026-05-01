@@ -79,6 +79,8 @@ pnpm dev
 
 The Vite dev server proxies API calls to `http://127.0.0.1:8000`.
 
+The frontend uses shadcn/ui primitives plus a small shadcn-compatible chat component set. The app should stay compact, centered, dark by default, and chat-first. Workflow controls should appear only when useful.
+
 On WSL, use native Linux Node and pnpm. Avoid the Windows `node.exe`/npm shims from `/mnt/c/...`; package install scripts can fail on UNC paths. On Fedora WSL, this works:
 
 ```bash
@@ -89,4 +91,4 @@ sudo dnf install -y nodejs pnpm
 
 The current handoff and next steps live in `docs/implementation-status.md`.
 
-As of the latest update, the backend model harness, bounded SQL preparation/repair loop, and first minimal React/Vite frontend are implemented and tested. The next milestone is a real end-to-end local demo against Postgres and a configured model provider.
+As of the latest update, the backend model harness, bounded SQL preparation/repair loop, and compact shadcn-based React/Vite chat frontend are implemented and tested. The next milestone is a real end-to-end local demo against Postgres and a configured model provider.

@@ -6,7 +6,7 @@ Keep this file current as work progresses. The other Markdown files are steadier
 
 ## What Exists
 
-The project currently has a tested FastAPI backend scaffold.
+The project currently has a tested FastAPI backend and a minimal React/Vite frontend.
 
 Implemented modules:
 
@@ -22,7 +22,9 @@ Implemented modules:
 - `app/model_provider.py`: LiteLLM SDK wrapper that parses model JSON into Pydantic models.
 - `app/prompt_builder.py`: prompt builders for CSV intent, SQL generation, and SQL repair.
 - `app/session_model_service.py`: session-level model orchestration helpers with approval gating and limited SQL repair.
-- `src/`: React/Vite frontend for context status, chat/session flow, CSV plan approval, SQL preparation, export, and Advanced/debug traces.
+- `src/`: React/Vite frontend for the chat/session flow, database scan action, CSV plan approval, SQL preparation, export, and Advanced/debug traces.
+- `src/components/ui/`: shadcn/ui primitives installed through the shadcn CLI.
+- `src/components/chat/`: shadcn-compatible chat primitives installed from the `shadcn-chat` registry (`Chat`, `ChatHeader`, `ChatMessages`, `ChatEvent`, `ChatToolbar`).
 
 Implemented endpoints:
 
@@ -55,7 +57,17 @@ pnpm build
 
 Last known focused backend review result: `48 passed` on 2026-05-01.
 Last known full-suite result: `69 passed` on 2026-05-01.
-Last known frontend result: `pnpm test` passed with `2 passed`; `pnpm build` passed on 2026-05-01.
+Last known frontend result: `pnpm test` passed with `2 passed`; `pnpm build` passed on 2026-05-02.
+
+Frontend visual review:
+
+```bash
+pnpm dev
+agent-browser open http://localhost:5174
+agent-browser screenshot /tmp/csv-chat-final-compact.png
+```
+
+The Vite port may be `5173` or `5174` depending on what is already running.
 
 ## Current Flow
 
@@ -84,6 +96,16 @@ Model endpoints use LiteLLM provider configuration from environment variables:
 - `MODEL_TEMPERATURE`, default `0`.
 
 The frontend currently calls the explicit debug-friendly endpoints. SQL and validation attempts stay hidden unless the user opens the Advanced panel.
+
+Current frontend UX:
+
+- Dark mode by default.
+- Centered compact chat card.
+- Initial state shows only the header/status, a plain prompt, the composer, and a small `Scan database` action.
+- Sending a message creates a session automatically if needed.
+- `Propose CSV plan` appears only after there is a message/session.
+- CSV plan, export controls, and Advanced/debug details appear only when relevant.
+- No dashboard shell, sidebar, upload panel, or always-visible export/debug section.
 
 ## Safety Already In Place
 
@@ -123,6 +145,9 @@ Frontend local state:
 - Native Linux Node and pnpm were installed in Fedora WSL with `sudo dnf install -y nodejs pnpm`.
 - Avoid Windows Node/npm shims from `/mnt/c/...`; package install scripts can fail on UNC paths.
 - `packageManager` is pinned to `pnpm@10.33.0`.
+- shadcn was initialized with `components.json`, `@/` import aliases, Tailwind theme tokens, and Vite/Vitest alias config.
+- The official `@shadcn` registry did not return a chat block for `chat` or `message`; the small `shadcn-chat` registry item was installed instead. Avoid the full `chat-basic` block unless the product really needs sidebars, reactions, profiles, emoji picker, and mock chat features.
+- `agent-browser install` and `agent-browser install --with-deps` were run so browser screenshots work in this Fedora WSL environment. This installed managed Chrome plus Linux browser dependencies.
 - CodeRabbit CLI is installed at `/home/Joseph/.local/bin/coderabbit` and authenticated for agent review.
 
 Git sync:
@@ -131,7 +156,7 @@ Git sync:
 - Current branch: `main`.
 - Tracking branch: `origin/main`.
 - Remote: `https://github.com/Joseph2xy/y.git`.
-- Last checked local state: clean worktree, branch in sync with `origin/main`.
+- Last checked local state: worktree has uncommitted frontend/shadcn changes from the current session.
 
 ## Next Step
 
@@ -142,8 +167,9 @@ Recommended scope:
 1. Run FastAPI and Vite together against a real or containerized Postgres database.
 2. Exercise: scan context -> send request -> propose CSV plan -> approve -> prepare SQL -> export -> download.
 3. Fix any cross-origin/proxy, model config, or session-state issues found during the demo.
-4. Add OpenAPI-generated frontend types after the endpoint shape settles.
-5. Keep SQL and validation traces behind Advanced/debug UI.
+4. Keep the frontend compact and chat-first while fixing demo issues. Do not reintroduce an always-visible dashboard, export panel, or upload panel.
+5. Add OpenAPI-generated frontend types after the endpoint shape settles.
+6. Keep SQL and validation traces behind Advanced/debug UI.
 
 Do not add a worker, queue, scheduling, frontend dashboard shell, LangChain, or LlamaIndex for this step.
 
@@ -155,3 +181,4 @@ Do not add a worker, queue, scheduling, frontend dashboard shell, LangChain, or 
 - Better audit/debug trace storage.
 - Decision on export expiry.
 - Decision on whether SQL can be shown or edited in Advanced mode.
+- Decide whether uploaded example CSVs belong in V0. They are not implemented now.

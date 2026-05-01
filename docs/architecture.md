@@ -65,6 +65,7 @@ Chosen stack:
 - Native EventSource for SSE streaming.
 - Tailwind CSS.
 - shadcn/ui selectively.
+- shadcn-compatible chat primitives where they keep the chat surface conventional.
 - OpenAPI-generated API types.
 - Vitest + React Testing Library.
 - Playwright later.
@@ -77,6 +78,14 @@ Primary views:
 - progress/status area.
 - download result.
 - Advanced/debug disclosure.
+
+UX constraints:
+
+- Keep the app centered and compact.
+- Default to dark mode until a theme toggle exists.
+- The first screen should feel like a chat, not a dashboard or form.
+- Show setup/export/debug controls only when useful.
+- Do not add an upload panel unless uploaded example CSVs are explicitly chosen for V0.
 
 Do not build a dashboard shell until the app has enough repeated workflows to justify it.
 

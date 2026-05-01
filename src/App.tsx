@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Database, Download, Loader2, Send, Terminal } from "lucide-react";
+import { Check, ChevronDown, Database, Download, Loader2, Plus, Send, Terminal } from "lucide-react";
 import { FormEvent, useRef, useState } from "react";
 import {
   addMessage,
@@ -12,6 +12,17 @@ import {
   proposeIntent,
   scanContext
 } from "./api";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Chat } from "@/components/chat/chat";
+import { ChatEvent, ChatEventAddon, ChatEventAvatar, ChatEventBody, ChatEventContent, ChatEventTitle } from "@/components/chat/chat-event";
+import { ChatHeader, ChatHeaderAddon, ChatHeaderButton, ChatHeaderMain } from "@/components/chat/chat-header";
+import { ChatMessages } from "@/components/chat/chat-messages";
+import { ChatToolbar, ChatToolbarAddon, ChatToolbarButton, ChatToolbarTextarea } from "@/components/chat/chat-toolbar";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
 import type { CSVIntent, CSVIntentProposal, ExportCreateResponse, ExportSession, SQLPreparationResponse } from "./types";
 
 type Notice = { type: "error" | "info"; text: string } | null;
@@ -167,98 +178,104 @@ export function App() {
     exportMutation.isPending;
 
   const session = sessionQuery.data;
+  const hasMessages = Boolean(session?.messages.length);
+  const hasWorkflow =
+    Boolean(proposal || session?.approved_intent || sqlPrep || exportResult || advancedOpen);
 
   return (
-    <main className="min-h-screen bg-[#f6f7f4] text-[#17211b]">
-      <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-4">
-        <section className="flex min-h-[calc(100vh-2rem)] flex-1 flex-col">
-          <header className="flex flex-col gap-3 border-b border-[#d5d8cf] pb-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <div className="flex items-center gap-2">
-                <Database className="h-5 w-5" aria-hidden="true" />
-                <h1 className="text-xl font-semibold">CSV Chat</h1>
+    <main className="flex min-h-screen items-center justify-center bg-background p-4 text-foreground">
+      <div className="h-[min(620px,calc(100vh-4rem))] w-full max-w-xl overflow-hidden rounded-lg border bg-background shadow-sm">
+        <Chat>
+          <ChatHeader className="border-b">
+            <ChatHeaderAddon>
+              <Database aria-hidden="true" />
+            </ChatHeaderAddon>
+            <ChatHeaderMain className="min-w-0">
+              <div className="grid min-w-0">
+                <h1 className="truncate text-sm font-medium">CSV Chat</h1>
+                <p className="truncate text-xs text-muted-foreground">
+                  {session ? `Session ${session.id.slice(0, 8)}` : "Ask for a CSV from your database."}
+                </p>
               </div>
-              <p className="mt-1 text-sm text-[#647067]">{session ? `Session ${session.id.slice(0, 8)}` : "No active session"}</p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
               <Status value={session?.status ?? "not_started"} />
-              <button className="secondary-button" onClick={() => startSessionMutation.mutate()} disabled={busy}>
-                New session
-              </button>
-              <button className="secondary-button" onClick={() => scanMutation.mutate()} disabled={busy}>
-                Scan database
-              </button>
-            </div>
-          </header>
+            </ChatHeaderMain>
+            {session ? (
+              <ChatHeaderAddon>
+                <ChatHeaderButton onClick={() => startSessionMutation.mutate()} disabled={busy} aria-label="New session">
+                  <Plus aria-hidden="true" />
+                </ChatHeaderButton>
+              </ChatHeaderAddon>
+            ) : null}
+          </ChatHeader>
 
-          {notice ? <NoticeBanner notice={notice} /> : null}
+          {notice ? <div className="p-2 pb-0"><NoticeBanner notice={notice} /></div> : null}
 
-          <div className="grid flex-1 gap-4 py-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-            <div className="flex min-h-[520px] flex-col rounded-md border border-[#d5d8cf] bg-white">
-              <div className="flex-1 space-y-3 overflow-auto p-4">
-                {session?.messages.length ? (
-                  session.messages.map((item, index) => <MessageBubble key={`${item.role}-${index}`} role={item.role} content={item.content} />)
-                ) : (
-                  <div className="flex h-full items-center justify-center text-center text-sm text-[#647067]">
-                    Describe the CSV you need, then ask the model to propose a CSV plan.
-                  </div>
-                )}
-              </div>
-              <form className="border-t border-[#d5d8cf] p-3" onSubmit={handleSubmit}>
-                <label className="sr-only" htmlFor="csv-request">
-                  CSV request
-                </label>
-                <textarea
-                  id="csv-request"
-                  value={message}
-                  onChange={(event) => setMessage(event.target.value)}
-                  className="h-24 w-full resize-none rounded-md border border-[#c4c9bf] bg-[#fbfcfa] p-3 text-sm outline-none focus:border-[#287a52] focus:ring-2 focus:ring-[#287a52]/20"
-                  placeholder="Example: Export customer emails for active accounts created this quarter."
-                />
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button className="primary-button" type="submit" disabled={busy || !message.trim()}>
-                    <Send className="h-4 w-4" aria-hidden="true" />
-                    Send
-                  </button>
-                  <button className="secondary-button" type="button" onClick={() => proposeMutation.mutate()} disabled={busy || !sessionId}>
-                    {proposeMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Check className="h-4 w-4" aria-hidden="true" />}
-                    Propose CSV plan
-                  </button>
+          <ChatMessages className="px-2">
+            {session?.messages.length ? (
+              [...session.messages]
+                .reverse()
+                .map((item, index) => <MessageEvent key={`${item.role}-${session.messages.length - index}`} role={item.role} content={item.content} />)
+            ) : (
+              <div className="flex min-h-full items-center justify-center px-4 text-center">
+                <div className="max-w-sm">
+                  <p className="text-sm font-medium">What CSV do you need?</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Describe the export in plain language. You will approve the CSV plan before anything runs.
+                  </p>
                 </div>
-              </form>
-            </div>
+              </div>
+            )}
+          </ChatMessages>
 
-            <div className="space-y-4">
-              <PlanPanel
+          {hasWorkflow ? (
+            <div className="border-t px-3 py-3">
+              <WorkflowPanel
                 proposal={proposal}
                 approved={session?.approved_intent ?? null}
-                busy={busy}
-                onApprove={(intent) => approveMutation.mutate(intent)}
-              />
-              <ExportPanel
-                canPrepare={Boolean(session?.approved_intent)}
                 sqlPrep={sqlPrep}
                 exportResult={exportResult}
                 busy={busy}
+                canPrepare={Boolean(session?.approved_intent)}
+                advancedOpen={advancedOpen}
+                onApprove={(intent) => approveMutation.mutate(intent)}
                 onPrepare={() => prepareMutation.mutate()}
                 onExport={() => exportMutation.mutate()}
+                onAdvancedOpenChange={setAdvancedOpen}
               />
-              <section className="rounded-md border border-[#d5d8cf] bg-white">
-                <button
-                  className="flex w-full items-center justify-between px-3 py-3 text-left text-sm font-medium"
-                  onClick={() => setAdvancedOpen((open) => !open)}
-                >
-                  <span className="flex items-center gap-2">
-                    <Terminal className="h-4 w-4" aria-hidden="true" />
-                    Advanced
-                  </span>
-                  <span>{advancedOpen ? "Hide" : "Show"}</span>
-                </button>
-                {advancedOpen ? <Advanced sqlPrep={sqlPrep} /> : null}
-              </section>
             </div>
-          </div>
-        </section>
+          ) : null}
+
+          <form onSubmit={handleSubmit}>
+            <ChatToolbar>
+              <ChatToolbarAddon align="block-start" className="mb-2 flex-wrap">
+                {hasMessages ? (
+                  <Button variant="outline" size="sm" type="button" onClick={() => proposeMutation.mutate()} disabled={busy || !sessionId}>
+                    {proposeMutation.isPending ? <Loader2 data-icon="inline-start" className="animate-spin" aria-hidden="true" /> : <Check data-icon="inline-start" aria-hidden="true" />}
+                    Propose CSV plan
+                  </Button>
+                ) : null}
+                <Button variant="outline" size="sm" type="button" onClick={() => scanMutation.mutate()} disabled={busy}>
+                  <Database data-icon="inline-start" aria-hidden="true" />
+                  Scan database
+                </Button>
+              </ChatToolbarAddon>
+              <ChatToolbarTextarea
+                id="csv-request"
+                value={message}
+                onChange={(event) => setMessage(event.target.value)}
+                onSubmit={() => {
+                  if (message.trim()) sendMutation.mutate();
+                }}
+                placeholder="Export customer emails for active accounts created this quarter."
+              />
+              <ChatToolbarAddon align="inline-end">
+                <ChatToolbarButton type="submit" disabled={busy || !message.trim()} aria-label="Send">
+                  <Send aria-hidden="true" />
+                </ChatToolbarButton>
+              </ChatToolbarAddon>
+            </ChatToolbar>
+          </form>
+        </Chat>
       </div>
     </main>
   );
@@ -268,30 +285,104 @@ function Line({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="flex justify-between gap-3">
       <dt>{label}</dt>
-      <dd className="font-medium text-[#17211b]">{value}</dd>
+      <dd className="font-medium text-foreground">{value}</dd>
     </div>
   );
 }
 
 function Status({ value }: { value: string }) {
-  return <span className="w-fit rounded-md bg-[#e7ece6] px-2.5 py-1 text-sm font-medium text-[#334238]">{value.split("_").join(" ")}</span>;
+  return <Badge variant="secondary">{value.split("_").join(" ")}</Badge>;
 }
 
 function NoticeBanner({ notice }: { notice: Exclude<Notice, null> }) {
-  const className =
-    notice.type === "error"
-      ? "mt-4 rounded-md border border-[#d7aaa0] bg-[#fff4f1] px-3 py-2 text-sm text-[#7f2f1d]"
-      : "mt-4 rounded-md border border-[#b8cdbd] bg-[#eef7f0] px-3 py-2 text-sm text-[#235038]";
-  return <div className={className}>{notice.text}</div>;
+  return (
+    <Alert variant={notice.type === "error" ? "destructive" : "default"}>
+      <AlertDescription>{notice.text}</AlertDescription>
+    </Alert>
+  );
 }
 
-function MessageBubble({ role, content }: { role: string; content: string }) {
+function MessageEvent({ role, content }: { role: string; content: string }) {
   const own = role === "user";
   return (
-    <div className={`flex ${own ? "justify-end" : "justify-start"}`}>
-      <div className={`max-w-[78%] rounded-md px-3 py-2 text-sm ${own ? "bg-[#287a52] text-white" : "bg-[#edf0ea] text-[#17211b]"}`}>
-        {content}
-      </div>
+    <ChatEvent className={cn("py-2", own && "flex-row-reverse text-right")}>
+      <ChatEventAddon>
+        <ChatEventAvatar fallback={own ? "You" : "CSV"} />
+      </ChatEventAddon>
+      <ChatEventBody className={cn(own && "items-end")}>
+        <ChatEventTitle className={cn(own && "justify-end")}>
+          <span className="font-medium">{own ? "You" : "CSV Chat"}</span>
+        </ChatEventTitle>
+        <ChatEventContent className={cn("max-w-[34rem] rounded-md border bg-muted/40 px-3 py-2", own && "bg-primary text-primary-foreground")}>
+          {content}
+        </ChatEventContent>
+      </ChatEventBody>
+    </ChatEvent>
+  );
+}
+
+function WorkflowPanel({
+  proposal,
+  approved,
+  sqlPrep,
+  exportResult,
+  busy,
+  canPrepare,
+  advancedOpen,
+  onApprove,
+  onPrepare,
+  onExport,
+  onAdvancedOpenChange
+}: {
+  proposal: CSVIntentProposal | null;
+  approved: CSVIntent | null;
+  sqlPrep: SQLPreparationResponse | null;
+  exportResult: ExportCreateResponse | null;
+  busy: boolean;
+  canPrepare: boolean;
+  advancedOpen: boolean;
+  onApprove: (intent: CSVIntent) => void;
+  onPrepare: () => void;
+  onExport: () => void;
+  onAdvancedOpenChange: (open: boolean) => void;
+}) {
+  const hasPlan = Boolean(approved ?? proposal?.intent);
+  const hasExportControls = Boolean(canPrepare || sqlPrep || exportResult);
+  const hasAdvanced = Boolean(sqlPrep || advancedOpen);
+  return (
+    <div className="flex flex-col gap-3">
+      {hasPlan ? (
+        <>
+          <PlanPanel proposal={proposal} approved={approved} busy={busy} onApprove={onApprove} />
+          <Separator />
+        </>
+      ) : null}
+      {hasExportControls ? (
+        <ExportPanel
+          canPrepare={canPrepare}
+          sqlPrep={sqlPrep}
+          exportResult={exportResult}
+          busy={busy}
+          onPrepare={onPrepare}
+          onExport={onExport}
+        />
+      ) : null}
+      {hasAdvanced ? (
+        <Collapsible open={advancedOpen} onOpenChange={onAdvancedOpenChange} className="flex flex-col gap-3">
+          <CollapsibleTrigger
+            render={
+              <Button variant="ghost" className="w-fit px-0">
+                <Terminal data-icon="inline-start" aria-hidden="true" />
+                Advanced
+                <ChevronDown data-icon="inline-end" aria-hidden="true" />
+              </Button>
+            }
+          />
+          <CollapsibleContent>
+            <Advanced sqlPrep={sqlPrep} />
+          </CollapsibleContent>
+        </Collapsible>
+      ) : null}
     </div>
   );
 }
@@ -309,33 +400,36 @@ function PlanPanel({
 }) {
   const intent = approved ?? proposal?.intent ?? null;
   return (
-    <section className="rounded-md border border-[#d5d8cf] bg-white p-3">
-      <h3 className="text-base font-semibold">CSV plan</h3>
+    <section className="flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-sm font-medium">CSV plan</h2>
+        {approved ? <Badge variant="outline">approved</Badge> : null}
+      </div>
       {intent ? (
-        <div className="mt-3 space-y-3 text-sm">
+        <div className="flex flex-col gap-3 text-sm">
           <p className="font-medium">{intent.summary}</p>
-          <p className="text-[#4a544d]">{intent.row_meaning}</p>
+          <p className="text-muted-foreground">{intent.row_meaning}</p>
           <div>
-            <div className="mb-2 text-xs uppercase tracking-wide text-[#647067]">Fields</div>
-            <ul className="space-y-2">
+            <div className="mb-2 text-xs font-medium text-muted-foreground">Fields</div>
+            <ul className="flex flex-col gap-2">
               {intent.columns.map((column) => (
-                <li key={column.name} className="rounded-md bg-[#f6f7f4] p-2">
+                <li key={column.name} className="rounded-lg bg-muted/50 p-2">
                   <div className="font-medium">{column.name}</div>
-                  <div className="text-[#4a544d]">{column.description}</div>
+                  <div className="text-muted-foreground">{column.description}</div>
                 </li>
               ))}
             </ul>
           </div>
           <Line label="Max rows" value={intent.max_row_count} />
           {!approved ? (
-            <button className="primary-button w-full" onClick={() => onApprove(intent)} disabled={busy}>
-              <Check className="h-4 w-4" aria-hidden="true" />
+            <Button className="w-fit" onClick={() => onApprove(intent)} disabled={busy}>
+              <Check data-icon="inline-start" aria-hidden="true" />
               Approve plan
-            </button>
+            </Button>
           ) : null}
         </div>
       ) : (
-        <p className="mt-3 text-sm text-[#647067]">No CSV plan proposed yet.</p>
+        <p className="text-sm text-muted-foreground">No CSV plan proposed yet.</p>
       )}
     </section>
   );
@@ -357,21 +451,21 @@ function ExportPanel({
   onExport: () => void;
 }) {
   return (
-    <section className="rounded-md border border-[#d5d8cf] bg-white p-3">
-      <h3 className="text-base font-semibold">Export</h3>
-      <div className="mt-3 flex flex-col gap-2">
-        <button className="secondary-button" onClick={onPrepare} disabled={busy || !canPrepare}>
-          <Terminal className="h-4 w-4" aria-hidden="true" />
+    <section className="flex flex-col gap-3">
+      <h2 className="text-sm font-medium">Export</h2>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" onClick={onPrepare} disabled={busy || !canPrepare}>
+          <Terminal data-icon="inline-start" aria-hidden="true" />
           Prepare export
-        </button>
-        <button className="primary-button" onClick={onExport} disabled={busy || !sqlPrep?.valid}>
-          <Download className="h-4 w-4" aria-hidden="true" />
+        </Button>
+        <Button onClick={onExport} disabled={busy || !sqlPrep?.valid}>
+          <Download data-icon="inline-start" aria-hidden="true" />
           Run export
-        </button>
+        </Button>
       </div>
       {exportResult ? (
-        <a className="mt-3 flex items-center gap-2 rounded-md bg-[#e9f3ec] px-3 py-2 text-sm font-medium text-[#235038]" href={exportResult.download_url}>
-          <Download className="h-4 w-4" aria-hidden="true" />
+        <a className={cn(buttonVariants({ variant: "secondary" }), "w-fit")} href={exportResult.download_url}>
+          <Download data-icon="inline-start" aria-hidden="true" />
           Download CSV ({exportResult.row_count} rows)
         </a>
       ) : null}
@@ -380,16 +474,18 @@ function ExportPanel({
 }
 
 function Advanced({ sqlPrep }: { sqlPrep: SQLPreparationResponse | null }) {
-  if (!sqlPrep) return <div className="border-t border-[#d5d8cf] p-3 text-sm text-[#647067]">No SQL prepared yet.</div>;
+  if (!sqlPrep) return <div className="rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">No SQL prepared yet.</div>;
   return (
-    <div className="space-y-3 border-t border-[#d5d8cf] p-3 text-sm">
-      <pre className="max-h-52 overflow-auto rounded-md bg-[#17211b] p-3 text-[#eef7f0]">{sqlPrep.sql}</pre>
-      <div className="space-y-2">
+    <div className="flex flex-col gap-3 text-sm">
+      <pre className="max-h-52 overflow-auto rounded-lg bg-foreground p-3 text-background">{sqlPrep.sql}</pre>
+      <div className="flex flex-col gap-2">
         {sqlPrep.attempts.map((attempt, index) => (
-          <div key={`${attempt.sql}-${index}`} className="rounded-md bg-[#f6f7f4] p-2">
-            <div className="font-medium">Attempt {index + 1}: {attempt.valid ? "valid" : "invalid"}</div>
-            {attempt.errors.length ? <div className="mt-1 text-[#7f2f1d]">{attempt.errors.join("; ")}</div> : null}
-            {attempt.repair_changes.length ? <div className="mt-1 text-[#4a544d]">{attempt.repair_changes.join("; ")}</div> : null}
+          <div key={`${attempt.sql}-${index}`} className="rounded-lg bg-muted/50 p-2">
+            <div className="font-medium">
+              Attempt {index + 1}: {attempt.valid ? "valid" : "invalid"}
+            </div>
+            {attempt.errors.length ? <div className="mt-1 text-destructive">{attempt.errors.join("; ")}</div> : null}
+            {attempt.repair_changes.length ? <div className="mt-1 text-muted-foreground">{attempt.repair_changes.join("; ")}</div> : null}
           </div>
         ))}
       </div>

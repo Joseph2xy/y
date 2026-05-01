@@ -1,10 +1,9 @@
+@import "@fontsource-variable/geist";
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  color: #17211b;
-  background: #f6f7f4;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -23,12 +22,36 @@ input {
   font: inherit;
 }
 
-@layer components {
-  .primary-button {
-    @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-[#287a52] px-3 py-2 text-sm font-medium text-white transition hover:bg-[#236a48] disabled:cursor-not-allowed disabled:opacity-50;
+@layer base {
+  .theme {
+    --font-heading: var(--font-sans);
+    --font-sans: 'Geist Variable', sans-serif;
   }
-
-  .secondary-button {
-    @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-[#b9c1b6] bg-white px-3 py-2 text-sm font-medium text-[#24332a] transition hover:bg-[#eef1eb] disabled:cursor-not-allowed disabled:opacity-50;
+  :root {
+    --background: 222 18% 8%;
+    --foreground: 210 18% 96%;
+    --card: 222 16% 11%;
+    --card-foreground: 210 18% 96%;
+    --primary: 210 18% 96%;
+    --primary-foreground: 222 18% 8%;
+    --secondary: 222 13% 17%;
+    --secondary-foreground: 210 18% 96%;
+    --muted: 222 13% 17%;
+    --muted-foreground: 215 10% 66%;
+    --destructive: 0 72% 62%;
+    --destructive-foreground: 222 18% 8%;
+    --border: 222 12% 22%;
+    --input: 222 12% 22%;
+    --ring: 215 10% 68%;
+    --radius: 0.5rem;
+  }
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
   }
 }

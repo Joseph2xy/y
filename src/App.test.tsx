@@ -93,6 +93,12 @@ describe("App", () => {
             headers: { "Content-Type": "application/json" }
           });
         }
+        if (url === "/sessions/session123/messages") {
+          return new Response(JSON.stringify(sessionResponse), {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+          });
+        }
         if (url === "/sessions/session123/prepare-sql") {
           return new Response(
             JSON.stringify({
@@ -131,7 +137,8 @@ describe("App", () => {
     renderApp();
 
     expect(screen.getByRole("heading", { name: "CSV Chat" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Propose CSV plan/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Scan database/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Propose CSV plan/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/Prepare SQL/i)).not.toBeInTheDocument();
   });
 
@@ -139,7 +146,8 @@ describe("App", () => {
     const user = userEvent.setup();
     renderApp();
 
-    await user.click(screen.getByRole("button", { name: "New session" }));
+    await user.type(screen.getByPlaceholderText("Export customer emails for active accounts created this quarter."), "Export customer emails");
+    await user.click(screen.getByRole("button", { name: "Send" }));
     await user.click(await screen.findByRole("button", { name: "Prepare export" }));
 
     expect(await screen.findByText("Export query validated. Export is ready to run.")).toBeInTheDocument();
