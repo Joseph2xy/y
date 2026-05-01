@@ -92,3 +92,31 @@ def test_rejects_blocked_function() -> None:
 
     assert not result.valid
     assert "SQL references blocked function 'pg_sleep'." in result.errors
+
+
+def test_validates_output_columns_against_approved_intent() -> None:
+    result = validate_sql(
+        "select email, status from customers limit 10",
+        expected_columns=["email", "created_at"],
+    )
+
+    assert not result.valid
+    assert result.errors == [
+        "SQL output columns must exactly match the approved CSV columns: email, created_at."
+    ]
+
+
+def test_rejects_star_when_output_columns_are_required() -> None:
+    result = validate_sql("select * from customers limit 10", expected_columns=["email"])
+
+    assert not result.valid
+    assert result.errors == ["SQL must explicitly select the approved CSV columns; SELECT * is not allowed."]
+
+
+def test_allows_aliases_that_match_approved_intent_columns() -> None:
+    result = validate_sql(
+        "select lower(email) as email from customers limit 10",
+        expected_columns=["email"],
+    )
+
+    assert result.valid

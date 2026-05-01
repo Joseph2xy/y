@@ -43,11 +43,22 @@ def test_create_export_rejects_invalid_sql(tmp_path: Path) -> None:
         )
 
 
+def test_create_export_rejects_sql_with_wrong_output_columns(tmp_path: Path) -> None:
+    with pytest.raises(ExportError, match="output columns"):
+        create_export(
+            intent=intent(["email", "status"]),
+            sql="select email, created_at from customers limit 10",
+            policy=ContextPolicy(),
+            query_runner=lambda sql: [{"email": "a@example.com", "created_at": "2026-01-01"}],
+            export_dir=tmp_path,
+        )
+
+
 def test_create_export_rejects_missing_expected_column(tmp_path: Path) -> None:
     with pytest.raises(ExportError, match="missing expected CSV columns"):
         create_export(
             intent=intent(["email", "status"]),
-            sql="select email from customers limit 10",
+            sql="select email, status from customers limit 10",
             policy=ContextPolicy(),
             query_runner=lambda sql: [{"email": "a@example.com"}],
             export_dir=tmp_path,

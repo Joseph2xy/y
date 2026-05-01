@@ -18,8 +18,8 @@ The model helps interpret the request and propose SQL. The application owns cred
 6. Model proposes a user-facing CSV intent.
 7. User approves the CSV intent once.
 8. Model proposes SQL internally.
-9. App validates SQL.
-10. If invalid, app gives structured validation errors to the model for limited repair.
+9. App validates SQL, including output names against the approved CSV intent.
+10. If invalid, app gives structured validation errors to the model for limited server-side repair.
 11. App executes validated SQL with read-only limits.
 12. App validates result columns and basic values against the approved intent.
 13. App escapes formula-like CSV cells.
@@ -37,7 +37,7 @@ The one user-approved object should be understandable without SQL:
 - Assumptions.
 - Maximum row count.
 
-Normal users approve the CSV intent, not raw SQL. SQL belongs in Advanced/debug views.
+Normal users approve the CSV intent, not raw SQL. SQL belongs in Advanced/debug views and should stay hidden unless the user explicitly opens those views.
 
 ## Target Shape
 
@@ -154,6 +154,8 @@ Minimum checks:
 - selected output fields match the approved CSV intent.
 - SQL parses under Postgres dialect.
 
+Do not expose a public repair endpoint that accepts caller-supplied validation errors. Repair attempts should be driven by server-computed validation errors and bounded by the app.
+
 Use SQLGlot for parsing and AST inspection.
 
 ## Database Execution
@@ -198,7 +200,7 @@ carriage return
 
 The backend/export engine is trusted. The model is not.
 
-The model can read prepared schema/context, ask clarifying questions, propose a CSV intent, propose SQL, and repair SQL after structured validation errors.
+The model can read prepared schema/context, ask clarifying questions, propose a CSV intent, propose SQL, and repair SQL after server-computed structured validation errors.
 
 The model must not receive database credentials, directly connect to the database, directly execute SQL, receive raw database rows by default, or receive final CSV contents by default.
 

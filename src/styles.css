@@ -1,0 +1,34 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color: #17211b;
+  background: #f6f7f4;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+button,
+textarea,
+input {
+  font: inherit;
+}
+
+@layer components {
+  .primary-button {
+    @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-[#287a52] px-3 py-2 text-sm font-medium text-white transition hover:bg-[#236a48] disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .secondary-button {
+    @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-[#b9c1b6] bg-white px-3 py-2 text-sm font-medium text-[#24332a] transition hover:bg-[#eef1eb] disabled:cursor-not-allowed disabled:opacity-50;
+  }
+}

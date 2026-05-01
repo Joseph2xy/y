@@ -4,10 +4,9 @@ from app.context_store import ensure_context_files
 from app.main import app
 
 
-def test_create_export_requires_database_url(tmp_path, monkeypatch) -> None:
+def test_standalone_export_endpoint_is_not_available(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     ensure_context_files(tmp_path / "data" / "context")
-    monkeypatch.delenv("DATABASE_URL", raising=False)
     client = TestClient(app)
 
     response = client.post(
@@ -23,8 +22,7 @@ def test_create_export_requires_database_url(tmp_path, monkeypatch) -> None:
         },
     )
 
-    assert response.status_code == 400
-    assert response.json()["detail"] == "DATABASE_URL is not configured."
+    assert response.status_code == 404
 
 
 def test_download_export_returns_404_for_missing_file(tmp_path, monkeypatch) -> None:

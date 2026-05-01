@@ -4,10 +4,10 @@ These should be decided with evidence, not guessed too early.
 
 ## Product
 
-- Should users be allowed to see/edit SQL in Advanced mode before execution?
+- Should users be allowed to edit SQL in Advanced mode before execution? Current implementation allows viewing SQL only after the user opens Advanced; editing is not implemented.
 - Should the app support uploaded example CSVs in V0?
 - Should context setup include admin-written synonyms and common joins from day one?
-- How many SQL repair attempts are useful before returning to the CSV intent?
+- How many SQL repair attempts are useful before returning to the CSV intent? Current implementation uses two server-side repair attempts as a starting point.
 - Should exports expire automatically in V0?
 
 ## Safety
@@ -26,10 +26,10 @@ These should be decided with evidence, not guessed too early.
 
 ## Architecture
 
-- Filesystem JSON or SQLite for the first implementation?
+- Filesystem JSON or SQLite for the first implementation? Current implementation uses filesystem JSON.
 - Is SSE needed immediately, or can request/response plus polling work for V0?
 - When does a separate background job become justified?
-- Should the frontend and backend live in one repo from day one?
+- Should the frontend and backend live in one repo from day one? Current implementation keeps both in this repo.
 
 ## Query Strategy
 

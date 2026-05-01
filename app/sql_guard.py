@@ -38,7 +38,11 @@ def sql_policy_from_context(policy: ContextPolicy) -> SQLPolicy:
     )
 
 
-def validate_sql(sql: str, policy: SQLPolicy | None = None) -> SQLValidationResult:
+def validate_sql(
+    sql: str,
+    policy: SQLPolicy | None = None,
+    expected_columns: list[str] | None = None,
+) -> SQLValidationResult:
     policy = policy or SQLPolicy()
     errors: list[str] = []
 
@@ -60,6 +64,8 @@ def validate_sql(sql: str, policy: SQLPolicy | None = None) -> SQLValidationResu
     _check_blocked_tables(statement, policy, errors)
     _check_blocked_columns(statement, policy, errors)
     _check_blocked_functions(statement, policy, errors)
+    if expected_columns is not None:
+        _check_output_columns(statement, expected_columns, errors)
 
     return SQLValidationResult(not errors, errors)
 
@@ -140,6 +146,32 @@ def _check_blocked_functions(statement: exp.Expression, policy: SQLPolicy, error
         function_name = _function_name(function)
         if function_name in blocked_functions:
             errors.append(f"SQL references blocked function '{function_name}'.")
+
+
+def _check_output_columns(
+    statement: exp.Expression,
+    expected_columns: list[str],
+    errors: list[str],
+) -> None:
+    if not isinstance(statement, exp.Select):
+        return
+
+    if any(isinstance(expression, exp.Star) or expression.find(exp.Star) for expression in statement.expressions):
+        errors.append("SQL must explicitly select the approved CSV columns; SELECT * is not allowed.")
+        return
+
+    output_columns = [_normalize_part(expression.alias_or_name) for expression in statement.expressions]
+    if any(not column for column in output_columns):
+        errors.append("SQL selected fields must have explicit output names.")
+        return
+
+    normalized_expected_columns = [_normalize_part(column) for column in expected_columns]
+    if output_columns != normalized_expected_columns:
+        errors.append(
+            "SQL output columns must exactly match the approved CSV columns: "
+            + ", ".join(expected_columns)
+            + "."
+        )
 
 
 def _function_name(function: exp.Func) -> str:

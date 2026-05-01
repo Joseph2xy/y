@@ -26,11 +26,11 @@ def create_export(
     query_runner: QueryRunner,
     export_dir: Path = EXPORT_DIR,
 ) -> ExportCreateResponse:
-    sql_result = validate_sql(sql, sql_policy_from_context(policy))
+    expected_columns = [column.name for column in intent.columns]
+    sql_result = validate_sql(sql, sql_policy_from_context(policy), expected_columns=expected_columns)
     if not sql_result.valid:
         raise ExportError("SQL validation failed: " + "; ".join(sql_result.errors))
 
-    expected_columns = [column.name for column in intent.columns]
     max_rows = min(intent.max_row_count, policy.max_row_count)
     export_id = uuid4().hex
     export_path = export_dir / f"{export_id}.csv"

@@ -33,12 +33,15 @@ There is no separate worker, queue, scheduler, or approval workflow in this vers
 3. User asks for a CSV.
 4. Model proposes a CSV intent.
 5. User approves the intent.
-6. Model proposes SQL.
-7. App validates the SQL.
-8. App executes with read-only settings and limits.
-9. App validates and writes the CSV.
+6. App asks the model for an export query.
+7. App validates the query, including output fields against the approved CSV intent.
+8. If needed, the app gives structured validation errors back to the model for a limited repair loop.
+9. App executes with read-only settings and limits.
+10. App validates and writes the CSV.
 
 ## Local Setup
+
+Backend:
 
 ```bash
 python3 -m venv .venv
@@ -54,3 +57,36 @@ DATABASE_URL='postgresql://readonly:password@localhost:5432/appdb' \
 ```
 
 `DATABASE_URL` should point to a read-only Postgres user.
+
+Model endpoints also use:
+
+```bash
+MODEL_NAME='openai/gpt-4.1-mini'
+MODEL_API_KEY='...'
+# Optional:
+MODEL_BASE_URL='https://...'
+MODEL_TEMPERATURE='0'
+```
+
+Frontend:
+
+```bash
+pnpm install
+pnpm test
+pnpm build
+pnpm dev
+```
+
+The Vite dev server proxies API calls to `http://127.0.0.1:8000`.
+
+On WSL, use native Linux Node and pnpm. Avoid the Windows `node.exe`/npm shims from `/mnt/c/...`; package install scripts can fail on UNC paths. On Fedora WSL, this works:
+
+```bash
+sudo dnf install -y nodejs pnpm
+```
+
+## Current Status
+
+The current handoff and next steps live in `docs/implementation-status.md`.
+
+As of the latest update, the backend model harness, bounded SQL preparation/repair loop, and first minimal React/Vite frontend are implemented and tested. The next milestone is a real end-to-end local demo against Postgres and a configured model provider.

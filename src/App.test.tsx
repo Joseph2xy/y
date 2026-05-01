@@ -1,0 +1,152 @@
+import { cleanup, render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { App } from "./App";
+
+const contextResponse = {
+  context: "# Test context",
+  schema: {
+    tables: [
+      {
+        schema_name: "public",
+        table_name: "customers",
+        table_type: "BASE TABLE",
+        columns: [
+          {
+            name: "email",
+            data_type: "text",
+            is_nullable: false,
+            ordinal_position: 1
+          }
+        ]
+      }
+    ]
+  },
+  policy: {
+    blocked_schemas: [],
+    blocked_tables: [],
+    blocked_columns: [],
+    blocked_functions: ["pg_sleep"],
+    max_row_count: 1000,
+    max_export_bytes: 50000000,
+    statement_timeout_ms: 30000,
+    lock_timeout_ms: 5000
+  }
+};
+
+const approvedIntent = {
+  summary: "Customer export",
+  row_meaning: "One row per customer",
+  columns: [{ name: "email", description: "Email" }],
+  filters: [],
+  derived_fields: [],
+  assumptions: [],
+  max_row_count: 10
+};
+
+const sessionResponse = {
+  id: "session123",
+  status: "generating_sql",
+  messages: [],
+  approved_intent: approvedIntent,
+  export_id: null,
+  last_error: null
+};
+
+function renderApp() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false }
+    }
+  });
+
+  render(
+    <QueryClientProvider client={queryClient}>
+      <App />
+    </QueryClientProvider>
+  );
+}
+
+describe("App", () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url === "/context") {
+          return new Response(JSON.stringify(contextResponse), {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+          });
+        }
+        if (url === "/sessions") {
+          return new Response(JSON.stringify({ session: sessionResponse }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+          });
+        }
+        if (url === "/sessions/session123") {
+          return new Response(JSON.stringify(sessionResponse), {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+          });
+        }
+        if (url === "/sessions/session123/prepare-sql") {
+          return new Response(
+            JSON.stringify({
+              sql: "select email from customers limit 10",
+              valid: true,
+              errors: [],
+              attempts: [
+                {
+                  sql: "select email from customers limit 10",
+                  valid: true,
+                  errors: [],
+                  repair_changes: []
+                }
+              ]
+            }),
+            {
+              status: 200,
+              headers: { "Content-Type": "application/json" }
+            }
+          );
+        }
+        return new Response(JSON.stringify({ detail: "Not found" }), {
+          status: 404,
+          headers: { "Content-Type": "application/json" }
+        });
+      })
+    );
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it("renders the main CSV workflow", async () => {
+    renderApp();
+
+    expect(screen.getByRole("heading", { name: "CSV Chat" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Propose CSV plan/i })).toBeInTheDocument();
+    expect(screen.queryByText(/Prepare SQL/i)).not.toBeInTheDocument();
+  });
+
+  it("keeps prepared SQL hidden until Advanced is opened", async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    await user.click(screen.getByRole("button", { name: "New session" }));
+    await user.click(await screen.findByRole("button", { name: "Prepare export" }));
+
+    expect(await screen.findByText("Export query validated. Export is ready to run.")).toBeInTheDocument();
+    expect(screen.queryByText("select email from customers limit 10")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Advanced/i }));
+
+    expect(screen.getByText("select email from customers limit 10")).toBeInTheDocument();
+  });
+});

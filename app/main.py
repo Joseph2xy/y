@@ -1,27 +1,39 @@
 import os
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 
 from app.context_store import ContextStoreError, load_context, save_scanned_schema, update_context
 from app.db import read_only_query_runner
 from app.export_service import ExportError, create_export, export_path
+from app.model_provider import LiteLLMModelProvider, ModelProviderError, model_config_from_env
 from app.models import (
+    CSVIntentProposal,
+    ClarificationResponse,
     ContextDocument,
     ContextScanResponse,
     ContextUpdate,
     ExportSession,
-    ExportCreateRequest,
     ExportCreateResponse,
     HealthResponse,
     SessionCreateResponse,
     SessionExportRequest,
     SessionIntentApprovalRequest,
     SessionMessageRequest,
+    SQLProposal,
+    SQLPreparationResponse,
     SQLValidationRequest,
     SQLValidationResponse,
 )
 from app.schema_scan import scan_postgres_schema
+from app.session_model_service import (
+    SessionModelError,
+    StructuredModelProvider,
+    ask_clarification,
+    prepare_sql,
+    propose_csv_intent,
+    propose_sql,
+)
 from app.session_store import (
     SessionStoreError,
     add_message,
@@ -38,6 +50,13 @@ app = FastAPI(
     version="0.1.0",
     description="Generate validated CSV exports from a connected Postgres database.",
 )
+
+
+def get_model_provider() -> StructuredModelProvider:
+    try:
+        return LiteLLMModelProvider(model_config_from_env(os.environ))
+    except (ModelProviderError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -113,6 +132,58 @@ def approve_session_intent_endpoint(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
+@app.post("/sessions/{session_id}/clarify", response_model=ClarificationResponse)
+def clarify_session_endpoint(
+    session_id: str,
+    model_provider: StructuredModelProvider = Depends(get_model_provider),
+) -> ClarificationResponse:
+    try:
+        return ask_clarification(session_id=session_id, model_provider=model_provider)
+    except (SessionStoreError, ContextStoreError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except (SessionModelError, ModelProviderError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/sessions/{session_id}/propose-intent", response_model=CSVIntentProposal)
+def propose_session_intent_endpoint(
+    session_id: str,
+    model_provider: StructuredModelProvider = Depends(get_model_provider),
+) -> CSVIntentProposal:
+    try:
+        return propose_csv_intent(session_id=session_id, model_provider=model_provider)
+    except (SessionStoreError, ContextStoreError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except (SessionModelError, ModelProviderError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/sessions/{session_id}/propose-sql", response_model=SQLProposal)
+def propose_session_sql_endpoint(
+    session_id: str,
+    model_provider: StructuredModelProvider = Depends(get_model_provider),
+) -> SQLProposal:
+    try:
+        return propose_sql(session_id=session_id, model_provider=model_provider)
+    except (SessionStoreError, ContextStoreError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except (SessionModelError, ModelProviderError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/sessions/{session_id}/prepare-sql", response_model=SQLPreparationResponse)
+def prepare_session_sql_endpoint(
+    session_id: str,
+    model_provider: StructuredModelProvider = Depends(get_model_provider),
+) -> SQLPreparationResponse:
+    try:
+        return prepare_sql(session_id=session_id, model_provider=model_provider)
+    except (SessionStoreError, ContextStoreError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except (SessionModelError, ModelProviderError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @app.post("/sessions/{session_id}/export", response_model=ExportCreateResponse)
 def create_session_export_endpoint(
     session_id: str,
@@ -159,31 +230,6 @@ def get_session_endpoint(session_id: str) -> ExportSession:
         return load_session(session_id)
     except SessionStoreError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-
-
-@app.post("/exports", response_model=ExportCreateResponse)
-def create_export_endpoint(request: ExportCreateRequest) -> ExportCreateResponse:
-    database_url = os.environ.get("DATABASE_URL")
-    if not database_url:
-        raise HTTPException(status_code=400, detail="DATABASE_URL is not configured.")
-
-    try:
-        document = load_context()
-        runner = read_only_query_runner(
-            database_url,
-            statement_timeout_ms=document.policy.statement_timeout_ms,
-            lock_timeout_ms=document.policy.lock_timeout_ms,
-        )
-        return create_export(
-            intent=request.intent,
-            sql=request.sql,
-            policy=document.policy,
-            query_runner=runner,
-        )
-    except ContextStoreError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ExportError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/exports/{export_id}/download")

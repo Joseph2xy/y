@@ -66,11 +66,6 @@ class SQLValidationResponse(BaseModel):
     errors: list[str] = Field(default_factory=list)
 
 
-class ExportCreateRequest(BaseModel):
-    intent: "CSVIntent"
-    sql: str = Field(min_length=1)
-
-
 class ExportCreateResponse(BaseModel):
     export_id: str
     row_count: int
@@ -133,3 +128,49 @@ class ExportSession(BaseModel):
     approved_intent: CSVIntent | None = None
     export_id: str | None = None
     last_error: str | None = None
+
+
+class ModelConfig(BaseModel):
+    model: str = Field(min_length=1)
+    api_key: str | None = None
+    base_url: str | None = None
+    temperature: float = Field(default=0, ge=0, le=2)
+
+
+class ModelMessage(BaseModel):
+    role: str = Field(pattern="^(system|user|assistant)$")
+    content: str = Field(min_length=1)
+
+
+class ClarificationResponse(BaseModel):
+    message: str = Field(min_length=1)
+    questions: list[str] = Field(default_factory=list)
+
+
+class CSVIntentProposal(BaseModel):
+    message: str = Field(min_length=1)
+    intent: CSVIntent
+
+
+class SQLProposal(BaseModel):
+    sql: str = Field(min_length=1)
+    notes: list[str] = Field(default_factory=list)
+
+
+class SQLRepairProposal(BaseModel):
+    sql: str = Field(min_length=1)
+    changes: list[str] = Field(default_factory=list)
+
+
+class SQLValidationAttempt(BaseModel):
+    sql: str = Field(min_length=1)
+    valid: bool
+    errors: list[str] = Field(default_factory=list)
+    repair_changes: list[str] = Field(default_factory=list)
+
+
+class SQLPreparationResponse(BaseModel):
+    sql: str = Field(min_length=1)
+    valid: bool
+    errors: list[str] = Field(default_factory=list)
+    attempts: list[SQLValidationAttempt] = Field(default_factory=list)
