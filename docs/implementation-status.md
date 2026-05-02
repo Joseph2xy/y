@@ -56,8 +56,8 @@ pnpm build
 ```
 
 Last known focused backend review result: `48 passed` on 2026-05-01.
-Last known full-suite result: `71 passed` on 2026-05-02 with SQLGlot 30.
-Last known frontend result: `pnpm test` passed with `2 passed`; `pnpm build` passed on 2026-05-02 with Vite 8, Tailwind CSS 4, TypeScript 6, and Vitest 4.
+Last known full-suite result: `71 passed` on 2026-05-02 with pytest 9, FastAPI 0.136, LiteLLM 1.83, psycopg 3.3, and SQLGlot 30.6.
+Last known frontend result: `pnpm test` passed with `2 passed`; `pnpm build` passed on 2026-05-02 with Vite 8, Tailwind CSS 4, TypeScript 6, Vitest 4, React 19.2, and current Testing Library packages.
 
 Frontend visual review:
 
@@ -117,12 +117,12 @@ The frontend currently calls the explicit debug-friendly endpoints. SQL and vali
 Current frontend UX:
 
 - Dark mode by default.
-- Centered compact chat card.
-- Initial state shows only the header/status, a plain prompt, the composer, and a small `Scan database` action.
+- Minimal centered single-column chat flow.
+- Initial state shows only the header/status, a compact three-step indicator, a plain prompt, the composer, and a small `Scan database` action.
 - Sending a message creates a session automatically if needed.
 - `Propose CSV plan` appears only after there is a message/session.
-- CSV plan, export controls, and Advanced/debug details appear only when relevant.
-- No dashboard shell, sidebar, upload panel, or always-visible export/debug section.
+- CSV plan, export controls, and Advanced/debug details appear centered below the composer only when relevant.
+- No dashboard shell, sidebar/right rail, upload panel, prompt suggestion cards, or always-visible export/debug section.
 
 ## Safety Already In Place
 
@@ -161,12 +161,13 @@ Frontend local state:
 
 - Native Linux Node and pnpm were installed in Fedora WSL with `sudo dnf install -y nodejs pnpm`.
 - Avoid Windows Node/npm shims from `/mnt/c/...`; package install scripts can fail on UNC paths.
-- `packageManager` is pinned to `pnpm@10.33.0`.
+- `packageManager` is pinned to `pnpm@10.33.2`.
 - `vitest` is pinned at `^3.2.4` so frontend test tooling uses the same Vite major version as the app.
 - shadcn is configured with `components.json`, `@/` import aliases, Tailwind v4 theme tokens, and Vite/Vitest alias config.
 - The frontend was migrated to the shadcn preset `b1YnRGLNA` on 2026-05-02: nova style, zinc base, blue theme, Inter font, lucide icons.
 - The community `shadcn-chat` registry components were removed. Keep the chat surface composed from official shadcn primitives in `src/components/ui` unless a concrete need appears.
 - See `docs/dependency-audit.md` for the latest dependency and framework review.
+- Latest dependency refresh on 2026-05-02 raised direct backend/frontend tooling lower bounds to current resolved versions. Pydantic is intentionally held at `>=2.12.5` because LiteLLM 1.83.7 pins `pydantic==2.12.5`; do not force Pydantic 2.13 until LiteLLM relaxes that pin.
 - `agent-browser install` and `agent-browser install --with-deps` were run so browser screenshots work in this Fedora WSL environment. This installed managed Chrome plus Linux browser dependencies.
 - CodeRabbit CLI is installed at `/home/Joseph/.local/bin/coderabbit` and authenticated for agent review.
 
