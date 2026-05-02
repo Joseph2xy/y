@@ -91,12 +91,15 @@ export function App() {
   const proposeMutation = useMutation({
     mutationFn: async () => {
       const session = await ensureSession();
-      return proposeIntent(session.id);
+      return { sessionId: session.id, proposal: await proposeIntent(session.id) };
     },
-    onSuccess: (nextProposal) => {
+    onSuccess: ({ sessionId: nextSessionId, proposal: nextProposal }) => {
+      setSessionId(nextSessionId);
       setProposal(nextProposal);
+      setSqlPrep(null);
+      setExportResult(null);
       setNotice(null);
-      void queryClient.invalidateQueries({ queryKey: ["session", sessionId] });
+      void queryClient.invalidateQueries({ queryKey: ["session", nextSessionId] });
     },
     onError: showError
   });

@@ -1,101 +1,59 @@
-// Temporary hand-maintained API types. Replace with OpenAPI-generated types once
-// the backend endpoint shape settles.
-export type ChatRole = "user" | "assistant" | "system";
+import type { components } from "./api-types";
 
-export type ChatMessage = {
-  role: ChatRole;
-  content: string;
-};
+type Schema = components["schemas"];
+type WithRequired<T, K extends keyof T> = T & Required<Pick<T, K>>;
 
-export type CSVColumnIntent = {
-  name: string;
-  description: string;
-  source_hint?: string | null;
-};
+export type ChatMessage = Schema["ChatMessage"];
 
-export type CSVIntent = {
-  summary: string;
-  row_meaning: string;
-  columns: CSVColumnIntent[];
-  filters: string[];
-  derived_fields: string[];
-  assumptions: string[];
-  max_row_count: number;
-};
+export type CSVColumnIntent = Schema["CSVColumnIntent"];
 
-export type ExportSession = {
-  id: string;
-  status:
-    | "drafting_intent"
-    | "awaiting_approval"
-    | "generating_sql"
-    | "validating_sql"
-    | "exporting"
-    | "complete"
-    | "failed";
-  messages: ChatMessage[];
+export type CSVIntent = WithRequired<
+  Schema["CSVIntent"],
+  "filters" | "derived_fields" | "assumptions"
+>;
+
+export type ExportSession = Omit<
+  WithRequired<Schema["ExportSession"], "approved_intent" | "export_id" | "last_error" | "messages">,
+  "approved_intent" | "messages"
+> & {
   approved_intent: CSVIntent | null;
-  export_id: string | null;
-  last_error: string | null;
+  messages: ChatMessage[];
 };
 
-export type ContextPolicy = {
-  blocked_schemas: string[];
-  blocked_tables: string[];
-  blocked_columns: string[];
-  blocked_functions: string[];
-  max_row_count: number;
-  max_export_bytes: number;
-  statement_timeout_ms: number;
-  lock_timeout_ms: number;
-};
+export type ContextPolicy = WithRequired<
+  Schema["ContextPolicy"],
+  "blocked_schemas" | "blocked_tables" | "blocked_columns" | "blocked_functions"
+>;
 
-export type SchemaColumn = {
-  name: string;
-  data_type: string;
-  is_nullable: boolean;
-  ordinal_position: number;
-  default?: string | null;
-};
+export type SchemaColumn = Schema["SchemaColumn"];
 
-export type SchemaTable = {
-  schema_name: string;
-  table_name: string;
-  table_type: string;
+export type SchemaTable = Omit<WithRequired<Schema["SchemaTable"], "columns">, "columns"> & {
   columns: SchemaColumn[];
 };
 
-export type ContextDocument = {
-  context: string;
-  schema: {
-    tables: SchemaTable[];
-  };
-  policy: ContextPolicy;
+export type SchemaContext = Omit<WithRequired<Schema["SchemaContext"], "tables">, "tables"> & {
+  tables: SchemaTable[];
 };
 
-export type CSVIntentProposal = {
-  message: string;
+export type ContextDocument = Omit<Schema["ContextDocument"], "policy" | "schema"> & {
+  policy: ContextPolicy;
+  schema: SchemaContext;
+};
+
+export type CSVIntentProposal = Omit<Schema["CSVIntentProposal"], "intent"> & {
   intent: CSVIntent;
 };
 
-export type SQLValidationAttempt = {
-  sql: string;
-  valid: boolean;
-  errors: string[];
-  repair_changes: string[];
-};
+export type SQLValidationAttempt = WithRequired<
+  Schema["SQLValidationAttempt"],
+  "errors" | "repair_changes"
+>;
 
-export type SQLPreparationResponse = {
-  sql: string;
-  valid: boolean;
-  errors: string[];
+export type SQLPreparationResponse = Omit<
+  WithRequired<Schema["SQLPreparationResponse"], "attempts" | "errors">,
+  "attempts"
+> & {
   attempts: SQLValidationAttempt[];
 };
 
-export type ExportCreateResponse = {
-  export_id: string;
-  row_count: number;
-  byte_count: number;
-  columns: string[];
-  download_url: string;
-};
+export type ExportCreateResponse = Schema["ExportCreateResponse"];

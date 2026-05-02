@@ -5,6 +5,7 @@ __pycache__/
 node_modules/
 dist/
 *.tsbuildinfo
+.openapi/
 
 data/exports/*
 !data/exports/.gitkeep

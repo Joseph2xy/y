@@ -23,8 +23,11 @@ Implemented modules:
 - `app/prompt_builder.py`: prompt builders for CSV intent, SQL generation, and SQL repair.
 - `app/session_model_service.py`: session-level model orchestration helpers with approval gating and limited SQL repair.
 - `src/`: React/Vite frontend for the chat/session flow, database scan action, CSV plan approval, SQL preparation, export, and Advanced/debug traces.
+- `src/api-types.ts`: generated OpenAPI TypeScript schema types.
+- `src/types.ts`: small frontend-friendly aliases over generated API schema types.
 - `src/components/ui/`: shadcn/ui primitives installed through the shadcn CLI.
 - `tools/mock_openai_server.py`: tiny local OpenAI-compatible mock model server for deterministic local demos when external model credentials are not configured.
+- `tools/export_openapi.py`: emits the FastAPI OpenAPI schema for frontend type generation.
 
 Implemented endpoints:
 
@@ -51,12 +54,13 @@ Current verification:
 ```bash
 .venv/bin/python -m pytest -q
 .venv/bin/python -m compileall -q app tests
+pnpm generate:api-types
 pnpm test
 pnpm build
 ```
 
 Last known focused backend review result: `48 passed` on 2026-05-01.
-Last known full-suite result: `71 passed` on 2026-05-02 with pytest 9, FastAPI 0.136, LiteLLM 1.83, psycopg 3.3, and SQLGlot 30.6.
+Last known full-suite result: `89 passed` on 2026-05-02 with pytest 9, FastAPI 0.136, LiteLLM 1.83, psycopg 3.3, and SQLGlot 30.6.
 Last known frontend result: `pnpm test` passed with `2 passed`; `pnpm build` passed on 2026-05-02 with Vite 8, Tailwind CSS 4, TypeScript 6, Vitest 4, React 19.2, and current Testing Library packages.
 
 Frontend visual review:
@@ -135,13 +139,14 @@ Current frontend UX:
 - SQL validation happens before export execution.
 - SQL must parse as one Postgres statement.
 - SQL must be `SELECT`.
+- `SELECT ... INTO` is rejected.
 - SQL must include an integer `LIMIT`.
 - Policy can block schemas, tables, columns, and functions.
-- Default blocked function includes `pg_sleep`.
+- Default blocked functions include `pg_sleep` and `set_config`.
 - Query execution uses psycopg with read-only transaction and local timeouts.
 - Export enforces row and byte limits.
 - Export checks that result rows contain the approved CSV intent columns.
-- CSV writer escapes formula-like string cells starting with `=`, `+`, `-`, `@`, tab, or carriage return.
+- CSV writer escapes formula-like string cells starting with `=`, `+`, `-`, `@`, tab, carriage return, or leading whitespace followed by a formula prefix.
 - Final CSV is served by export id only.
 
 ## Important Local State
@@ -185,18 +190,16 @@ The first end-to-end local demo path works.
 
 Recommended next scope:
 
-1. Add OpenAPI-generated frontend types after confirming no immediate endpoint shape changes are needed.
-2. Add an integration test or scripted smoke test for the local Postgres demo path.
-3. Decide whether request/response is enough for V0 progress or whether SSE is needed.
-4. Improve audit/debug trace persistence if the demo reveals a need.
-5. Keep SQL and validation traces behind Advanced/debug UI.
+1. Add an integration test or scripted smoke test for the local Postgres demo path.
+2. Decide whether request/response is enough for V0 progress or whether SSE is needed.
+3. Improve audit/debug trace persistence if the demo reveals a need.
+4. Keep SQL and validation traces behind Advanced/debug UI.
 
 Do not add a worker, queue, scheduling, frontend dashboard shell, LangChain, or LlamaIndex for this step.
 
 ## Left For V0
 
 - SSE or polling decision for progress/events.
-- OpenAPI-generated frontend types.
 - Integration test against a real or containerized Postgres database.
 - Better audit/debug trace storage.
 - Decision on export expiry.

@@ -1,10 +1,12 @@
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
+import app.main as main
 from app.context_store import ensure_context_files
 from app.main import app
 from app.models import CSVIntentProposal, ClarificationResponse, SQLProposal, SQLRepairProposal
 from app.main import get_model_provider
+from app.session_store import load_session
 
 
 def intent_payload() -> dict:
@@ -71,6 +73,95 @@ def test_session_export_requires_database_url(tmp_path, monkeypatch) -> None:
 
     assert response.status_code == 400
     assert response.json()["detail"] == "DATABASE_URL is not configured."
+
+
+def test_session_export_happy_path_marks_complete_and_escapes_csv(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("DATABASE_URL", "postgresql://readonly:password@localhost:5432/appdb")
+    ensure_context_files()
+    monkeypatch.setattr(
+        main,
+        "read_only_query_runner",
+        lambda *args, **kwargs: lambda sql: [{"email": "a@example.com", "note": " =1+1"}],
+    )
+    client = TestClient(app)
+    session_id = client.post("/sessions").json()["session"]["id"]
+    client.post(
+        f"/sessions/{session_id}/approve-intent",
+        json={
+            "intent": {
+                "summary": "Customer export",
+                "row_meaning": "One row per customer",
+                "columns": [
+                    {"name": "email", "description": "Email"},
+                    {"name": "note", "description": "Note"},
+                ],
+                "max_row_count": 10,
+            }
+        },
+    )
+
+    response = client.post(
+        f"/sessions/{session_id}/export",
+        json={"sql": "select email, note from customers limit 10"},
+    )
+
+    body = response.json()
+    assert response.status_code == 200
+    assert body["row_count"] == 1
+    assert load_session(session_id).status == "complete"
+    assert (tmp_path / "data" / "exports" / f"{body['export_id']}.csv").read_text(encoding="utf-8") == (
+        "email,note\na@example.com,' =1+1\n"
+    )
+
+
+def test_session_export_invalid_sql_marks_failed_and_writes_no_export(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("DATABASE_URL", "postgresql://readonly:password@localhost:5432/appdb")
+    ensure_context_files()
+    monkeypatch.setattr(main, "read_only_query_runner", lambda *args, **kwargs: lambda sql: [])
+    client = TestClient(app)
+    session_id = client.post("/sessions").json()["session"]["id"]
+    client.post(f"/sessions/{session_id}/approve-intent", json={"intent": intent_payload()})
+
+    response = client.post(
+        f"/sessions/{session_id}/export",
+        json={"sql": "delete from customers"},
+    )
+
+    assert response.status_code == 400
+    session = load_session(session_id)
+    assert session.status == "failed"
+    assert session.last_error and session.last_error.startswith("SQL validation failed:")
+    assert not (tmp_path / "data" / "exports").exists()
+
+
+def test_session_export_unexpected_error_marks_failed(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("DATABASE_URL", "postgresql://readonly:password@localhost:5432/appdb")
+    ensure_context_files()
+
+    def broken_runner(*args, **kwargs):
+        def run(sql: str):
+            raise OSError("disk full")
+            yield {}
+
+        return run
+
+    monkeypatch.setattr(main, "read_only_query_runner", broken_runner)
+    client = TestClient(app, raise_server_exceptions=False)
+    session_id = client.post("/sessions").json()["session"]["id"]
+    client.post(f"/sessions/{session_id}/approve-intent", json={"intent": intent_payload()})
+
+    response = client.post(
+        f"/sessions/{session_id}/export",
+        json={"sql": "select email from customers limit 10"},
+    )
+
+    assert response.status_code == 500
+    session = load_session(session_id)
+    assert session.status == "failed"
+    assert session.last_error == "disk full"
 
 
 def test_get_missing_session_returns_404(tmp_path, monkeypatch) -> None:
@@ -164,6 +255,22 @@ def test_propose_sql_endpoint_requires_approved_intent(tmp_path, monkeypatch) ->
 
     try:
         response = client.post(f"/sessions/{session_id}/propose-sql")
+    finally:
+        clear_overrides()
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "CSV intent must be approved before SQL generation."
+
+
+def test_prepare_sql_endpoint_requires_approved_intent(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    ensure_context_files()
+    override_provider(SQLProposal(sql="select email from customers limit 10"))
+    client = TestClient(app)
+    session_id = client.post("/sessions").json()["session"]["id"]
+
+    try:
+        response = client.post(f"/sessions/{session_id}/prepare-sql")
     finally:
         clear_overrides()
 

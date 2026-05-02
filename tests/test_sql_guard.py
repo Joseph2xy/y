@@ -31,6 +31,28 @@ def test_rejects_non_select_statement() -> None:
     assert "SQL contains a write, DDL, or command expression." in result.errors
 
 
+def test_rejects_select_into() -> None:
+    result = validate_sql("select id into temp exported_customers from customers limit 10")
+
+    assert not result.valid
+    assert "SQL contains a write, DDL, or command expression." in result.errors
+
+
+def test_rejects_unparseable_sql() -> None:
+    result = validate_sql("select from")
+
+    assert not result.valid
+    assert result.errors[0].startswith("SQL could not be parsed:")
+
+
+def test_rejects_non_integer_limit_literal() -> None:
+    for sql in ("select id from customers limit '10'", "select id from customers limit $1"):
+        result = validate_sql(sql)
+
+        assert not result.valid
+        assert "SQL LIMIT must be an integer literal." in result.errors
+
+
 def test_rejects_locking_select_clause() -> None:
     for clause in ("for update", "for share"):
         result = validate_sql(f"select id from customers limit 10 {clause}")
@@ -100,6 +122,13 @@ def test_rejects_blocked_function() -> None:
 
     assert not result.valid
     assert "SQL references blocked function 'pg_sleep'." in result.errors
+
+
+def test_rejects_session_altering_function_by_default() -> None:
+    result = validate_sql("select set_config('statement_timeout', '0', false) limit 1")
+
+    assert not result.valid
+    assert "SQL references blocked function 'set_config'." in result.errors
 
 
 def test_validates_output_columns_against_approved_intent() -> None:

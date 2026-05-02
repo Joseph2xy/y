@@ -8,6 +8,8 @@ def test_escapes_formula_like_cells() -> None:
     assert escape_csv_cell("@cmd") == "'@cmd"
     assert escape_csv_cell("\tvalue") == "'\tvalue"
     assert escape_csv_cell("\rvalue") == "'\rvalue"
+    assert escape_csv_cell(" =1+1") == "' =1+1"
+    assert escape_csv_cell("\n=1+1") == "'\n=1+1"
     assert escape_csv_cell("normal") == "normal"
 
 

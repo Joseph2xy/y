@@ -4,10 +4,14 @@ from typing import Any, Iterable
 
 
 FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+FORMULA_LEADING_WHITESPACE = (" ", "\t", "\r", "\n")
 
 
 def escape_csv_cell(value: Any) -> Any:
-    if isinstance(value, str) and value.startswith(FORMULA_PREFIXES):
+    if isinstance(value, str) and (
+        value.startswith(FORMULA_PREFIXES)
+        or value.lstrip("".join(FORMULA_LEADING_WHITESPACE)).startswith(("=", "+", "-", "@"))
+    ):
         return "'" + value
     return value
 

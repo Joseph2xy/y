@@ -9,6 +9,7 @@ from app.models import ContextPolicy
 
 DEFAULT_BLOCKED_FUNCTIONS = {
     "pg_sleep",
+    "set_config",
 }
 
 
@@ -79,6 +80,7 @@ def _check_for_writes(statement: exp.Expression, errors: list[str]) -> None:
         exp.Delete,
         exp.Drop,
         exp.Insert,
+        exp.Into,
         exp.Merge,
         exp.Update,
     )

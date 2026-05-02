@@ -38,6 +38,17 @@ def test_add_message_keeps_session_drafting_intent(tmp_path) -> None:
     assert updated.messages[0].content == "Export customers"
 
 
+def test_add_user_message_clears_stale_approval(tmp_path) -> None:
+    session = create_session(tmp_path)
+    approve_intent(session.id, csv_intent(), tmp_path)
+
+    updated = add_message(session.id, ChatMessage(role="user", content="Actually export orders"), tmp_path)
+
+    assert updated.status == SessionStatus.DRAFTING_INTENT
+    assert updated.approved_intent is None
+    assert updated.export_id is None
+
+
 def test_approve_intent_stores_intent(tmp_path) -> None:
     session = create_session(tmp_path)
 

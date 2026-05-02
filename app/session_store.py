@@ -43,6 +43,11 @@ def save_session(session: ExportSession, session_dir: Path = SESSION_DIR) -> Exp
 def add_message(session_id: str, message: ChatMessage, session_dir: Path = SESSION_DIR) -> ExportSession:
     session = load_session(session_id, session_dir)
     session.messages.append(message)
+    if message.role == "user":
+        session.approved_intent = None
+        session.export_id = None
+        session.status = SessionStatus.DRAFTING_INTENT
+        session.last_error = None
     return save_session(session, session_dir)
 
 
@@ -62,6 +67,13 @@ def mark_export_complete(
     session = load_session(session_id, session_dir)
     session.export_id = export_id
     session.status = SessionStatus.COMPLETE
+    session.last_error = None
+    return save_session(session, session_dir)
+
+
+def mark_session_exporting(session_id: str, session_dir: Path = SESSION_DIR) -> ExportSession:
+    session = load_session(session_id, session_dir)
+    session.status = SessionStatus.EXPORTING
     session.last_error = None
     return save_session(session, session_dir)
 

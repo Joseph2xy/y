@@ -32,7 +32,7 @@ class ContextPolicy(BaseModel):
     blocked_schemas: list[str] = Field(default_factory=list)
     blocked_tables: list[str] = Field(default_factory=list)
     blocked_columns: list[str] = Field(default_factory=list)
-    blocked_functions: list[str] = Field(default_factory=lambda: ["pg_sleep"])
+    blocked_functions: list[str] = Field(default_factory=lambda: ["pg_sleep", "set_config"])
     max_row_count: int = Field(default=100_000, gt=0, le=1_000_000)
     max_export_bytes: int = Field(default=50_000_000, gt=0)
     statement_timeout_ms: int = Field(default=30_000, gt=0)

@@ -64,16 +64,48 @@ def test_create_export_rejects_missing_expected_column(tmp_path: Path) -> None:
             export_dir=tmp_path,
         )
 
+    assert list(tmp_path.iterdir()) == []
+
 
 def test_create_export_rejects_too_many_rows(tmp_path: Path) -> None:
     with pytest.raises(ExportError, match="row limit"):
         create_export(
             intent=intent(["email"], max_row_count=1),
-            sql="select email from customers limit 10",
+            sql="select email from customers limit 1",
             policy=ContextPolicy(max_row_count=10),
             query_runner=lambda sql: [{"email": "a@example.com"}, {"email": "b@example.com"}],
             export_dir=tmp_path,
         )
+
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_create_export_rejects_limit_above_intent_max(tmp_path: Path) -> None:
+    with pytest.raises(ExportError, match="between 1 and 1"):
+        create_export(
+            intent=intent(["email"], max_row_count=1),
+            sql="select email from customers limit 10",
+            policy=ContextPolicy(max_row_count=10),
+            query_runner=lambda sql: [{"email": "a@example.com"}],
+            export_dir=tmp_path,
+        )
+
+
+def test_create_export_removes_partial_file_after_query_error(tmp_path: Path) -> None:
+    def broken_rows(sql: str):
+        yield {"email": "a@example.com"}
+        raise RuntimeError("database connection lost")
+
+    with pytest.raises(RuntimeError, match="database connection lost"):
+        create_export(
+            intent=intent(["email"]),
+            sql="select email from customers limit 10",
+            policy=ContextPolicy(),
+            query_runner=broken_rows,
+            export_dir=tmp_path,
+        )
+
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_create_export_rejects_too_many_bytes(tmp_path: Path) -> None:
@@ -92,3 +124,8 @@ def test_create_export_rejects_too_many_bytes(tmp_path: Path) -> None:
 def test_export_path_rejects_path_traversal() -> None:
     with pytest.raises(ExportError):
         export_path("../secret")
+
+
+def test_export_path_rejects_dot_in_id() -> None:
+    with pytest.raises(ExportError):
+        export_path("abc.def")

@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -p tsconfig.app.json && tsc -p tsconfig.node.json && vite build",
+    "generate:api-types": ".venv/bin/python tools/export_openapi.py .openapi/openapi.json && openapi-typescript .openapi/openapi.json -o src/api-types.ts",
     "test": "vitest run",
     "preview": "vite preview --host 0.0.0.0"
   },
@@ -32,6 +33,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
     "jsdom": "^29.1.1",
+    "openapi-typescript": "^7.13.0",
     "tailwindcss": "^4.2.4",
     "typescript": "^6.0.3",
     "vite": "^8.0.10",

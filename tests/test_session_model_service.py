@@ -66,6 +66,20 @@ def test_propose_csv_intent_updates_session(tmp_path, monkeypatch) -> None:
     assert provider.calls[0]["response_model"] is CSVIntentProposal
 
 
+def test_propose_csv_intent_clears_stale_approval(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    ensure_context_files()
+    session = create_session()
+    approve_intent(session.id, intent())
+    provider = FakeProvider(CSVIntentProposal(message="Here is the new CSV plan.", intent=intent()))
+
+    propose_csv_intent(session_id=session.id, model_provider=provider)
+
+    updated = load_session(session.id)
+    assert updated.status == "awaiting_approval"
+    assert updated.approved_intent is None
+
+
 def test_ask_clarification_keeps_session_in_drafting_state(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     ensure_context_files()
@@ -83,6 +97,25 @@ def test_ask_clarification_keeps_session_in_drafting_state(tmp_path, monkeypatch
     assert response.questions == ["Which date range should the CSV cover?"]
     assert updated.status == "drafting_intent"
     assert updated.messages[-1].role == "assistant"
+
+
+def test_ask_clarification_clears_stale_approval(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    ensure_context_files()
+    session = create_session()
+    approve_intent(session.id, intent())
+    provider = FakeProvider(
+        ClarificationResponse(
+            message="Which date range should the CSV cover?",
+            questions=["Which date range should the CSV cover?"],
+        )
+    )
+
+    ask_clarification(session_id=session.id, model_provider=provider)
+
+    updated = load_session(session.id)
+    assert updated.status == "drafting_intent"
+    assert updated.approved_intent is None
 
 
 def test_propose_sql_requires_approved_intent(tmp_path, monkeypatch) -> None:
@@ -127,6 +160,40 @@ def test_prepare_sql_returns_valid_first_proposal(tmp_path, monkeypatch) -> None
     assert len(response.attempts) == 1
     assert response.attempts[0].valid is True
     assert updated.status == "validating_sql"
+
+
+def test_prepare_sql_requires_approved_intent(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    ensure_context_files()
+    session = create_session()
+    provider = QueueProvider([SQLProposal(sql="select email from customers limit 10")])
+
+    with pytest.raises(SessionModelError, match="approved"):
+        prepare_sql(session_id=session.id, model_provider=provider)
+
+
+def test_prepare_sql_rejects_negative_repair_attempts(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    ensure_context_files()
+    session = create_session()
+    approve_intent(session.id, intent())
+    provider = QueueProvider([SQLProposal(sql="select email from customers limit 10")])
+
+    with pytest.raises(SessionModelError, match="cannot be negative"):
+        prepare_sql(session_id=session.id, model_provider=provider, max_repair_attempts=-1)
+
+
+def test_prepare_sql_validates_limit_against_intent_max(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    ensure_context_files()
+    session = create_session()
+    approve_intent(session.id, intent())
+    provider = QueueProvider([SQLProposal(sql="select email from customers limit 11")])
+
+    response = prepare_sql(session_id=session.id, model_provider=provider, max_repair_attempts=0)
+
+    assert response.valid is False
+    assert response.errors == ["SQL LIMIT must be between 1 and 10."]
 
 
 def test_prepare_sql_repairs_invalid_proposal(tmp_path, monkeypatch) -> None:

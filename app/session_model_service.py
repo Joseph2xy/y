@@ -1,3 +1,4 @@
+from dataclasses import replace
 from typing import Protocol, TypeVar
 
 from pydantic import BaseModel
@@ -46,6 +47,8 @@ def propose_csv_intent(
     )
 
     session.messages.append(ChatMessage(role="assistant", content=proposal.message))
+    session.approved_intent = None
+    session.export_id = None
     session.status = SessionStatus.AWAITING_APPROVAL
     session.last_error = None
     save_session(_validate_session(session))
@@ -66,6 +69,8 @@ def ask_clarification(
     )
 
     session.messages.append(ChatMessage(role="assistant", content=response.message))
+    session.approved_intent = None
+    session.export_id = None
     session.status = SessionStatus.DRAFTING_INTENT
     session.last_error = None
     save_session(_validate_session(session))
@@ -127,6 +132,7 @@ def prepare_sql(
     )
 
     policy = sql_policy_from_context(context.policy)
+    policy = replace(policy, max_limit=min(policy.max_limit, session.approved_intent.max_row_count))
     expected_columns = [column.name for column in session.approved_intent.columns]
     attempts: list[SQLValidationAttempt] = []
     current_sql = proposal.sql

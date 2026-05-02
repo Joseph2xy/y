@@ -43,6 +43,16 @@ def test_download_export_rejects_invalid_id(tmp_path, monkeypatch) -> None:
     assert response.status_code == 404
 
 
+def test_download_export_rejects_dot_in_id(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(app)
+
+    response = client.get("/exports/abc.def/download")
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid export id."
+
+
 def test_download_export_returns_csv_file(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     export_dir = tmp_path / "data" / "exports"

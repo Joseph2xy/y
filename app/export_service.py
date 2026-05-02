@@ -1,4 +1,5 @@
 from collections.abc import Callable, Iterable
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -27,7 +28,9 @@ def create_export(
     export_dir: Path = EXPORT_DIR,
 ) -> ExportCreateResponse:
     expected_columns = [column.name for column in intent.columns]
-    sql_result = validate_sql(sql, sql_policy_from_context(policy), expected_columns=expected_columns)
+    sql_policy = sql_policy_from_context(policy)
+    sql_policy = replace(sql_policy, max_limit=min(sql_policy.max_limit, intent.max_row_count))
+    sql_result = validate_sql(sql, sql_policy, expected_columns=expected_columns)
     if not sql_result.valid:
         raise ExportError("SQL validation failed: " + "; ".join(sql_result.errors))
 
@@ -35,13 +38,17 @@ def create_export(
     export_id = uuid4().hex
     export_path = export_dir / f"{export_id}.csv"
 
-    rows = _limited_rows(query_runner(sql), expected_columns, max_rows)
-    row_count = write_csv(export_path, expected_columns, rows)
-    byte_count = count_csv_bytes(export_path)
+    try:
+        rows = _limited_rows(query_runner(sql), expected_columns, max_rows)
+        row_count = write_csv(export_path, expected_columns, rows)
+        byte_count = count_csv_bytes(export_path)
 
-    if byte_count > policy.max_export_bytes:
+        if byte_count > policy.max_export_bytes:
+            export_path.unlink(missing_ok=True)
+            raise ExportError(f"CSV exceeds the {policy.max_export_bytes} byte export limit.")
+    except Exception:
         export_path.unlink(missing_ok=True)
-        raise ExportError(f"CSV exceeds the {policy.max_export_bytes} byte export limit.")
+        raise
 
     return ExportCreateResponse(
         export_id=export_id,

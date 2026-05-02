@@ -41,6 +41,7 @@ from app.session_store import (
     create_session,
     load_session,
     mark_export_complete,
+    mark_session_exporting,
     mark_session_failed,
 )
 from app.sql_guard import sql_policy_from_context, validate_sql
@@ -204,6 +205,7 @@ def create_session_export_endpoint(
             statement_timeout_ms=document.policy.statement_timeout_ms,
             lock_timeout_ms=document.policy.lock_timeout_ms,
         )
+        mark_session_exporting(session_id)
         response = create_export(
             intent=session.approved_intent,
             sql=request.sql,
@@ -222,6 +224,9 @@ def create_session_export_endpoint(
     except ExportError as exc:
         mark_session_failed(session_id, str(exc))
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        mark_session_failed(session_id, str(exc))
+        raise HTTPException(status_code=500, detail="Export failed.") from exc
 
 
 @app.get("/sessions/{session_id}", response_model=ExportSession)
