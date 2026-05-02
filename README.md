@@ -19,7 +19,7 @@ The model helps interpret the user's request and propose SQL. The app owns the d
 Browser or API client
   -> FastAPI app
       -> editable context files
-      -> model harness
+      -> LiteLLM model provider adapter
       -> Postgres schema/read tools
       -> SQL guard
       -> CSV writer
@@ -32,13 +32,15 @@ There is no separate worker, queue, scheduler, or approval workflow in this vers
 1. Scan Postgres metadata.
 2. Write `data/context/schema.json` and `data/context/context.md`.
 3. User asks for a CSV.
-4. Model proposes a CSV intent.
-5. User approves the intent.
-6. App asks the model for an export query.
-7. App validates the query, including output fields against the approved CSV intent.
-8. If needed, the app gives structured validation errors back to the model for a limited repair loop.
-9. App executes with read-only settings and limits.
-10. App validates and writes the CSV.
+4. Model asks for clarification only when needed.
+5. Model proposes a user-facing CSV plan.
+6. User approves the CSV intent once.
+7. App asks the model for SQL.
+8. App validates the SQL, including output fields against the approved CSV intent.
+9. If needed, the app gives structured validation errors back to the model for a limited repair loop.
+10. App executes with read-only settings and limits.
+11. App validates and writes the CSV.
+12. App returns a download link.
 
 ## Local Setup
 
@@ -53,21 +55,26 @@ python3 -m venv .venv
 Run the API:
 
 ```bash
-DATABASE_URL='postgresql://readonly:password@localhost:5432/appdb' \
 .venv/bin/python -m uvicorn app.main:app --reload
 ```
 
-`DATABASE_URL` should point to a read-only Postgres user.
-
-Model endpoints can be configured in the app with an OpenRouter API key, or through environment variables:
+Create a local `.env` first:
 
 ```bash
-MODEL_NAME='openrouter/openai/gpt-4o-mini'
-MODEL_API_KEY='...'
-# Optional:
-MODEL_BASE_URL='https://openrouter.ai/api/v1'
-MODEL_TEMPERATURE='0'
+cp .env.example .env
 ```
+
+Then edit `.env`:
+
+```bash
+DATABASE_URL=postgresql://readonly:password@localhost:5432/appdb
+WORKER_LLM_PROVIDER=openrouter
+WORKER_OPENROUTER_MODEL=nvidia/nemotron-3-super-120b-a12b:free
+OPENROUTER_API_KEY=...
+MODEL_TEMPERATURE=0
+```
+
+`DATABASE_URL` should point to a read-only Postgres user. The real `.env` file is ignored by git.
 
 Frontend:
 

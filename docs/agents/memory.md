@@ -17,7 +17,11 @@ Update this file at the end of each section of work.
 - Added persisted session debug traces for model prompts, model outputs, SQL validation attempts, repair attempts, and export execution, exposed through the read-only Advanced UI.
 - Reviewed the trace changes with CodeRabbit (`0 issues`) and a manual pass; fixed failed model calls so they also persist prompt/error traces. Verified with `106 passed`, compileall, model evals, frontend tests, and `pnpm build`.
 - Added lightweight setup readiness/bootstrap flow: backend reports database/provider/context readiness, checks the configured database connection, bootstraps context scanning when configuration exists, and the frontend shows setup UI only when something is missing. Verified with `112 passed`, compileall, model evals, frontend tests/build, and Postgres smoke.
+- Added simple `.env` support for local database/model configuration, plus `.env.example`, gitignore coverage, README setup instructions, and setup-screen copy aligned with `.env`.
+- Reviewed backend `app/*.py` and tests for AGENTS/docs alignment; tightened SQL policy conversion so built-in unsafe blocked functions remain blocked even when `policy.json` customizes `blocked_functions`. Verified with `113 passed` and compileall.
+- Reviewed docs and repo hygiene against AGENTS/docs; tightened README flow/model-provider wording, confirmed generated runtime/build files are ignored, and found no tracked ignored artifacts beyond `data/exports/.gitkeep`.
+- Rechecked app state against docs and current LiteLLM/SQLGlot/psycopg/FastAPI docs before real-provider testing; fixed provider-missing tests so local `.env`/OpenRouter fallback credentials do not mask missing-provider assertions. Verified with `116 passed`, compileall, frontend tests, and frontend build.
 
 ## Next Step
 
-- Connect a real model provider, then review generated context from one or two realistic schemas and tune only obvious noisy/missing hints, using persisted debug traces to identify whether misses come from context, prompts, model output, or SQL validation.
+- Expose or document the custom OpenAI-compatible provider/base URL path before relying on the setup UI for non-OpenRouter real-provider testing; then connect a real model provider and review generated context from one or two realistic schemas.

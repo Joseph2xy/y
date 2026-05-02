@@ -86,7 +86,7 @@ def test_converts_context_policy_to_sql_policy() -> None:
         blocked_schemas=["private"],
         blocked_tables=["audit_log"],
         blocked_columns=["customers.password_hash"],
-        blocked_functions=["pg_sleep"],
+        blocked_functions=["custom_blocked_function"],
         max_row_count=250,
     )
 
@@ -95,8 +95,17 @@ def test_converts_context_policy_to_sql_policy() -> None:
     assert policy.blocked_schemas == {"private"}
     assert policy.blocked_tables == {"audit_log"}
     assert policy.blocked_columns == {"customers.password_hash"}
-    assert policy.blocked_functions == {"pg_sleep"}
+    assert policy.blocked_functions == {"custom_blocked_function", "pg_sleep", "set_config"}
     assert policy.max_limit == 250
+
+
+def test_context_policy_cannot_unblock_default_blocked_functions() -> None:
+    policy = sql_policy_from_context(ContextPolicy(blocked_functions=[]))
+
+    result = validate_sql("select set_config('statement_timeout', '0', false) limit 1", policy)
+
+    assert not result.valid
+    assert "SQL references blocked function 'set_config'." in result.errors
 
 
 def test_rejects_schema_qualified_blocked_column() -> None:

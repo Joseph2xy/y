@@ -2,7 +2,6 @@ import type {
   CSVIntent,
   CSVIntentProposal,
   ChatMessage,
-  ContextDocument,
   ExportCreateResponse,
   ExportSession,
   ModelProviderSettingsResponse,
@@ -32,14 +31,6 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   }
 
   return (await response.json()) as T;
-}
-
-export function getContext(): Promise<ContextDocument> {
-  return request<ContextDocument>("/context");
-}
-
-export function scanContext(): Promise<ContextDocument> {
-  return request<ContextDocument>("/context/scan", { method: "POST" });
 }
 
 export function getModelProviderSettings(): Promise<ModelProviderSettingsResponse> {

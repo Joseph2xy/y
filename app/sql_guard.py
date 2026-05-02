@@ -34,7 +34,7 @@ def sql_policy_from_context(policy: ContextPolicy) -> SQLPolicy:
         blocked_schemas=set(policy.blocked_schemas),
         blocked_tables=set(policy.blocked_tables),
         blocked_columns=set(policy.blocked_columns),
-        blocked_functions=set(policy.blocked_functions),
+        blocked_functions=set(policy.blocked_functions) | DEFAULT_BLOCKED_FUNCTIONS,
         max_limit=policy.max_row_count,
     )
 

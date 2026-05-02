@@ -36,6 +36,7 @@ Backend:
 - `app/prompt_builder.py`: prompts for intent, SQL, and repair.
 - `app/session_model_service.py`: approval-gated model orchestration.
 - `app/provider_settings.py`: local provider settings with OpenRouter defaults.
+- `.env` loading at API startup for local database/model configuration.
 - Session debug traces: persisted prompt, model output, SQL validation, repair, and export execution traces in session JSON for read-only Advanced inspection.
 
 Frontend:
@@ -117,20 +118,23 @@ On this Fedora WSL machine, local peer auth worked with:
 
 ## Provider Configuration
 
-Provider settings are stored locally under `data/settings/model_provider.json`, which is ignored by git. API responses report only `api_key_configured`, never the saved key.
+Local setup can use a root `.env` file copied from `.env.example`. The real `.env` file is ignored by git.
+
+Provider settings can also be stored locally under `data/settings/model_provider.json`, which is ignored by git. API responses report only `api_key_configured`, never the saved key.
 
 Defaults:
 
 - provider: `openrouter`
 - model: `openrouter/openai/gpt-4o-mini`
-- base URL: `https://openrouter.ai/api/v1`
 - temperature: `0`
 
 Environment fallback:
 
+- `DATABASE_URL`
 - `MODEL_NAME` or `LITELLM_MODEL`
 - `MODEL_API_KEY` or `LITELLM_API_KEY`
-- `MODEL_BASE_URL` or `LITELLM_API_BASE`
+- `WORKER_LLM_PROVIDER=openrouter`, `WORKER_OPENROUTER_MODEL`, and `OPENROUTER_API_KEY`
+- `MODEL_BASE_URL` or `LITELLM_API_BASE` for custom OpenAI-compatible endpoints
 - `MODEL_TEMPERATURE`
 
 ## Local Generated Data
@@ -144,6 +148,7 @@ data/context/policy.json
 data/sessions/*.json
 data/exports/*.csv
 data/settings/model_provider.json
+.env
 ```
 
 Keep `data/exports/.gitkeep`.

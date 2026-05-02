@@ -9,6 +9,24 @@ from app.main import get_model_provider
 from app.session_store import load_session
 
 
+PROVIDER_ENV_VARS = (
+    "MODEL_NAME",
+    "LITELLM_MODEL",
+    "MODEL_API_KEY",
+    "LITELLM_API_KEY",
+    "MODEL_BASE_URL",
+    "LITELLM_API_BASE",
+    "WORKER_LLM_PROVIDER",
+    "WORKER_OPENROUTER_MODEL",
+    "OPENROUTER_API_KEY",
+)
+
+
+def clear_provider_env(monkeypatch) -> None:
+    for name in PROVIDER_ENV_VARS:
+        monkeypatch.delenv(name, raising=False)
+
+
 def intent_payload() -> dict:
     return {
         "summary": "Customer export",
@@ -367,8 +385,7 @@ def test_prepare_sql_endpoint_rejects_wrong_output_columns(tmp_path, monkeypatch
 
 def test_model_endpoint_requires_model_configuration(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
-    monkeypatch.delenv("MODEL_NAME", raising=False)
-    monkeypatch.delenv("LITELLM_MODEL", raising=False)
+    clear_provider_env(monkeypatch)
     ensure_context_files()
     client = TestClient(app)
     session_id = client.post("/sessions").json()["session"]["id"]

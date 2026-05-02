@@ -1,5 +1,6 @@
 import os
 
+from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 
@@ -58,6 +59,8 @@ from app.session_store import (
     mark_session_failed,
 )
 from app.sql_guard import sql_policy_from_context, validate_sql
+
+load_dotenv()
 
 app = FastAPI(
     title="CSV Chat API",

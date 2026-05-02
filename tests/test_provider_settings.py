@@ -3,7 +3,6 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.models import ModelProviderSettingsUpdate
 from app.provider_settings import (
-    OPENROUTER_BASE_URL,
     ProviderSettingsError,
     load_provider_settings,
     model_config_from_settings_or_env,
@@ -17,7 +16,7 @@ def test_default_provider_settings_are_openrouter() -> None:
 
     assert response.provider == "openrouter"
     assert response.model == "openrouter/openai/gpt-4o-mini"
-    assert response.base_url == OPENROUTER_BASE_URL
+    assert response.base_url is None
     assert response.api_key_configured is False
 
 
@@ -77,7 +76,7 @@ def test_model_config_prefers_saved_provider_settings(tmp_path, monkeypatch) -> 
 
     assert config.model == "openrouter/openai/gpt-4o-mini"
     assert config.api_key == "sk-or-test"
-    assert config.base_url == OPENROUTER_BASE_URL
+    assert config.base_url is None
 
 
 def test_model_config_falls_back_to_env_when_settings_key_is_missing(tmp_path, monkeypatch) -> None:
@@ -87,13 +86,44 @@ def test_model_config_falls_back_to_env_when_settings_key_is_missing(tmp_path, m
         {
             "MODEL_NAME": "openrouter/openai/gpt-4o-mini",
             "MODEL_API_KEY": "env-key",
-            "MODEL_BASE_URL": "https://openrouter.ai/api/v1",
         }
     )
 
     assert config.model == "openrouter/openai/gpt-4o-mini"
     assert config.api_key == "env-key"
-    assert config.base_url == "https://openrouter.ai/api/v1"
+    assert config.base_url is None
+
+
+def test_model_config_supports_worker_openrouter_env(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    config = model_config_from_settings_or_env(
+        {
+            "WORKER_LLM_PROVIDER": "openrouter",
+            "WORKER_OPENROUTER_MODEL": "nvidia/nemotron-3-super-120b-a12b:free",
+            "OPENROUTER_API_KEY": "env-key",
+        }
+    )
+
+    assert config.model == "openrouter/nvidia/nemotron-3-super-120b-a12b:free"
+    assert config.api_key == "env-key"
+    assert config.base_url is None
+
+
+def test_model_config_supports_env_base_url_for_custom_endpoints(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    config = model_config_from_settings_or_env(
+        {
+            "MODEL_NAME": "openai/local-model",
+            "MODEL_API_KEY": "env-key",
+            "MODEL_BASE_URL": "http://127.0.0.1:4010/v1",
+        }
+    )
+
+    assert config.model == "openai/local-model"
+    assert config.api_key == "env-key"
+    assert config.base_url == "http://127.0.0.1:4010/v1"
 
 
 def test_model_config_requires_env_api_key_when_falling_back_to_env(tmp_path, monkeypatch) -> None:
@@ -105,6 +135,23 @@ def test_model_config_requires_env_api_key_when_falling_back_to_env(tmp_path, mo
         assert "MODEL_API_KEY" in str(exc)
     else:
         raise AssertionError("Expected missing env API key to fail.")
+
+
+def test_model_config_ignores_placeholder_env_api_keys(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    try:
+        model_config_from_settings_or_env(
+            {
+                "WORKER_LLM_PROVIDER": "openrouter",
+                "WORKER_OPENROUTER_MODEL": "nvidia/nemotron-3-super-120b-a12b:free",
+                "OPENROUTER_API_KEY": "api_key_here",
+            }
+        )
+    except ProviderSettingsError as exc:
+        assert "MODEL_API_KEY" in str(exc)
+    else:
+        raise AssertionError("Expected placeholder env API key to fail.")
 
 
 def test_model_provider_settings_api_round_trip(tmp_path, monkeypatch) -> None:

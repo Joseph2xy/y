@@ -64,7 +64,7 @@ const sessionResponse = {
 const providerResponse = {
   provider: "openrouter",
   model: "openrouter/openai/gpt-4o-mini",
-  base_url: "https://openrouter.ai/api/v1",
+  base_url: null,
   temperature: 0,
   api_key_configured: false
 };
@@ -194,7 +194,7 @@ describe("App", () => {
     await user.click(screen.getByRole("button", { name: "Send" }));
     await user.click(await screen.findByRole("button", { name: "Prepare export" }));
 
-    expect(await screen.findByText("Export query validated. Export is ready to run.")).toBeInTheDocument();
+    expect(await screen.findByText("CSV checks passed. Export is ready to run.")).toBeInTheDocument();
     expect(screen.queryByText("select email from customers limit 10")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /Advanced/i }));

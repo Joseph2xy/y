@@ -5,11 +5,28 @@ from app.context_store import ensure_context_files
 from app.main import app
 
 
+PROVIDER_ENV_VARS = (
+    "MODEL_NAME",
+    "LITELLM_MODEL",
+    "MODEL_API_KEY",
+    "LITELLM_API_KEY",
+    "MODEL_BASE_URL",
+    "LITELLM_API_BASE",
+    "WORKER_LLM_PROVIDER",
+    "WORKER_OPENROUTER_MODEL",
+    "OPENROUTER_API_KEY",
+)
+
+
+def clear_provider_env(monkeypatch) -> None:
+    for name in PROVIDER_ENV_VARS:
+        monkeypatch.delenv(name, raising=False)
+
+
 def test_setup_status_reports_missing_database_first(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("DATABASE_URL", raising=False)
-    monkeypatch.delenv("MODEL_NAME", raising=False)
-    monkeypatch.delenv("MODEL_API_KEY", raising=False)
+    clear_provider_env(monkeypatch)
     client = TestClient(app)
 
     response = client.get("/setup/status")
@@ -25,8 +42,7 @@ def test_setup_status_reports_missing_provider_after_database(tmp_path, monkeypa
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("DATABASE_URL", "postgresql://readonly:password@localhost:5432/appdb")
     monkeypatch.setattr(main, "test_database_connection", lambda database_url: None)
-    monkeypatch.delenv("MODEL_NAME", raising=False)
-    monkeypatch.delenv("MODEL_API_KEY", raising=False)
+    clear_provider_env(monkeypatch)
     client = TestClient(app)
 
     response = client.get("/setup/status")

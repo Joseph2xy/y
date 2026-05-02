@@ -158,7 +158,7 @@ export function App() {
       queryClient.setQueryData(["session", session.id], session);
       setSqlPrep(null);
       setExportResult(null);
-      setNotice({ type: "info", text: "CSV plan approved. SQL can now be prepared." });
+      setNotice({ type: "info", text: "CSV plan approved. You can prepare the export now." });
     },
     onError: showError
   });
@@ -172,10 +172,10 @@ export function App() {
       setSqlPrep(response);
       setNotice(
         response.valid
-          ? { type: "info", text: "Export query validated. Export is ready to run." }
+          ? { type: "info", text: "CSV checks passed. Export is ready to run." }
           : {
               type: "error",
-              text: "The export query could not be validated after repair attempts."
+              text: "The CSV could not be prepared after repair attempts."
             }
       );
       void queryClient.invalidateQueries({ queryKey: ["session", sessionId] });
@@ -439,10 +439,10 @@ function SetupGate({
         <div className="rounded-md border p-4 text-sm">
           <h3 className="font-medium">Database connection missing</h3>
           <p className="mt-1 text-muted-foreground">
-            Set the local database connection for the backend, then restart or refresh the app.
+            Add the local database connection to `.env`, then restart or refresh the backend.
           </p>
           <pre className="mt-3 overflow-auto rounded-md bg-muted p-3 text-xs text-foreground">
-            DATABASE_URL='postgresql://readonly:password@localhost:5432/appdb'
+            DATABASE_URL=postgresql://readonly:password@localhost:5432/appdb
           </pre>
         </div>
       ) : null}
@@ -487,7 +487,17 @@ function Line({ label, value }: { label: string; value: string | number }) {
 }
 
 function Status({ value }: { value: string }) {
-  return <Badge variant="secondary">{value.split("_").join(" ")}</Badge>;
+  const labels: Record<string, string> = {
+    not_started: "not started",
+    drafting_intent: "drafting plan",
+    awaiting_approval: "needs approval",
+    generating_sql: "preparing export",
+    validating_sql: "checking export",
+    exporting: "exporting",
+    complete: "complete",
+    failed: "failed"
+  };
+  return <Badge variant="secondary">{labels[value] ?? value.split("_").join(" ")}</Badge>;
 }
 
 function ReadinessStatus({ status }: { status: SetupStatusResponse | null }) {
