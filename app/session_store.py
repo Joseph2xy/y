@@ -43,8 +43,6 @@ def save_session(session: ExportSession, session_dir: Path = SESSION_DIR) -> Exp
 def add_message(session_id: str, message: ChatMessage, session_dir: Path = SESSION_DIR) -> ExportSession:
     session = load_session(session_id, session_dir)
     session.messages.append(message)
-    if session.status == SessionStatus.DRAFTING_INTENT:
-        session.status = SessionStatus.AWAITING_APPROVAL
     return save_session(session, session_dir)
 
 

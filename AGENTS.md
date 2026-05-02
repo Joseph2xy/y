@@ -99,3 +99,21 @@ Model provider layer:
 - Multiple database support.
 - Local model management.
 - Complex semantic/query compiler unless raw SQL validation proves insufficient.
+
+## Agent skills
+
+### Issue tracker
+
+This is a solo direct-to-main project. Do not assume issues, pull requests, or a formal tracker unless the user says that has changed. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+No active triage label workflow is used right now. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context repo. Read `AGENTS.md`, `docs/architecture.md`, `docs/implementation-status.md`, and relevant ADRs when they exist. See `docs/agents/domain.md`.
+
+### Memory
+
+Keep a lightweight section-by-section memory of completed steps and the next step. See `docs/agents/memory.md`.

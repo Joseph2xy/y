@@ -25,6 +25,7 @@ Implemented modules:
 - `src/`: React/Vite frontend for the chat/session flow, database scan action, CSV plan approval, SQL preparation, export, and Advanced/debug traces.
 - `src/components/ui/`: shadcn/ui primitives installed through the shadcn CLI.
 - `src/components/chat/`: shadcn-compatible chat primitives installed from the `shadcn-chat` registry (`Chat`, `ChatHeader`, `ChatMessages`, `ChatEvent`, `ChatToolbar`).
+- `tools/mock_openai_server.py`: tiny local OpenAI-compatible mock model server for deterministic local demos when external model credentials are not configured.
 
 Implemented endpoints:
 
@@ -56,7 +57,7 @@ pnpm build
 ```
 
 Last known focused backend review result: `48 passed` on 2026-05-01.
-Last known full-suite result: `69 passed` on 2026-05-01.
+Last known full-suite result: `70 passed` on 2026-05-02.
 Last known frontend result: `pnpm test` passed with `2 passed`; `pnpm build` passed on 2026-05-02.
 
 Frontend visual review:
@@ -67,7 +68,24 @@ agent-browser open http://localhost:5174
 agent-browser screenshot /tmp/csv-chat-final-compact.png
 ```
 
-The Vite port may be `5173` or `5174` depending on what is already running.
+The Vite port may be `5173`, `5174`, or another nearby port depending on what is already running.
+
+Latest end-to-end local demo result on 2026-05-02:
+
+- Fedora WSL local Postgres was installed and initialized.
+- Demo database: `csv_chat_demo`.
+- Read-only demo user: `csv_chat_readonly`.
+- Demo API env:
+  - `DATABASE_URL='postgresql://csv_chat_readonly:readonly@127.0.0.1:5432/csv_chat_demo'`
+  - `MODEL_NAME='openai/demo-model'`
+  - `MODEL_API_KEY='demo-key'`
+  - `MODEL_BASE_URL='http://127.0.0.1:4010'`
+- Mock model server command: `.venv/bin/python tools/mock_openai_server.py`.
+- API command: `.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000`.
+- Frontend command: `pnpm dev`.
+- Browser demo completed: scan context -> send request -> propose CSV plan -> approve -> prepare SQL -> export -> download.
+- Screenshot: `/tmp/csv-chat-e2e.png`.
+- Downloaded CSV had 3 rows for active 2026 customers.
 
 ## Current Flow
 
@@ -156,20 +174,19 @@ Git sync:
 - Current branch: `main`.
 - Tracking branch: `origin/main`.
 - Remote: `https://github.com/Joseph2xy/y.git`.
-- Last checked local state: worktree has uncommitted frontend/shadcn changes from the current session.
+- Last checked local state: worktree has the session-status cleanup, Postgres timeout fix, local demo mock server, frontend workflow layout adjustments, tests, and this handoff update.
 
 ## Next Step
 
-Make the first end-to-end local demo path work.
+The first end-to-end local demo path works.
 
-Recommended scope:
+Recommended next scope:
 
-1. Run FastAPI and Vite together against a real or containerized Postgres database.
-2. Exercise: scan context -> send request -> propose CSV plan -> approve -> prepare SQL -> export -> download.
-3. Fix any cross-origin/proxy, model config, or session-state issues found during the demo.
-4. Keep the frontend compact and chat-first while fixing demo issues. Do not reintroduce an always-visible dashboard, export panel, or upload panel.
-5. Add OpenAPI-generated frontend types after the endpoint shape settles.
-6. Keep SQL and validation traces behind Advanced/debug UI.
+1. Add OpenAPI-generated frontend types after confirming no immediate endpoint shape changes are needed.
+2. Add an integration test or scripted smoke test for the local Postgres demo path.
+3. Decide whether request/response is enough for V0 progress or whether SSE is needed.
+4. Improve audit/debug trace persistence if the demo reveals a need.
+5. Keep SQL and validation traces behind Advanced/debug UI.
 
 Do not add a worker, queue, scheduling, frontend dashboard shell, LangChain, or LlamaIndex for this step.
 

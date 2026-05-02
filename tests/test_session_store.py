@@ -29,12 +29,12 @@ def test_create_and_load_session(tmp_path) -> None:
     assert loaded.status == SessionStatus.DRAFTING_INTENT
 
 
-def test_add_message_moves_session_to_awaiting_approval(tmp_path) -> None:
+def test_add_message_keeps_session_drafting_intent(tmp_path) -> None:
     session = create_session(tmp_path)
 
     updated = add_message(session.id, ChatMessage(role="user", content="Export customers"), tmp_path)
 
-    assert updated.status == SessionStatus.AWAITING_APPROVAL
+    assert updated.status == SessionStatus.DRAFTING_INTENT
     assert updated.messages[0].content == "Export customers"
 
 

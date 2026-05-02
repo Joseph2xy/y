@@ -15,8 +15,8 @@ def run_read_only_query(
     with psycopg.connect(database_url, row_factory=dict_row) as conn:
         with conn.transaction():
             conn.execute("SET TRANSACTION READ ONLY")
-            conn.execute("SET LOCAL statement_timeout = %s", (statement_timeout_ms,))
-            conn.execute("SET LOCAL lock_timeout = %s", (lock_timeout_ms,))
+            conn.execute(f"SET LOCAL statement_timeout = {statement_timeout_ms:d}")
+            conn.execute(f"SET LOCAL lock_timeout = {lock_timeout_ms:d}")
             with conn.execute(sql) as cursor:
                 yield from cursor
 

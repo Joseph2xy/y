@@ -210,7 +210,7 @@ export function App() {
 
           {notice ? <div className="p-2 pb-0"><NoticeBanner notice={notice} /></div> : null}
 
-          <ChatMessages className="px-2">
+          <ChatMessages className="min-h-0 px-2">
             {session?.messages.length ? (
               [...session.messages]
                 .reverse()
@@ -228,7 +228,7 @@ export function App() {
           </ChatMessages>
 
           {hasWorkflow ? (
-            <div className="border-t px-3 py-3">
+            <div className="max-h-[45%] overflow-auto border-t px-3 py-3">
               <WorkflowPanel
                 proposal={proposal}
                 approved={session?.approved_intent ?? null}
@@ -351,12 +351,6 @@ function WorkflowPanel({
   const hasAdvanced = Boolean(sqlPrep || advancedOpen);
   return (
     <div className="flex flex-col gap-3">
-      {hasPlan ? (
-        <>
-          <PlanPanel proposal={proposal} approved={approved} busy={busy} onApprove={onApprove} />
-          <Separator />
-        </>
-      ) : null}
       {hasExportControls ? (
         <ExportPanel
           canPrepare={canPrepare}
@@ -367,7 +361,15 @@ function WorkflowPanel({
           onExport={onExport}
         />
       ) : null}
+      {hasPlan ? (
+        <>
+          {hasExportControls ? <Separator /> : null}
+          <PlanPanel proposal={proposal} approved={approved} busy={busy} onApprove={onApprove} />
+        </>
+      ) : null}
       {hasAdvanced ? (
+        <>
+        <Separator />
         <Collapsible open={advancedOpen} onOpenChange={onAdvancedOpenChange} className="flex flex-col gap-3">
           <CollapsibleTrigger
             render={
@@ -382,6 +384,7 @@ function WorkflowPanel({
             <Advanced sqlPrep={sqlPrep} />
           </CollapsibleContent>
         </Collapsible>
+        </>
       ) : null}
     </div>
   );
@@ -404,6 +407,12 @@ function PlanPanel({
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-sm font-medium">CSV plan</h2>
         {approved ? <Badge variant="outline">approved</Badge> : null}
+        {!approved && intent ? (
+          <Button size="sm" onClick={() => onApprove(intent)} disabled={busy}>
+            <Check data-icon="inline-start" aria-hidden="true" />
+            Approve plan
+          </Button>
+        ) : null}
       </div>
       {intent ? (
         <div className="flex flex-col gap-3 text-sm">
@@ -421,12 +430,6 @@ function PlanPanel({
             </ul>
           </div>
           <Line label="Max rows" value={intent.max_row_count} />
-          {!approved ? (
-            <Button className="w-fit" onClick={() => onApprove(intent)} disabled={busy}>
-              <Check data-icon="inline-start" aria-hidden="true" />
-              Approve plan
-            </Button>
-          ) : null}
         </div>
       ) : (
         <p className="text-sm text-muted-foreground">No CSV plan proposed yet.</p>

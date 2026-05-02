@@ -29,7 +29,7 @@ def test_session_lifecycle(tmp_path, monkeypatch) -> None:
         json={"message": {"role": "user", "content": "Export customers"}},
     )
     assert message_response.status_code == 200
-    assert message_response.json()["status"] == "awaiting_approval"
+    assert message_response.json()["status"] == "drafting_intent"
 
     approval_response = client.post(
         f"/sessions/{session_id}/approve-intent",
