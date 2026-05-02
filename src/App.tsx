@@ -14,13 +14,10 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Chat } from "@/components/chat/chat";
-import { ChatEvent, ChatEventAddon, ChatEventAvatar, ChatEventBody, ChatEventContent, ChatEventTitle } from "@/components/chat/chat-event";
-import { ChatHeader, ChatHeaderAddon, ChatHeaderButton, ChatHeaderMain } from "@/components/chat/chat-header";
-import { ChatMessages } from "@/components/chat/chat-messages";
-import { ChatToolbar, ChatToolbarAddon, ChatToolbarButton, ChatToolbarTextarea } from "@/components/chat/chat-toolbar";
+import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import type { CSVIntent, CSVIntentProposal, ExportCreateResponse, ExportSession, SQLPreparationResponse } from "./types";
 
@@ -176,38 +173,40 @@ export function App() {
     Boolean(proposal || session?.approved_intent || sqlPrep || exportResult || advancedOpen);
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background p-4 text-foreground">
-      <div className="h-[min(620px,calc(100vh-4rem))] w-full max-w-xl overflow-hidden rounded-lg border bg-background shadow-sm">
-        <Chat>
-          <ChatHeader className="border-b">
-            <ChatHeaderAddon>
+    <main className="flex min-h-svh items-center justify-center bg-background p-4 text-foreground">
+      <Card className="h-[min(680px,calc(100svh-2rem))] w-full max-w-2xl">
+        <CardHeader className="border-b">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               <Database aria-hidden="true" />
-            </ChatHeaderAddon>
-            <ChatHeaderMain className="min-w-0">
-              <div className="grid min-w-0">
-                <h1 className="truncate text-sm font-medium">CSV Chat</h1>
-                <p className="truncate text-xs text-muted-foreground">
-                  {session ? `Session ${session.id.slice(0, 8)}` : "Ask for a CSV from your database."}
-                </p>
-              </div>
-              <Status value={session?.status ?? "not_started"} />
-            </ChatHeaderMain>
+            </div>
+            <div className="min-w-0">
+              <h1 className="truncate font-heading text-base leading-snug font-medium">CSV Chat</h1>
+              <p className="truncate text-xs text-muted-foreground">
+                {session ? `Session ${session.id.slice(0, 8)}` : "Ask for a CSV from your database."}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Status value={session?.status ?? "not_started"} />
             {session ? (
-              <ChatHeaderAddon>
-                <ChatHeaderButton onClick={() => startSessionMutation.mutate()} disabled={busy} aria-label="New session">
-                  <Plus aria-hidden="true" />
-                </ChatHeaderButton>
-              </ChatHeaderAddon>
+              <Button size="icon-sm" variant="ghost" onClick={() => startSessionMutation.mutate()} disabled={busy} aria-label="New session">
+                <Plus aria-hidden="true" />
+              </Button>
             ) : null}
-          </ChatHeader>
+          </div>
+        </CardHeader>
 
-          {notice ? <div className="p-2 pb-0"><NoticeBanner notice={notice} /></div> : null}
+        <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden py-3">
+          {notice ? <NoticeBanner notice={notice} /> : null}
 
-          <ChatMessages className="min-h-0 px-2">
+          <section className="min-h-0 flex-1 overflow-auto rounded-lg border bg-muted/20 p-3" aria-label="Messages">
             {session?.messages.length ? (
-              [...session.messages]
-                .reverse()
-                .map((item, index) => <MessageEvent key={`${item.role}-${session.messages.length - index}`} role={item.role} content={item.content} />)
+              <div className="flex flex-col-reverse gap-3">
+                {[...session.messages]
+                  .reverse()
+                  .map((item, index) => <MessageEvent key={`${item.role}-${session.messages.length - index}`} role={item.role} content={item.content} />)}
+              </div>
             ) : (
               <div className="flex min-h-full items-center justify-center px-4 text-center">
                 <div className="max-w-sm">
@@ -218,10 +217,10 @@ export function App() {
                 </div>
               </div>
             )}
-          </ChatMessages>
+          </section>
 
           {hasWorkflow ? (
-            <div className="max-h-[45%] overflow-auto border-t px-3 py-3">
+            <section className="max-h-[45%] overflow-auto rounded-lg border p-3" aria-label="CSV workflow">
               <WorkflowPanel
                 proposal={proposal}
                 approved={session?.approved_intent ?? null}
@@ -235,41 +234,45 @@ export function App() {
                 onExport={() => exportMutation.mutate()}
                 onAdvancedOpenChange={setAdvancedOpen}
               />
-            </div>
+            </section>
           ) : null}
+        </CardContent>
 
-          <form onSubmit={handleSubmit}>
-            <ChatToolbar>
-              <ChatToolbarAddon align="block-start" className="mb-2 flex-wrap">
-                {hasMessages ? (
-                  <Button variant="outline" size="sm" type="button" onClick={() => proposeMutation.mutate()} disabled={busy || !sessionId}>
-                    {proposeMutation.isPending ? <Loader2 data-icon="inline-start" className="animate-spin" aria-hidden="true" /> : <Check data-icon="inline-start" aria-hidden="true" />}
-                    Propose CSV plan
-                  </Button>
-                ) : null}
-                <Button variant="outline" size="sm" type="button" onClick={() => scanMutation.mutate()} disabled={busy}>
-                  <Database data-icon="inline-start" aria-hidden="true" />
-                  Scan database
+        <CardFooter>
+          <form className="flex w-full flex-col gap-2" onSubmit={handleSubmit}>
+            <div className="flex flex-wrap gap-2">
+              {hasMessages ? (
+                <Button variant="outline" size="sm" type="button" onClick={() => proposeMutation.mutate()} disabled={busy || !sessionId}>
+                  {proposeMutation.isPending ? <Loader2 data-icon="inline-start" className="animate-spin" aria-hidden="true" /> : <Check data-icon="inline-start" aria-hidden="true" />}
+                  Propose CSV plan
                 </Button>
-              </ChatToolbarAddon>
-              <ChatToolbarTextarea
+              ) : null}
+              <Button variant="outline" size="sm" type="button" onClick={() => scanMutation.mutate()} disabled={busy}>
+                <Database data-icon="inline-start" aria-hidden="true" />
+                Scan database
+              </Button>
+            </div>
+            <div className="flex gap-2">
+              <Textarea
                 id="csv-request"
                 value={message}
                 onChange={(event) => setMessage(event.target.value)}
-                onSubmit={() => {
-                  if (message.trim()) sendMutation.mutate();
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    if (message.trim()) sendMutation.mutate();
+                  }
                 }}
                 placeholder="Export customer emails for active accounts created this quarter."
+                className="min-h-10 resize-none"
               />
-              <ChatToolbarAddon align="inline-end">
-                <ChatToolbarButton type="submit" disabled={busy || !message.trim()} aria-label="Send">
-                  <Send aria-hidden="true" />
-                </ChatToolbarButton>
-              </ChatToolbarAddon>
-            </ChatToolbar>
+              <Button size="icon" type="submit" disabled={busy || !message.trim()} aria-label="Send">
+                <Send aria-hidden="true" />
+              </Button>
+            </div>
           </form>
-        </Chat>
-      </div>
+        </CardFooter>
+      </Card>
     </main>
   );
 }
@@ -298,19 +301,12 @@ function NoticeBanner({ notice }: { notice: Exclude<Notice, null> }) {
 function MessageEvent({ role, content }: { role: string; content: string }) {
   const own = role === "user";
   return (
-    <ChatEvent className={cn("py-2", own && "flex-row-reverse text-right")}>
-      <ChatEventAddon>
-        <ChatEventAvatar fallback={own ? "You" : "CSV"} />
-      </ChatEventAddon>
-      <ChatEventBody className={cn(own && "items-end")}>
-        <ChatEventTitle className={cn(own && "justify-end")}>
-          <span className="font-medium">{own ? "You" : "CSV Chat"}</span>
-        </ChatEventTitle>
-        <ChatEventContent className={cn("max-w-[34rem] rounded-md border bg-muted/40 px-3 py-2", own && "bg-primary text-primary-foreground")}>
-          {content}
-        </ChatEventContent>
-      </ChatEventBody>
-    </ChatEvent>
+    <article className={cn("flex gap-2", own && "justify-end text-right")}>
+      <div className={cn("max-w-[85%] rounded-lg border bg-background px-3 py-2 text-sm", own && "bg-primary text-primary-foreground")}>
+        <div className="mb-1 text-xs font-medium opacity-80">{own ? "You" : "CSV Chat"}</div>
+        <p>{content}</p>
+      </div>
+    </article>
   );
 }
 

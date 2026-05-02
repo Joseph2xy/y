@@ -24,7 +24,6 @@ Implemented modules:
 - `app/session_model_service.py`: session-level model orchestration helpers with approval gating and limited SQL repair.
 - `src/`: React/Vite frontend for the chat/session flow, database scan action, CSV plan approval, SQL preparation, export, and Advanced/debug traces.
 - `src/components/ui/`: shadcn/ui primitives installed through the shadcn CLI.
-- `src/components/chat/`: shadcn-compatible chat primitives installed from the `shadcn-chat` registry (`Chat`, `ChatHeader`, `ChatMessages`, `ChatEvent`, `ChatToolbar`).
 - `tools/mock_openai_server.py`: tiny local OpenAI-compatible mock model server for deterministic local demos when external model credentials are not configured.
 
 Implemented endpoints:
@@ -57,15 +56,15 @@ pnpm build
 ```
 
 Last known focused backend review result: `48 passed` on 2026-05-01.
-Last known full-suite result: `71 passed` on 2026-05-02.
-Last known frontend result: `pnpm test` passed with `2 passed`; `pnpm build` passed on 2026-05-02.
+Last known full-suite result: `71 passed` on 2026-05-02 with SQLGlot 30.
+Last known frontend result: `pnpm test` passed with `2 passed`; `pnpm build` passed on 2026-05-02 with Vite 8, Tailwind CSS 4, TypeScript 6, and Vitest 4.
 
 Frontend visual review:
 
 ```bash
 pnpm dev
 agent-browser open http://localhost:5174
-agent-browser screenshot /tmp/csv-chat-final-compact.png
+agent-browser screenshot /tmp/csv-chat-shadcn-v4-dark.png
 ```
 
 The Vite port may be `5173`, `5174`, or another nearby port depending on what is already running.
@@ -164,8 +163,10 @@ Frontend local state:
 - Avoid Windows Node/npm shims from `/mnt/c/...`; package install scripts can fail on UNC paths.
 - `packageManager` is pinned to `pnpm@10.33.0`.
 - `vitest` is pinned at `^3.2.4` so frontend test tooling uses the same Vite major version as the app.
-- shadcn was initialized with `components.json`, `@/` import aliases, Tailwind theme tokens, and Vite/Vitest alias config.
-- The official `@shadcn` registry did not return a chat block for `chat` or `message`; the small `shadcn-chat` registry item was installed instead. Avoid the full `chat-basic` block unless the product really needs sidebars, reactions, profiles, emoji picker, and mock chat features.
+- shadcn is configured with `components.json`, `@/` import aliases, Tailwind v4 theme tokens, and Vite/Vitest alias config.
+- The frontend was migrated to the shadcn preset `b1YnRGLNA` on 2026-05-02: nova style, zinc base, blue theme, Inter font, lucide icons.
+- The community `shadcn-chat` registry components were removed. Keep the chat surface composed from official shadcn primitives in `src/components/ui` unless a concrete need appears.
+- See `docs/dependency-audit.md` for the latest dependency and framework review.
 - `agent-browser install` and `agent-browser install --with-deps` were run so browser screenshots work in this Fedora WSL environment. This installed managed Chrome plus Linux browser dependencies.
 - CodeRabbit CLI is installed at `/home/Joseph/.local/bin/coderabbit` and authenticated for agent review.
 
