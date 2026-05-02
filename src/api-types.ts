@@ -385,6 +385,8 @@ export interface components {
         /** ExportSession */
         ExportSession: {
             approved_intent?: components["schemas"]["CSVIntent"] | null;
+            /** Debug Traces */
+            debug_traces?: components["schemas"]["SessionDebugTrace"][];
             /** Export Id */
             export_id?: string | null;
             /** Id */
@@ -538,6 +540,17 @@ export interface components {
         /** SessionCreateResponse */
         SessionCreateResponse: {
             session: components["schemas"]["ExportSession"];
+        };
+        /** SessionDebugTrace */
+        SessionDebugTrace: {
+            /** Details */
+            details?: {
+                [key: string]: unknown;
+            };
+            /** Step */
+            step: string;
+            /** Summary */
+            summary: string;
         };
         /** SessionExportRequest */
         SessionExportRequest: {

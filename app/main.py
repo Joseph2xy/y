@@ -18,6 +18,7 @@ from app.models import (
     HealthResponse,
     ModelProviderSettingsResponse,
     ModelProviderSettingsUpdate,
+    SessionDebugTrace,
     SessionCreateResponse,
     SessionExportRequest,
     SessionIntentApprovalRequest,
@@ -46,6 +47,7 @@ from app.session_model_service import (
 from app.session_store import (
     SessionStoreError,
     add_message,
+    append_debug_trace,
     approve_intent,
     create_session,
     load_session,
@@ -237,12 +239,33 @@ def create_session_export_endpoint(
             statement_timeout_ms=document.policy.statement_timeout_ms,
             lock_timeout_ms=document.policy.lock_timeout_ms,
         )
+        append_debug_trace(
+            session_id,
+            SessionDebugTrace(
+                step="export",
+                summary="Export execution started.",
+                details={
+                    "sql": request.sql,
+                    "expected_columns": [column.name for column in session.approved_intent.columns],
+                    "max_row_count": min(session.approved_intent.max_row_count, document.policy.max_row_count),
+                    "max_export_bytes": document.policy.max_export_bytes,
+                },
+            ),
+        )
         mark_session_exporting(session_id)
         response = create_export(
             intent=session.approved_intent,
             sql=request.sql,
             policy=document.policy,
             query_runner=runner,
+        )
+        append_debug_trace(
+            session_id,
+            SessionDebugTrace(
+                step="export",
+                summary="Export execution completed.",
+                details=response.model_dump(mode="json"),
+            ),
         )
         mark_export_complete(session_id, response.export_id)
         return response
@@ -254,9 +277,25 @@ def create_session_export_endpoint(
         mark_session_failed(session_id, str(exc))
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ExportError as exc:
+        append_debug_trace(
+            session_id,
+            SessionDebugTrace(
+                step="export",
+                summary="Export execution failed.",
+                details={"error": str(exc)},
+            ),
+        )
         mark_session_failed(session_id, str(exc))
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
+        append_debug_trace(
+            session_id,
+            SessionDebugTrace(
+                step="export",
+                summary="Export execution failed unexpectedly.",
+                details={"error": str(exc)},
+            ),
+        )
         mark_session_failed(session_id, str(exc))
         raise HTTPException(status_code=500, detail="Export failed.") from exc
 

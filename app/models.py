@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -133,6 +134,12 @@ class ChatMessage(BaseModel):
     content: str = Field(min_length=1)
 
 
+class SessionDebugTrace(BaseModel):
+    step: str = Field(min_length=1)
+    summary: str = Field(min_length=1)
+    details: dict[str, Any] = Field(default_factory=dict)
+
+
 class ExportSession(BaseModel):
     id: str
     status: SessionStatus = SessionStatus.DRAFTING_INTENT
@@ -140,6 +147,7 @@ class ExportSession(BaseModel):
     approved_intent: CSVIntent | None = None
     export_id: str | None = None
     last_error: str | None = None
+    debug_traces: list[SessionDebugTrace] = Field(default_factory=list)
 
 
 class ModelConfig(BaseModel):

@@ -36,10 +36,11 @@ Backend:
 - `app/prompt_builder.py`: prompts for intent, SQL, and repair.
 - `app/session_model_service.py`: approval-gated model orchestration.
 - `app/provider_settings.py`: local provider settings with OpenRouter defaults.
+- Session debug traces: persisted prompt, model output, SQL validation, repair, and export execution traces in session JSON for read-only Advanced inspection.
 
 Frontend:
 
-- `src/`: compact React/Vite chat-first workflow.
+- `src/`: compact React/Vite chat-first workflow with read-only Advanced debug trace inspection.
 - `src/api-types.ts`: generated OpenAPI TypeScript types.
 - `src/types.ts`: frontend-friendly aliases.
 - `src/components/ui/`: official shadcn/ui primitives.
@@ -86,7 +87,7 @@ pnpm test
 pnpm build
 ```
 
-Last documented full backend suite: `98 passed` on 2026-05-02.
+Last documented full backend suite: `106 passed` on 2026-05-02.
 
 Last documented model eval verification: `.venv/bin/python tools/model_eval.py` passed on 2026-05-02.
 
@@ -154,13 +155,14 @@ Keep `data/exports/.gitkeep`.
 - Export columns must match the approved CSV intent.
 - CSV cells that look formula-like are escaped.
 - SQL and validation traces stay behind read-only Advanced UI.
+- Debug traces are stored with the local session and are cleared when a new user request resets the session plan.
 
 ## Next Work
 
-1. Improve debug trace persistence only enough to inspect model prompts, model outputs, SQL validation attempts, and repair attempts during development.
-2. Review the generated context from one or two realistic schemas and tune only obvious noisy/missing hints.
-3. Add an optional real-provider calibration mode for `tools/model_eval.py` once provider credentials and target models are available.
-4. Keep `tools/postgres_smoke.py` passing as the API flow changes; consider a containerized CI-friendly version only after the smoke path stabilizes.
+1. Review the generated context from one or two realistic schemas and tune only obvious noisy/missing hints.
+2. Add an optional real-provider calibration mode for `tools/model_eval.py` once provider credentials and target models are available.
+3. Keep `tools/postgres_smoke.py` passing as the API flow changes; consider a containerized CI-friendly version only after the smoke path stabilizes.
+4. Use the new persisted debug traces during realistic-schema runs to identify prompt/context/validation issues before broadening the product surface.
 
 ## Defer
 

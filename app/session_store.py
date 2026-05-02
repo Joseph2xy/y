@@ -4,7 +4,7 @@ from uuid import uuid4
 
 from pydantic import ValidationError
 
-from app.models import CSVIntent, ChatMessage, ExportSession, SessionStatus
+from app.models import CSVIntent, ChatMessage, ExportSession, SessionDebugTrace, SessionStatus
 
 
 SESSION_DIR = Path("data/sessions")
@@ -48,6 +48,7 @@ def add_message(session_id: str, message: ChatMessage, session_dir: Path = SESSI
         session.export_id = None
         session.status = SessionStatus.DRAFTING_INTENT
         session.last_error = None
+        session.debug_traces = []
     return save_session(session, session_dir)
 
 
@@ -82,6 +83,16 @@ def mark_session_failed(session_id: str, error: str, session_dir: Path = SESSION
     session = load_session(session_id, session_dir)
     session.status = SessionStatus.FAILED
     session.last_error = error
+    return save_session(session, session_dir)
+
+
+def append_debug_trace(
+    session_id: str,
+    trace: SessionDebugTrace,
+    session_dir: Path = SESSION_DIR,
+) -> ExportSession:
+    session = load_session(session_id, session_dir)
+    session.debug_traces.append(trace)
     return save_session(session, session_dir)
 
 

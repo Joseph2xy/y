@@ -13,12 +13,14 @@ export type CSVIntent = WithRequired<
 >;
 
 export type ExportSession = Omit<
-  WithRequired<Schema["ExportSession"], "approved_intent" | "export_id" | "last_error" | "messages">,
+  WithRequired<Schema["ExportSession"], "approved_intent" | "debug_traces" | "export_id" | "last_error" | "messages">,
   "approved_intent" | "messages"
 > & {
   approved_intent: CSVIntent | null;
   messages: ChatMessage[];
 };
+
+export type SessionDebugTrace = Schema["SessionDebugTrace"];
 
 export type ContextPolicy = WithRequired<
   Schema["ContextPolicy"],

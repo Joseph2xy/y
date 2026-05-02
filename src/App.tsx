@@ -38,6 +38,7 @@ import type {
   ExportCreateResponse,
   ExportSession,
   ModelProviderSettingsResponse,
+  SessionDebugTrace,
   SQLPreparationResponse
 } from "./types";
 
@@ -332,6 +333,7 @@ export function App() {
               approved={session?.approved_intent ?? null}
               sqlPrep={sqlPrep}
               exportResult={exportResult}
+              traces={session?.debug_traces ?? []}
               busy={busy}
               canPrepare={Boolean(session?.approved_intent)}
               advancedOpen={advancedOpen}
@@ -467,6 +469,7 @@ function WorkflowPanel({
   approved,
   sqlPrep,
   exportResult,
+  traces,
   busy,
   canPrepare,
   advancedOpen,
@@ -479,6 +482,7 @@ function WorkflowPanel({
   approved: CSVIntent | null;
   sqlPrep: SQLPreparationResponse | null;
   exportResult: ExportCreateResponse | null;
+  traces: SessionDebugTrace[];
   busy: boolean;
   canPrepare: boolean;
   advancedOpen: boolean;
@@ -502,7 +506,7 @@ function WorkflowPanel({
           }
         />
         <CollapsibleContent>
-          <Advanced sqlPrep={sqlPrep} />
+          <Advanced sqlPrep={sqlPrep} traces={traces} />
         </CollapsibleContent>
       </Collapsible>
     </div>
@@ -626,22 +630,43 @@ function ExportPanel({
   );
 }
 
-function Advanced({ sqlPrep }: { sqlPrep: SQLPreparationResponse | null }) {
-  if (!sqlPrep) return <div className="rounded-md border p-3 text-sm text-muted-foreground">No SQL prepared yet.</div>;
+function Advanced({ sqlPrep, traces }: { sqlPrep: SQLPreparationResponse | null; traces: SessionDebugTrace[] }) {
+  if (!sqlPrep && !traces.length) {
+    return <div className="rounded-md border p-3 text-sm text-muted-foreground">No debug details yet.</div>;
+  }
   return (
     <div className="flex flex-col gap-3 text-sm">
-      <pre className="max-h-52 overflow-auto rounded-md bg-muted p-3 text-foreground">{sqlPrep.sql}</pre>
-      <div className="flex flex-col gap-2">
-        {sqlPrep.attempts.map((attempt, index) => (
-          <div key={`${attempt.sql}-${index}`} className="rounded-md border p-2">
-            <div className="font-medium">
-              Attempt {index + 1}: {attempt.valid ? "valid" : "invalid"}
-            </div>
-            {attempt.errors.length ? <div className="mt-1 text-destructive">{attempt.errors.join("; ")}</div> : null}
-            {attempt.repair_changes.length ? <div className="mt-1 text-muted-foreground">{attempt.repair_changes.join("; ")}</div> : null}
+      {sqlPrep ? (
+        <>
+          <pre className="max-h-52 overflow-auto rounded-md bg-muted p-3 text-foreground">{sqlPrep.sql}</pre>
+          <div className="flex flex-col gap-2">
+            {sqlPrep.attempts.map((attempt, index) => (
+              <div key={`${attempt.sql}-${index}`} className="rounded-md border p-2">
+                <div className="font-medium">
+                  Attempt {index + 1}: {attempt.valid ? "valid" : "invalid"}
+                </div>
+                {attempt.errors.length ? <div className="mt-1 text-destructive">{attempt.errors.join("; ")}</div> : null}
+                {attempt.repair_changes.length ? <div className="mt-1 text-muted-foreground">{attempt.repair_changes.join("; ")}</div> : null}
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </>
+      ) : null}
+      {traces.length ? (
+        <div className="flex flex-col gap-2">
+          <div className="text-xs font-medium text-muted-foreground">Debug trace</div>
+          {traces.map((trace, index) => (
+            <details key={`${trace.step}-${index}`} className="rounded-md border p-2">
+              <summary className="cursor-pointer font-medium">
+                {index + 1}. {trace.step}: {trace.summary}
+              </summary>
+              <pre className="mt-2 max-h-52 overflow-auto rounded-md bg-muted p-2 text-xs text-foreground">
+                {JSON.stringify(trace.details, null, 2)}
+              </pre>
+            </details>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

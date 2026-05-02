@@ -10,6 +10,7 @@ from app.models import (
     ClarificationResponse,
     ExportSession,
     ModelMessage,
+    SessionDebugTrace,
     SQLProposal,
     SQLPreparationResponse,
     SQLRepairProposal,
@@ -17,7 +18,7 @@ from app.models import (
     SessionStatus,
 )
 from app.prompt_builder import build_intent_prompt, build_sql_prompt, build_sql_repair_prompt
-from app.session_store import load_session, mark_session_failed, save_session
+from app.session_store import load_session, save_session
 from app.sql_guard import sql_policy_from_context, validate_sql
 
 
@@ -41,10 +42,16 @@ def propose_csv_intent(
     session = load_session(session_id)
     context = load_context()
 
-    proposal = model_provider.generate_json(
-        messages=build_intent_prompt(context=context, messages=session.messages),
-        response_model=CSVIntentProposal,
-    )
+    prompt = build_intent_prompt(context=context, messages=session.messages)
+    try:
+        proposal = model_provider.generate_json(
+            messages=prompt,
+            response_model=CSVIntentProposal,
+        )
+    except Exception as exc:
+        _mark_model_failure(session, exc, step="propose_intent", prompt=prompt)
+        raise
+    _append_model_trace(session, "propose_intent", prompt, proposal)
 
     session.messages.append(ChatMessage(role="assistant", content=proposal.message))
     session.approved_intent = None
@@ -63,10 +70,16 @@ def ask_clarification(
     session = load_session(session_id)
     context = load_context()
 
-    response = model_provider.generate_json(
-        messages=build_intent_prompt(context=context, messages=session.messages),
-        response_model=ClarificationResponse,
-    )
+    prompt = build_intent_prompt(context=context, messages=session.messages)
+    try:
+        response = model_provider.generate_json(
+            messages=prompt,
+            response_model=ClarificationResponse,
+        )
+    except Exception as exc:
+        _mark_model_failure(session, exc, step="clarify", prompt=prompt)
+        raise
+    _append_model_trace(session, "clarify", prompt, response)
 
     session.messages.append(ChatMessage(role="assistant", content=response.message))
     session.approved_intent = None
@@ -90,17 +103,20 @@ def propose_sql(
     session.status = SessionStatus.GENERATING_SQL
     save_session(session)
 
+    prompt: list[ModelMessage] | None = None
     try:
+        prompt = build_sql_prompt(
+            context=context,
+            messages=session.messages,
+            approved_intent=session.approved_intent,
+        )
         proposal = model_provider.generate_json(
-            messages=build_sql_prompt(
-                context=context,
-                messages=session.messages,
-                approved_intent=session.approved_intent,
-            ),
+            messages=prompt,
             response_model=SQLProposal,
         )
+        _append_model_trace(session, "propose_sql", prompt, proposal)
     except Exception as exc:
-        _mark_model_failure(session.id, exc)
+        _mark_model_failure(session, exc, step="propose_sql", prompt=prompt)
         raise
 
     session.status = SessionStatus.VALIDATING_SQL
@@ -126,17 +142,20 @@ def prepare_sql(
     session.status = SessionStatus.GENERATING_SQL
     save_session(session)
 
+    prompt: list[ModelMessage] | None = None
     try:
+        prompt = build_sql_prompt(
+            context=context,
+            messages=session.messages,
+            approved_intent=session.approved_intent,
+        )
         proposal = model_provider.generate_json(
-            messages=build_sql_prompt(
-                context=context,
-                messages=session.messages,
-                approved_intent=session.approved_intent,
-            ),
+            messages=prompt,
             response_model=SQLProposal,
         )
+        _append_model_trace(session, "prepare_sql", prompt, proposal)
     except Exception as exc:
-        _mark_model_failure(session.id, exc)
+        _mark_model_failure(session, exc, step="prepare_sql", prompt=prompt)
         raise
 
     policy = sql_policy_from_context(context.policy)
@@ -148,6 +167,14 @@ def prepare_sql(
 
     for attempt_number in range(max_repair_attempts + 1):
         result = validate_sql(current_sql, policy, expected_columns=expected_columns)
+        _append_validation_trace(
+            session,
+            attempt_number=attempt_number + 1,
+            sql=current_sql,
+            valid=result.valid,
+            errors=result.errors,
+            repair_changes=repair_changes,
+        )
         attempts.append(
             SQLValidationAttempt(
                 sql=current_sql,
@@ -171,18 +198,21 @@ def prepare_sql(
         if attempt_number == max_repair_attempts:
             break
 
+        repair_prompt: list[ModelMessage] | None = None
         try:
+            repair_prompt = build_sql_repair_prompt(
+                context=context,
+                approved_intent=session.approved_intent,
+                sql=current_sql,
+                validation_errors=result.errors,
+            )
             repair = model_provider.generate_json(
-                messages=build_sql_repair_prompt(
-                    context=context,
-                    approved_intent=session.approved_intent,
-                    sql=current_sql,
-                    validation_errors=result.errors,
-                ),
+                messages=repair_prompt,
                 response_model=SQLRepairProposal,
             )
+            _append_model_trace(session, "repair_sql", repair_prompt, repair)
         except Exception as exc:
-            _mark_model_failure(session.id, exc)
+            _mark_model_failure(session, exc, step="repair_sql", prompt=repair_prompt)
             raise
         current_sql = repair.sql
         repair_changes = repair.changes
@@ -203,5 +233,76 @@ def _validate_session(session: ExportSession) -> ExportSession:
     return ExportSession.model_validate(session)
 
 
-def _mark_model_failure(session_id: str, exc: Exception) -> None:
-    mark_session_failed(session_id, f"Model provider failed: {exc}")
+def _mark_model_failure(
+    session: ExportSession,
+    exc: Exception,
+    *,
+    step: str,
+    prompt: list[ModelMessage] | None,
+) -> None:
+    details: dict[str, object] = {"error": str(exc)}
+    if prompt is not None:
+        details["prompt"] = [message.model_dump(mode="json") for message in prompt]
+
+    session.debug_traces.append(
+        SessionDebugTrace(
+            step=step,
+            summary=f"Model call failed for {step}.",
+            details=details,
+        )
+    )
+    session.status = SessionStatus.FAILED
+    session.last_error = f"Model provider failed: {exc}"
+    save_session(session)
+
+
+def _append_model_trace(
+    session: ExportSession,
+    step: str,
+    prompt: list[ModelMessage],
+    response: BaseModel,
+) -> None:
+    _append_trace(
+        session,
+        step=step,
+        summary=f"Model call completed for {step}.",
+        details={
+            "prompt": [message.model_dump(mode="json") for message in prompt],
+            "response_model": response.__class__.__name__,
+            "response": response.model_dump(mode="json"),
+        },
+    )
+
+
+def _append_validation_trace(
+    session: ExportSession,
+    *,
+    attempt_number: int,
+    sql: str,
+    valid: bool,
+    errors: list[str],
+    repair_changes: list[str],
+) -> None:
+    _append_trace(
+        session,
+        step="validate_sql",
+        summary=f"SQL validation attempt {attempt_number} {'passed' if valid else 'failed'}.",
+        details={
+            "attempt": attempt_number,
+            "sql": sql,
+            "valid": valid,
+            "errors": errors,
+            "repair_changes": repair_changes,
+        },
+    )
+
+
+def _append_trace(session: ExportSession, *, step: str, summary: str, details: dict) -> None:
+    session.debug_traces.append(
+        SessionDebugTrace(
+            step=step,
+            summary=summary,
+            details=details,
+        )
+    )
+    save_session(session)

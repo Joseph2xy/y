@@ -51,7 +51,14 @@ const sessionResponse = {
   messages: [],
   approved_intent: approvedIntent,
   export_id: null,
-  last_error: null
+  last_error: null,
+  debug_traces: [
+    {
+      step: "validate_sql",
+      summary: "SQL validation attempt 1 passed.",
+      details: { valid: true }
+    }
+  ]
 };
 
 const providerResponse = {
@@ -170,6 +177,7 @@ describe("App", () => {
     await user.click(screen.getByRole("button", { name: /Advanced/i }));
 
     expect(screen.getByText("select email from customers limit 10")).toBeInTheDocument();
+    expect(screen.getByText(/validate_sql: SQL validation attempt 1 passed./)).toBeInTheDocument();
   });
 
   it("saves OpenRouter provider settings", async () => {

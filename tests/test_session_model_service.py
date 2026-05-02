@@ -71,6 +71,8 @@ def test_propose_csv_intent_updates_session(tmp_path, monkeypatch) -> None:
     assert proposal.intent.summary == "Customer emails"
     assert updated.status == "awaiting_approval"
     assert updated.messages[-1].content == "Here is the CSV plan."
+    assert updated.debug_traces[0].step == "propose_intent"
+    assert updated.debug_traces[0].details["response_model"] == "CSVIntentProposal"
     assert provider.calls[0]["response_model"] is CSVIntentProposal
 
 
@@ -86,6 +88,23 @@ def test_propose_csv_intent_clears_stale_approval(tmp_path, monkeypatch) -> None
     updated = load_session(session.id)
     assert updated.status == "awaiting_approval"
     assert updated.approved_intent is None
+
+
+def test_propose_csv_intent_marks_session_failed_when_model_generation_fails(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    ensure_context_files()
+    session = create_session()
+
+    with pytest.raises(RuntimeError, match="provider unavailable"):
+        propose_csv_intent(session_id=session.id, model_provider=RaisingProvider(RuntimeError("provider unavailable")))
+
+    updated = load_session(session.id)
+    assert updated.status == "failed"
+    assert updated.last_error == "Model provider failed: provider unavailable"
+    assert updated.debug_traces[0].step == "propose_intent"
+    assert updated.debug_traces[0].summary == "Model call failed for propose_intent."
+    assert updated.debug_traces[0].details["error"] == "provider unavailable"
+    assert "prompt" in updated.debug_traces[0].details
 
 
 def test_ask_clarification_keeps_session_in_drafting_state(tmp_path, monkeypatch) -> None:
@@ -168,6 +187,8 @@ def test_prepare_sql_returns_valid_first_proposal(tmp_path, monkeypatch) -> None
     assert len(response.attempts) == 1
     assert response.attempts[0].valid is True
     assert updated.status == "validating_sql"
+    assert [trace.step for trace in updated.debug_traces] == ["prepare_sql", "validate_sql"]
+    assert updated.debug_traces[-1].details["valid"] is True
 
 
 def test_prepare_sql_requires_approved_intent(tmp_path, monkeypatch) -> None:
@@ -192,6 +213,9 @@ def test_prepare_sql_marks_session_failed_when_model_generation_fails(tmp_path, 
     updated = load_session(session.id)
     assert updated.status == "failed"
     assert updated.last_error == "Model provider failed: provider unavailable"
+    assert updated.debug_traces[0].step == "prepare_sql"
+    assert updated.debug_traces[0].summary == "Model call failed for prepare_sql."
+    assert updated.debug_traces[0].details["error"] == "provider unavailable"
 
 
 def test_prepare_sql_rejects_negative_repair_attempts(tmp_path, monkeypatch) -> None:
@@ -237,6 +261,15 @@ def test_prepare_sql_repairs_invalid_proposal(tmp_path, monkeypatch) -> None:
     assert len(response.attempts) == 2
     assert response.attempts[0].errors == ["SQL must include a LIMIT."]
     assert response.attempts[1].repair_changes == ["Added a limit."]
+    updated = load_session(session.id)
+    assert [trace.step for trace in updated.debug_traces] == [
+        "prepare_sql",
+        "validate_sql",
+        "repair_sql",
+        "validate_sql",
+    ]
+    assert updated.debug_traces[1].details["errors"] == ["SQL must include a LIMIT."]
+    assert updated.debug_traces[2].details["response"]["changes"] == ["Added a limit."]
 
 
 def test_prepare_sql_marks_session_failed_when_repair_generation_fails(tmp_path, monkeypatch) -> None:
@@ -260,6 +293,9 @@ def test_prepare_sql_marks_session_failed_when_repair_generation_fails(tmp_path,
     updated = load_session(session.id)
     assert updated.status == "failed"
     assert updated.last_error == "Model provider failed: repair failed"
+    assert [trace.step for trace in updated.debug_traces] == ["prepare_sql", "validate_sql", "repair_sql"]
+    assert updated.debug_traces[-1].summary == "Model call failed for repair_sql."
+    assert updated.debug_traces[-1].details["error"] == "repair failed"
 
 
 def test_prepare_sql_rejects_wrong_output_columns(tmp_path, monkeypatch) -> None:
