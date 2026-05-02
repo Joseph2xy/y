@@ -12,7 +12,7 @@ The model helps interpret the user's request and propose SQL. The app owns the d
 - `docs/decisions.md`: resolved V0 decisions and revisit triggers.
 - `docs/implementation-status.md`: current status, next step, and new-session handoff.
 - `docs/example-requests.md`: sample user requests for prompt and flow testing.
-- `docs/csv-chat-flow.excalidraw`: editable process diagram.
+- `docs/flow.excalidraw`: editable process diagram.
 - `docs/agents/memory.md`: lightweight work memory and copy-pasteable continuation prompt.
 
 ## Shape

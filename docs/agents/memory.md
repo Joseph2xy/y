@@ -30,7 +30,8 @@ Update this file at the end of each section of work.
 - Added `tools/finance_calibration.py` for real-provider calibration against a disposable five-table finance/invoicing Postgres schema.
 - Ran finance calibration. Unpaid invoices, recognized revenue by month, and March payments exported with valid SQL on the first attempt. The overdue-invoices request exposed a model-output shape issue where an assumption list item was an object; fixed `CSVIntent` list fields to coerce simple object-shaped model mistakes into strings. The rerun produced a reasonable overdue-invoices CSV plan, but SQL preparation and the final vague-finance clarification were blocked by the configured OpenRouter free-model daily rate limit. Verified with `121 passed` and compileall.
 - Cleaned repo hygiene: removed ignored build/cache/runtime artifacts and old generated session/export files, deleted stale docs `docs/agents/domain.md` and `docs/dependency-audit.md`, and updated README/implementation status to reflect the smaller active doc set.
-- Added `docs/csv-chat-flow.excalidraw`, an editable lane diagram explaining the app process, boundaries, and safety flow from setup through CSV download.
+- Added `docs/flow.excalidraw`, an editable lane diagram explaining the app process, boundaries, and safety flow from setup through CSV download.
+- Remade and polished `docs/flow.excalidraw` as a cleaner four-lane 13-step flow after the first version proved too dense. Verified readability with agent-browser against a temporary local render and kept the source as valid Excalidraw JSON.
 
 ## Next Step
 
