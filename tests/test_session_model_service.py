@@ -112,6 +112,27 @@ def test_propose_csv_intent_can_request_clarification(tmp_path, monkeypatch) -> 
     assert updated.approved_intent is None
 
 
+def test_csv_intent_coerces_model_text_list_objects() -> None:
+    proposal = CSVIntentProposal.model_validate(
+        {
+            "message": "Here is the CSV plan.",
+            "intent": {
+                "summary": "Overdue invoices",
+                "row_meaning": "One row per overdue invoice.",
+                "columns": [{"name": "invoice_number", "description": "Invoice number"}],
+                "filters": [{"Only unpaid invoices": None}],
+                "derived_fields": [{"days_overdue": "April 15 2026 minus due date"}],
+                "assumptions": [{"Invoice total calculated from invoice lines.": None}],
+            },
+        }
+    )
+
+    assert proposal.intent is not None
+    assert proposal.intent.filters == ["Only unpaid invoices"]
+    assert proposal.intent.derived_fields == ["days_overdue: April 15 2026 minus due date"]
+    assert proposal.intent.assumptions == ["Invoice total calculated from invoice lines."]
+
+
 def test_propose_csv_intent_marks_session_failed_when_model_generation_fails(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     ensure_context_files()

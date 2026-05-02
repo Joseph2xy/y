@@ -24,10 +24,17 @@ Update this file at the end of each section of work.
 - Exposed custom OpenAI-compatible provider setup in the first-run provider panel and documented the matching `.env` variables.
 - Confirmed the configured OpenRouter provider works from `.env`; a real model-provider app flow proposed a CSV plan, prepared valid SQL in one attempt, exported 3 rows, and returned a download URL without printing CSV contents.
 - Ran four real-provider calibration scenarios against the small customer/account schema. Three concrete requests exported successfully with first-attempt SQL validation. A vague request initially returned clarification-shaped model output that failed the strict CSV intent schema; fixed `CSVIntentProposal` to allow `intent: null` plus questions, keep the session in drafting state, and show clarification in the UI.
+- Added `tools/realistic_calibration.py` for real-provider calibration against a disposable five-table retail/support Postgres schema without printing credentials or CSV contents.
+- Ran realistic-schema calibration with four concrete requests and one vague request. Shipped Q1 orders, March revenue by product category, open high-priority support tickets, and active West-region accessory buyers all exported with valid SQL on the first attempt. The vague sales request returned focused clarification questions. No prompt or context tuning was needed from this pass.
+- Added local development hardening: `tools/dev.py` plus `pnpm dev:app` runs the FastAPI backend and Vite frontend together, and `tools/check_setup.py` plus `pnpm check:setup` reports database/provider/context readiness from the terminal. Updated README setup flow and verified with `120 passed`, compileall, `pnpm test`, `pnpm build`, and `pnpm check:setup`.
+- Added `tools/finance_calibration.py` for real-provider calibration against a disposable five-table finance/invoicing Postgres schema.
+- Ran finance calibration. Unpaid invoices, recognized revenue by month, and March payments exported with valid SQL on the first attempt. The overdue-invoices request exposed a model-output shape issue where an assumption list item was an object; fixed `CSVIntent` list fields to coerce simple object-shaped model mistakes into strings. The rerun produced a reasonable overdue-invoices CSV plan, but SQL preparation and the final vague-finance clarification were blocked by the configured OpenRouter free-model daily rate limit. Verified with `121 passed` and compileall.
+- Cleaned repo hygiene: removed ignored build/cache/runtime artifacts and old generated session/export files, deleted stale docs `docs/agents/domain.md` and `docs/dependency-audit.md`, and updated README/implementation status to reflect the smaller active doc set.
+- Added `docs/csv-chat-flow.excalidraw`, an editable lane diagram explaining the app process, boundaries, and safety flow from setup through CSV download.
 
 ## Next Step
 
-- Calibrate against one or two more realistic schemas/requests beyond the small demo customer/account schema, then tune generated context only where traces show concrete confusion.
+- Re-run the remaining finance calibration scenarios after provider quota resets or with a paid/non-free provider: overdue-invoices SQL/export and vague-finance clarification. Then decide whether the next local-install step should be a packaged command, containerized smoke path, or no extra setup surface.
 
 ## Next Session Prompt
 
@@ -36,11 +43,11 @@ Use this prompt to continue:
 ```text
 Read AGENTS.md and docs/implementation-status.md first. Continue from the current V0 CSV Chat state.
 
-Goal for this session: run realistic-schema calibration beyond the small customer/account demo schema.
+Goal for this session: re-run the remaining finance calibration scenarios after provider quota resets or with a paid/non-free provider: overdue-invoices SQL/export and vague-finance clarification. Then decide whether the next local-install step should be a packaged command, containerized smoke path, or no extra setup surface.
 
 Start by checking git status and setup readiness. Do not print secrets, database credentials, or final CSV contents. Use the configured .env provider/database if available.
 
-Run 3-5 realistic CSV requests through the actual API flow:
+For another calibration pass, run 3-5 realistic CSV requests through the actual API flow:
 1. create session
 2. add user request
 3. propose CSV plan
@@ -52,6 +59,8 @@ Run 3-5 realistic CSV requests through the actual API flow:
 Report for each request: request text, whether the model proposed a plan or clarification, planned columns/filters, SQL validation result and repair attempts, export row count/columns, and any mismatch or suspicious behavior.
 
 If a concrete bug appears, fix it with focused changes and tests. If the issue is schema/business ambiguity, tune data/context/context.md or prompt wording only when the traces show a specific confusion. Keep the product narrow: chat -> context -> approved CSV plan -> validated SQL -> CSV download.
+
+If local-install friction comes up, start from the existing `pnpm dev:app` and `pnpm check:setup` paths before adding anything broader.
 
 Before final response, run relevant verification: pytest, frontend tests/build when frontend/API types changed, compileall, and model_eval if prompt/model-flow behavior changed. End with conclusions and recommended next actions.
 ```

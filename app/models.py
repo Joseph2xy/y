@@ -3,7 +3,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class HealthResponse(BaseModel):
@@ -117,6 +117,13 @@ class CSVIntent(BaseModel):
     derived_fields: list[str] = Field(default_factory=list)
     assumptions: list[str] = Field(default_factory=list)
     max_row_count: int = Field(default=1000, gt=0, le=100_000)
+
+    @field_validator("filters", "derived_fields", "assumptions", mode="before")
+    @classmethod
+    def coerce_text_list(cls, value: Any) -> Any:
+        if not isinstance(value, list):
+            return value
+        return [_coerce_text_list_item(item) for item in value]
 
 
 class SessionStatus(StrEnum):
@@ -233,3 +240,17 @@ class SQLPreparationResponse(BaseModel):
     valid: bool
     errors: list[str] = Field(default_factory=list)
     attempts: list[SQLValidationAttempt] = Field(default_factory=list)
+
+
+def _coerce_text_list_item(item: Any) -> str:
+    if isinstance(item, str):
+        return item
+    if isinstance(item, dict):
+        parts = []
+        for key, value in item.items():
+            if value is None:
+                parts.append(str(key))
+            else:
+                parts.append(f"{key}: {value}")
+        return "; ".join(parts)
+    return str(item)

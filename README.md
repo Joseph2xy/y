@@ -12,6 +12,8 @@ The model helps interpret the user's request and propose SQL. The app owns the d
 - `docs/decisions.md`: resolved V0 decisions and revisit triggers.
 - `docs/implementation-status.md`: current status, next step, and new-session handoff.
 - `docs/example-requests.md`: sample user requests for prompt and flow testing.
+- `docs/csv-chat-flow.excalidraw`: editable process diagram.
+- `docs/agents/memory.md`: lightweight work memory and copy-pasteable continuation prompt.
 
 ## Shape
 
@@ -44,21 +46,15 @@ There is no separate worker, queue, scheduler, or approval workflow in this vers
 
 ## Local Setup
 
-Backend:
+Install backend and frontend dependencies:
 
 ```bash
 python3 -m venv .venv
 .venv/bin/python -m pip install -e '.[test]'
-.venv/bin/python -m pytest -q
+pnpm install
 ```
 
-Run the API:
-
-```bash
-.venv/bin/python -m uvicorn app.main:app --reload
-```
-
-Create a local `.env` first:
+Create a local `.env`:
 
 ```bash
 cp .env.example .env
@@ -66,7 +62,7 @@ cp .env.example .env
 
 Then edit `.env`:
 
-```bash
+```text
 DATABASE_URL=postgresql://readonly:password@localhost:5432/appdb
 WORKER_LLM_PROVIDER=openrouter
 WORKER_OPENROUTER_MODEL=nvidia/nemotron-3-super-120b-a12b:free
@@ -75,6 +71,20 @@ MODEL_TEMPERATURE=0
 ```
 
 `DATABASE_URL` should point to a read-only Postgres user. The real `.env` file is ignored by git.
+
+Check readiness:
+
+```bash
+pnpm check:setup
+```
+
+Run the app for local development:
+
+```bash
+pnpm dev:app
+```
+
+This starts the FastAPI backend on `http://127.0.0.1:8000` and the Vite frontend on `http://127.0.0.1:5173`.
 
 For a custom OpenAI-compatible endpoint, use the setup screen or configure:
 
@@ -87,16 +97,23 @@ MODEL_TEMPERATURE=0
 
 Provider settings saved through the setup screen are stored locally under `data/settings/model_provider.json`; API responses never include the saved key.
 
-Frontend:
+You can also run the backend and frontend separately:
 
 ```bash
-pnpm install
-pnpm test
-pnpm build
+.venv/bin/python -m uvicorn app.main:app --reload
 pnpm dev
 ```
 
 The Vite dev server proxies API calls to `http://127.0.0.1:8000`.
+
+Verification:
+
+```bash
+.venv/bin/python -m pytest -q
+.venv/bin/python -m compileall -q app tests tools
+pnpm test
+pnpm build
+```
 
 The frontend uses official shadcn/ui primitives. The app should stay compact, centered, dark by default, and chat-first. Workflow controls should appear only when useful.
 
