@@ -242,6 +242,35 @@ def test_propose_intent_endpoint_uses_model_provider(tmp_path, monkeypatch) -> N
     assert session["messages"][-1]["content"] == "Here is the CSV plan."
 
 
+def test_propose_intent_endpoint_can_return_clarification(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    ensure_context_files()
+    override_provider(
+        CSVIntentProposal(
+            message="Which customer fields should the CSV include?",
+            questions=["Which customer fields should the CSV include?"],
+        )
+    )
+    client = TestClient(app)
+    session_id = client.post("/sessions").json()["session"]["id"]
+    client.post(
+        f"/sessions/{session_id}/messages",
+        json={"message": {"role": "user", "content": "Send me the useful customer stuff."}},
+    )
+
+    try:
+        response = client.post(f"/sessions/{session_id}/propose-intent")
+    finally:
+        clear_overrides()
+
+    assert response.status_code == 200
+    assert response.json()["intent"] is None
+    assert response.json()["questions"] == ["Which customer fields should the CSV include?"]
+    session = client.get(f"/sessions/{session_id}").json()
+    assert session["status"] == "drafting_intent"
+    assert session["messages"][-1]["content"] == "Which customer fields should the CSV include?"
+
+
 def test_clarify_endpoint_uses_model_provider(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     ensure_context_files()

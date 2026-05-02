@@ -43,7 +43,7 @@ export type ContextDocument = Omit<Schema["ContextDocument"], "policy" | "schema
 };
 
 export type CSVIntentProposal = Omit<Schema["CSVIntentProposal"], "intent"> & {
-  intent: CSVIntent;
+  intent: CSVIntent | null;
 };
 
 export type SQLValidationAttempt = WithRequired<

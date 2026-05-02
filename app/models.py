@@ -207,7 +207,8 @@ class ClarificationResponse(BaseModel):
 
 class CSVIntentProposal(BaseModel):
     message: str = Field(min_length=1)
-    intent: CSVIntent
+    intent: CSVIntent | None = None
+    questions: list[str] = Field(default_factory=list)
 
 
 class SQLProposal(BaseModel):

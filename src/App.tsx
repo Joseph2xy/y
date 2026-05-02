@@ -55,7 +55,9 @@ export function App() {
   const [exportResult, setExportResult] = useState<ExportCreateResponse | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [providerKind, setProviderKind] = useState<"openrouter" | "custom">("openrouter");
   const [providerModel, setProviderModel] = useState("openrouter/openai/gpt-4o-mini");
+  const [providerBaseUrl, setProviderBaseUrl] = useState("");
   const [providerApiKey, setProviderApiKey] = useState("");
   const pendingSessionRef = useRef<Promise<ExportSession> | null>(null);
 
@@ -102,14 +104,17 @@ export function App() {
   const providerMutation = useMutation({
     mutationFn: () =>
       updateModelProviderSettings({
-        provider: "openrouter",
+        provider: providerKind,
         model: providerModel.trim(),
         api_key: providerApiKey.trim() || null,
+        base_url: providerKind === "custom" ? providerBaseUrl.trim() : null,
         temperature: 0
       }),
     onSuccess: (settings) => {
       setProviderApiKey("");
+      setProviderKind(settings.provider === "custom" ? "custom" : "openrouter");
       setProviderModel(settings.model);
+      setProviderBaseUrl(settings.base_url ?? "");
       queryClient.setQueryData(["model-provider"], settings);
       void bootstrapMutation.mutateAsync().catch(showError);
       void queryClient.invalidateQueries({ queryKey: ["setup-status"] });
@@ -143,7 +148,7 @@ export function App() {
       setProposal(nextProposal);
       setSqlPrep(null);
       setExportResult(null);
-      setNotice(null);
+      setNotice(nextProposal.intent ? null : { type: "info", text: nextProposal.message });
       void queryClient.invalidateQueries({ queryKey: ["session", nextSessionId] });
     },
     onError: showError
@@ -244,9 +249,11 @@ export function App() {
 
   useEffect(() => {
     if (providerSettings?.model) {
+      setProviderKind(providerSettings.provider === "custom" ? "custom" : "openrouter");
       setProviderModel(providerSettings.model);
+      setProviderBaseUrl(providerSettings.base_url ?? "");
     }
-  }, [providerSettings?.model]);
+  }, [providerSettings?.provider, providerSettings?.model, providerSettings?.base_url]);
 
   if (setupQuery.isLoading) {
     return <Shell status={null}>Checking setup...</Shell>;
@@ -258,11 +265,15 @@ export function App() {
         <SetupGate
           status={setupStatus ?? null}
           providerSettings={providerSettings}
+          provider={providerKind}
           model={providerModel}
+          baseUrl={providerBaseUrl}
           apiKey={providerApiKey}
           busy={busy}
           error={notice?.type === "error" ? notice.text : null}
+          onProviderChange={setProviderKind}
           onModelChange={setProviderModel}
+          onBaseUrlChange={setProviderBaseUrl}
           onApiKeyChange={setProviderApiKey}
           onSaveProvider={() => providerMutation.mutate()}
           onBootstrap={() => bootstrapMutation.mutate()}
@@ -400,22 +411,30 @@ function Shell({ status, children }: { status: SetupStatusResponse | null; child
 function SetupGate({
   status,
   providerSettings,
+  provider,
   model,
+  baseUrl,
   apiKey,
   busy,
   error,
+  onProviderChange,
   onModelChange,
+  onBaseUrlChange,
   onApiKeyChange,
   onSaveProvider,
   onBootstrap
 }: {
   status: SetupStatusResponse | null;
   providerSettings?: ModelProviderSettingsResponse;
+  provider: "openrouter" | "custom";
   model: string;
+  baseUrl: string;
   apiKey: string;
   busy: boolean;
   error: string | null;
+  onProviderChange: (value: "openrouter" | "custom") => void;
   onModelChange: (value: string) => void;
+  onBaseUrlChange: (value: string) => void;
   onApiKeyChange: (value: string) => void;
   onSaveProvider: () => void;
   onBootstrap: () => void;
@@ -450,10 +469,14 @@ function SetupGate({
       {action === "configure_model_provider" ? (
         <ProviderPanel
           settings={providerSettings}
+          provider={provider}
           model={model}
+          baseUrl={baseUrl}
           apiKey={apiKey}
           busy={busy}
+          onProviderChange={onProviderChange}
           onModelChange={onModelChange}
+          onBaseUrlChange={onBaseUrlChange}
           onApiKeyChange={onApiKeyChange}
           onSave={onSaveProvider}
         />
@@ -507,33 +530,58 @@ function ReadinessStatus({ status }: { status: SetupStatusResponse | null }) {
 
 function ProviderPanel({
   settings,
+  provider,
   model,
+  baseUrl,
   apiKey,
   busy,
+  onProviderChange,
   onModelChange,
+  onBaseUrlChange,
   onApiKeyChange,
   onSave
 }: {
   settings?: ModelProviderSettingsResponse;
+  provider: "openrouter" | "custom";
   model: string;
+  baseUrl: string;
   apiKey: string;
   busy: boolean;
+  onProviderChange: (value: "openrouter" | "custom") => void;
   onModelChange: (value: string) => void;
+  onBaseUrlChange: (value: string) => void;
   onApiKeyChange: (value: string) => void;
   onSave: () => void;
 }) {
+  const customProvider = provider === "custom";
+  const baseUrlValue = customProvider ? baseUrl.trim() : null;
+  const canKeepSavedKey =
+    Boolean(settings?.api_key_configured) &&
+    settings?.provider === provider &&
+    (settings.base_url ?? null) === baseUrlValue;
   return (
     <section className="flex flex-col gap-3 border-t pt-6" aria-label="Provider settings">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-sm font-medium">OpenRouter</h2>
+          <h2 className="text-sm font-medium">Model provider</h2>
           <p className="text-xs text-muted-foreground">
-            {settings?.api_key_configured ? "API key saved locally on the backend." : "Add an API key before using model features."}
+            {settings?.api_key_configured ? "API key saved locally on the backend." : "Add provider details before using model features."}
           </p>
         </div>
-        <Badge variant="outline">default provider</Badge>
+        <Badge variant="outline">{customProvider ? "OpenAI-compatible" : "OpenRouter"}</Badge>
       </div>
-      <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+      <div className="grid gap-3 md:grid-cols-[0.75fr_1fr_1fr_auto]">
+        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+          Provider
+          <select
+            value={provider}
+            onChange={(event) => onProviderChange(event.target.value === "custom" ? "custom" : "openrouter")}
+            className="h-8 rounded-md border bg-background px-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <option value="openrouter">OpenRouter</option>
+            <option value="custom">Custom</option>
+          </select>
+        </label>
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
           Model
           <input
@@ -542,18 +590,33 @@ function ProviderPanel({
             className="h-8 rounded-md border bg-background px-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </label>
+        {customProvider ? (
+          <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+            Base URL
+            <input
+              value={baseUrl}
+              onChange={(event) => onBaseUrlChange(event.target.value)}
+              placeholder="http://127.0.0.1:4010/v1"
+              className="h-8 rounded-md border bg-background px-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+          </label>
+        ) : null}
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
           API key
           <input
             value={apiKey}
             onChange={(event) => onApiKeyChange(event.target.value)}
             type="password"
-            placeholder={settings?.api_key_configured ? "Leave blank to keep saved key" : "sk-or-..."}
+            placeholder={canKeepSavedKey ? "Leave blank to keep saved key" : "API key"}
             className="h-8 rounded-md border bg-background px-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </label>
         <div className="flex items-end">
-          <Button size="sm" onClick={onSave} disabled={busy || !model.trim() || (!apiKey.trim() && !settings?.api_key_configured)}>
+          <Button
+            size="sm"
+            onClick={onSave}
+            disabled={busy || !model.trim() || (customProvider && !baseUrl.trim()) || (!apiKey.trim() && !canKeepSavedKey)}
+          >
             {busy ? <Loader2 data-icon="inline-start" className="animate-spin" aria-hidden="true" /> : <Check data-icon="inline-start" aria-hidden="true" />}
             Save
           </Button>
@@ -710,7 +773,22 @@ function PlanPanel({
           ) : null}
         </div>
       ) : (
-        <p className="text-sm text-muted-foreground">After you send a message, ask the app to propose a CSV plan.</p>
+        <div className="rounded-md border p-3 text-sm text-muted-foreground">
+          {proposal ? (
+            <div className="flex flex-col gap-2">
+              <p>{proposal.message}</p>
+              {proposal.questions?.length ? (
+                <ul className="list-disc space-y-1 pl-4">
+                  {proposal.questions.map((question) => (
+                    <li key={question}>{question}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : (
+            <p>After you send a message, ask the app to propose a CSV plan.</p>
+          )}
+        </div>
       )}
     </section>
   );

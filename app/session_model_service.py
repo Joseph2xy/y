@@ -56,7 +56,7 @@ def propose_csv_intent(
     session.messages.append(ChatMessage(role="assistant", content=proposal.message))
     session.approved_intent = None
     session.export_id = None
-    session.status = SessionStatus.AWAITING_APPROVAL
+    session.status = SessionStatus.AWAITING_APPROVAL if proposal.intent is not None else SessionStatus.DRAFTING_INTENT
     session.last_error = None
     save_session(_validate_session(session))
     return proposal

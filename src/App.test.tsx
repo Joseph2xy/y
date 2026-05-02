@@ -203,9 +203,73 @@ describe("App", () => {
     expect(screen.getByText(/validate_sql: SQL validation attempt 1 passed./)).toBeInTheDocument();
   });
 
+  it("shows clarification when a CSV plan is not ready", async () => {
+    const user = userEvent.setup();
+    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+    let currentSession: Record<string, unknown> = { ...sessionResponse, status: "drafting_intent", messages: [], approved_intent: null };
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/setup/status") {
+        return new Response(JSON.stringify(setupReadyResponse), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      if (url === "/sessions") {
+        return new Response(JSON.stringify({ session: currentSession }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      if (url === "/sessions/session123") {
+        return new Response(JSON.stringify(currentSession), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      if (url === "/sessions/session123/messages") {
+        currentSession = {
+          ...currentSession,
+          messages: [{ role: "user", content: "Send me the useful customer stuff." }]
+        };
+        return new Response(JSON.stringify(currentSession), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      if (url === "/sessions/session123/propose-intent") {
+        return new Response(
+          JSON.stringify({
+            message: "Which customer fields should the CSV include?",
+            intent: null,
+            questions: ["Which customer fields should the CSV include?"]
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+          }
+        );
+      }
+      return new Response(JSON.stringify({ detail: "Not found" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" }
+      });
+    });
+
+    renderApp();
+
+    await user.type(await screen.findByPlaceholderText("Export customer emails for active accounts created this quarter."), "Send me the useful customer stuff.");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    await user.click(await screen.findByRole("button", { name: "Propose CSV plan" }));
+
+    expect(await screen.findAllByText("Which customer fields should the CSV include?")).not.toHaveLength(0);
+    expect(screen.queryByRole("button", { name: "Approve plan" })).not.toBeInTheDocument();
+  });
+
   it("saves OpenRouter provider settings", async () => {
     const user = userEvent.setup();
     const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+    let savedBody: unknown = null;
     fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url === "/setup/status") {
@@ -215,6 +279,7 @@ describe("App", () => {
         });
       }
       if (url === "/settings/model-provider" && init?.method === "PUT") {
+        savedBody = JSON.parse(String(init.body));
         return new Response(
           JSON.stringify({
             ...providerResponse,
@@ -250,5 +315,77 @@ describe("App", () => {
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     expect(await screen.findByText("What CSV do you need?")).toBeInTheDocument();
+    expect(savedBody).toMatchObject({
+      provider: "openrouter",
+      model: "openrouter/openai/gpt-4o-mini",
+      api_key: "sk-or-test",
+      base_url: null,
+      temperature: 0
+    });
+  });
+
+  it("saves custom OpenAI-compatible provider settings", async () => {
+    const user = userEvent.setup();
+    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+    let savedBody: unknown = null;
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/setup/status") {
+        return new Response(JSON.stringify(providerNeededResponse), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      if (url === "/settings/model-provider" && init?.method === "PUT") {
+        savedBody = JSON.parse(String(init.body));
+        return new Response(
+          JSON.stringify({
+            provider: "custom",
+            model: "openai/gpt-4.1-mini",
+            base_url: "http://127.0.0.1:4010/v1",
+            temperature: 0,
+            api_key_configured: true
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+          }
+        );
+      }
+      if (url === "/settings/model-provider") {
+        return new Response(JSON.stringify(providerResponse), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      if (url === "/setup/bootstrap") {
+        return new Response(JSON.stringify(setupReadyResponse), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      return new Response(JSON.stringify({ detail: "Not found" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" }
+      });
+    });
+
+    renderApp();
+
+    await user.selectOptions(await screen.findByLabelText("Provider"), "custom");
+    await user.clear(screen.getByLabelText("Model"));
+    await user.type(screen.getByLabelText("Model"), "openai/gpt-4.1-mini");
+    await user.type(screen.getByLabelText("Base URL"), "http://127.0.0.1:4010/v1");
+    await user.type(screen.getByLabelText("API key"), "local-key");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByText("What CSV do you need?")).toBeInTheDocument();
+    expect(savedBody).toMatchObject({
+      provider: "custom",
+      model: "openai/gpt-4.1-mini",
+      api_key: "local-key",
+      base_url: "http://127.0.0.1:4010/v1",
+      temperature: 0
+    });
   });
 });

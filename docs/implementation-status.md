@@ -19,6 +19,10 @@ The app has a working local V0 vertical slice:
 
 The first real local Postgres demo succeeded on 2026-05-02 using the deterministic mock OpenAI-compatible model server and downloaded a CSV with the expected 3 active 2026 customer rows.
 
+A real OpenRouter provider check succeeded on 2026-05-02 using `.env` provider settings. The app flow proposed a CSV plan, prepared valid SQL in one attempt, exported 3 rows, and returned a download URL.
+
+A four-scenario real-provider calibration pass on 2026-05-02 covered a filtered customer export, an aggregate by account plan, a joined Starter-plan export, and a vague request. The three concrete requests exported successfully with valid SQL on the first attempt. The vague request initially exposed a schema/UX gap where clarification-shaped model output surfaced as a validation error; the app now allows `POST /sessions/{session_id}/propose-intent` to return a clarification message/questions with no CSV intent and keeps the session in drafting state.
+
 ## Implemented
 
 Backend:
@@ -52,6 +56,7 @@ Setup/readiness:
 - `POST /setup/bootstrap`: runs missing automatic setup work when configuration is present; currently scans the configured database and generates context files.
 - Normal frontend entry goes directly to chat when setup is ready.
 - The frontend shows a compact setup-needed panel only when database configuration, model provider configuration, or generated context is missing.
+- The setup-needed provider panel can save either OpenRouter settings or a custom OpenAI-compatible base URL.
 - Manual provider settings and database scan controls are no longer part of the normal chat surface.
 
 Tools:
@@ -174,11 +179,13 @@ Keep `data/exports/.gitkeep`.
 
 ## Next Work
 
-1. Review the generated context from one or two realistic schemas and tune only obvious noisy/missing hints.
-2. Connect a real model provider and run prompt-to-CSV calibration against realistic schemas.
+1. Run prompt-to-CSV calibration against one or two more realistic schemas/requests beyond the small demo customer/account schema.
+2. Review generated context and persisted debug traces from those runs, then tune only obvious noisy/missing hints.
 3. Add an optional real-provider calibration mode for `tools/model_eval.py` once provider credentials and target models are available.
 4. Keep `tools/postgres_smoke.py` passing as the API flow changes; consider a containerized CI-friendly version only after the smoke path stabilizes.
 5. Use persisted debug traces during realistic-schema runs to identify prompt/context/validation issues before broadening the product surface.
+
+For a copy-pasteable continuation prompt, see `docs/agents/memory.md`.
 
 ## Defer
 

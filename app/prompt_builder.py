@@ -29,6 +29,8 @@ def build_intent_prompt(
                 "Conversation so far:\n"
                 f"{_dump([message.model_dump() for message in messages])}\n\n"
                 "Decide whether to ask a concise clarification question or propose a CSV intent. "
+                "If the request is clear enough to define the CSV, return a CSV intent. "
+                "If the request is too vague, blocked, or missing required choices, leave intent null and return concise questions. "
                 "If proposing a CSV intent, use only user-facing CSV language."
             ),
         ),

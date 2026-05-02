@@ -330,9 +330,11 @@ export interface components {
         };
         /** CSVIntentProposal */
         CSVIntentProposal: {
-            intent: components["schemas"]["CSVIntent"];
+            intent?: components["schemas"]["CSVIntent"] | null;
             /** Message */
             message: string;
+            /** Questions */
+            questions?: string[];
         };
         /** ChatMessage */
         ChatMessage: {

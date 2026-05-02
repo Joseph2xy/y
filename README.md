@@ -76,6 +76,17 @@ MODEL_TEMPERATURE=0
 
 `DATABASE_URL` should point to a read-only Postgres user. The real `.env` file is ignored by git.
 
+For a custom OpenAI-compatible endpoint, use the setup screen or configure:
+
+```bash
+MODEL_NAME=openai/gpt-4.1-mini
+MODEL_API_KEY=...
+MODEL_BASE_URL=http://127.0.0.1:4010/v1
+MODEL_TEMPERATURE=0
+```
+
+Provider settings saved through the setup screen are stored locally under `data/settings/model_provider.json`; API responses never include the saved key.
+
 Frontend:
 
 ```bash

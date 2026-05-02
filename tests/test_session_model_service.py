@@ -90,6 +90,28 @@ def test_propose_csv_intent_clears_stale_approval(tmp_path, monkeypatch) -> None
     assert updated.approved_intent is None
 
 
+def test_propose_csv_intent_can_request_clarification(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    ensure_context_files()
+    session = create_session()
+    add_message(session.id, ChatMessage(role="user", content="Send me the useful customer stuff."))
+    provider = FakeProvider(
+        CSVIntentProposal(
+            message="Which customer fields should the CSV include?",
+            questions=["Which customer fields should the CSV include?"],
+        )
+    )
+
+    proposal = propose_csv_intent(session_id=session.id, model_provider=provider)
+
+    updated = load_session(session.id)
+    assert proposal.intent is None
+    assert proposal.questions == ["Which customer fields should the CSV include?"]
+    assert updated.status == "drafting_intent"
+    assert updated.messages[-1].content == "Which customer fields should the CSV include?"
+    assert updated.approved_intent is None
+
+
 def test_propose_csv_intent_marks_session_failed_when_model_generation_fails(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     ensure_context_files()

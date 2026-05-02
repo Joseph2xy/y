@@ -21,7 +21,37 @@ Update this file at the end of each section of work.
 - Reviewed backend `app/*.py` and tests for AGENTS/docs alignment; tightened SQL policy conversion so built-in unsafe blocked functions remain blocked even when `policy.json` customizes `blocked_functions`. Verified with `113 passed` and compileall.
 - Reviewed docs and repo hygiene against AGENTS/docs; tightened README flow/model-provider wording, confirmed generated runtime/build files are ignored, and found no tracked ignored artifacts beyond `data/exports/.gitkeep`.
 - Rechecked app state against docs and current LiteLLM/SQLGlot/psycopg/FastAPI docs before real-provider testing; fixed provider-missing tests so local `.env`/OpenRouter fallback credentials do not mask missing-provider assertions. Verified with `116 passed`, compileall, frontend tests, and frontend build.
+- Exposed custom OpenAI-compatible provider setup in the first-run provider panel and documented the matching `.env` variables.
+- Confirmed the configured OpenRouter provider works from `.env`; a real model-provider app flow proposed a CSV plan, prepared valid SQL in one attempt, exported 3 rows, and returned a download URL without printing CSV contents.
+- Ran four real-provider calibration scenarios against the small customer/account schema. Three concrete requests exported successfully with first-attempt SQL validation. A vague request initially returned clarification-shaped model output that failed the strict CSV intent schema; fixed `CSVIntentProposal` to allow `intent: null` plus questions, keep the session in drafting state, and show clarification in the UI.
 
 ## Next Step
 
-- Expose or document the custom OpenAI-compatible provider/base URL path before relying on the setup UI for non-OpenRouter real-provider testing; then connect a real model provider and review generated context from one or two realistic schemas.
+- Calibrate against one or two more realistic schemas/requests beyond the small demo customer/account schema, then tune generated context only where traces show concrete confusion.
+
+## Next Session Prompt
+
+Use this prompt to continue:
+
+```text
+Read AGENTS.md and docs/implementation-status.md first. Continue from the current V0 CSV Chat state.
+
+Goal for this session: run realistic-schema calibration beyond the small customer/account demo schema.
+
+Start by checking git status and setup readiness. Do not print secrets, database credentials, or final CSV contents. Use the configured .env provider/database if available.
+
+Run 3-5 realistic CSV requests through the actual API flow:
+1. create session
+2. add user request
+3. propose CSV plan
+4. approve only if the plan is reasonable
+5. prepare SQL
+6. export if SQL validation passes
+7. inspect persisted debug traces
+
+Report for each request: request text, whether the model proposed a plan or clarification, planned columns/filters, SQL validation result and repair attempts, export row count/columns, and any mismatch or suspicious behavior.
+
+If a concrete bug appears, fix it with focused changes and tests. If the issue is schema/business ambiguity, tune data/context/context.md or prompt wording only when the traces show a specific confusion. Keep the product narrow: chat -> context -> approved CSV plan -> validated SQL -> CSV download.
+
+Before final response, run relevant verification: pytest, frontend tests/build when frontend/API types changed, compileall, and model_eval if prompt/model-flow behavior changed. End with conclusions and recommended next actions.
+```
