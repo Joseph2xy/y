@@ -13,17 +13,18 @@ import {
   Sparkles,
   Terminal
 } from "lucide-react";
-import { FormEvent, useRef, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import {
   addMessage,
   approveIntent,
+  bootstrapSetup,
   createSession,
   createSessionExport,
   getModelProviderSettings,
   getSession,
+  getSetupStatus,
   prepareSql,
   proposeIntent,
-  scanContext,
   updateModelProviderSettings
 } from "./api";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -39,6 +40,7 @@ import type {
   ExportSession,
   ModelProviderSettingsResponse,
   SessionDebugTrace,
+  SetupStatusResponse,
   SQLPreparationResponse
 } from "./types";
 
@@ -53,14 +55,20 @@ export function App() {
   const [exportResult, setExportResult] = useState<ExportCreateResponse | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [providerOpen, setProviderOpen] = useState(false);
   const [providerModel, setProviderModel] = useState("openrouter/openai/gpt-4o-mini");
   const [providerApiKey, setProviderApiKey] = useState("");
   const pendingSessionRef = useRef<Promise<ExportSession> | null>(null);
 
+  const setupQuery = useQuery({
+    queryKey: ["setup-status"],
+    queryFn: getSetupStatus,
+    refetchOnWindowFocus: false
+  });
+
   const providerQuery = useQuery({
     queryKey: ["model-provider"],
-    queryFn: getModelProviderSettings
+    queryFn: getModelProviderSettings,
+    enabled: setupQuery.data?.next_action === "configure_model_provider"
   });
 
   const sessionQuery = useQuery({
@@ -82,11 +90,11 @@ export function App() {
     onError: showError
   });
 
-  const scanMutation = useMutation({
-    mutationFn: scanContext,
-    onSuccess: (context) => {
-      queryClient.setQueryData(["context"], context);
-      setNotice({ type: "info", text: "Database context refreshed." });
+  const bootstrapMutation = useMutation({
+    mutationFn: bootstrapSetup,
+    onSuccess: (status) => {
+      queryClient.setQueryData(["setup-status"], status);
+      setNotice(status.ready ? null : { type: "info", text: status.context.message ?? "Setup still needs attention." });
     },
     onError: showError
   });
@@ -102,8 +110,9 @@ export function App() {
     onSuccess: (settings) => {
       setProviderApiKey("");
       setProviderModel(settings.model);
-      setNotice({ type: "info", text: "OpenRouter provider saved." });
       queryClient.setQueryData(["model-provider"], settings);
+      void bootstrapMutation.mutateAsync().catch(showError);
+      void queryClient.invalidateQueries({ queryKey: ["setup-status"] });
     },
     onError: showError
   });
@@ -212,8 +221,8 @@ export function App() {
   }
 
   const busy =
+    bootstrapMutation.isPending ||
     startSessionMutation.isPending ||
-    scanMutation.isPending ||
     providerMutation.isPending ||
     sendMutation.isPending ||
     proposeMutation.isPending ||
@@ -225,6 +234,42 @@ export function App() {
   const hasMessages = Boolean(session?.messages.length);
   const hasWorkflow = Boolean(proposal || session?.approved_intent || sqlPrep || exportResult || advancedOpen);
   const providerSettings = providerQuery.data;
+  const setupStatus = setupQuery.data;
+
+  useEffect(() => {
+    if (setupStatus?.next_action === "setup_context" && !bootstrapMutation.isPending) {
+      bootstrapMutation.mutate();
+    }
+  }, [setupStatus?.next_action]);
+
+  useEffect(() => {
+    if (providerSettings?.model) {
+      setProviderModel(providerSettings.model);
+    }
+  }, [providerSettings?.model]);
+
+  if (setupQuery.isLoading) {
+    return <Shell status={null}>Checking setup...</Shell>;
+  }
+
+  if (!setupStatus?.ready) {
+    return (
+      <Shell status={setupStatus ?? null}>
+        <SetupGate
+          status={setupStatus ?? null}
+          providerSettings={providerSettings}
+          model={providerModel}
+          apiKey={providerApiKey}
+          busy={busy}
+          error={notice?.type === "error" ? notice.text : null}
+          onModelChange={setProviderModel}
+          onApiKeyChange={setProviderApiKey}
+          onSaveProvider={() => providerMutation.mutate()}
+          onBootstrap={() => bootstrapMutation.mutate()}
+        />
+      </Shell>
+    );
+  }
 
   return (
     <main className="flex min-h-svh items-center justify-center bg-background px-5 py-10 text-foreground">
@@ -237,20 +282,8 @@ export function App() {
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <ProviderStatus settings={providerSettings} />
+            <ReadinessStatus status={setupStatus} />
             <Status value={session?.status ?? "not_started"} />
-            <Button
-              size="icon-sm"
-              variant="ghost"
-              onClick={() => {
-                setProviderOpen((open) => !open);
-                if (providerSettings?.model) setProviderModel(providerSettings.model);
-              }}
-              disabled={busy}
-              aria-label="Provider settings"
-            >
-              <Settings aria-hidden="true" />
-            </Button>
             {session ? (
               <Button size="icon-sm" variant="ghost" onClick={() => startSessionMutation.mutate()} disabled={busy} aria-label="New session">
                 <Plus aria-hidden="true" />
@@ -265,18 +298,6 @@ export function App() {
           prepared={Boolean(sqlPrep?.valid)}
           exported={Boolean(exportResult)}
         />
-
-        {providerOpen ? (
-          <ProviderPanel
-            settings={providerSettings}
-            model={providerModel}
-            apiKey={providerApiKey}
-            busy={busy}
-            onModelChange={setProviderModel}
-            onApiKeyChange={setProviderApiKey}
-            onSave={() => providerMutation.mutate()}
-          />
-        ) : null}
 
         <section className="flex flex-col gap-4" aria-label="Messages">
           {notice ? <NoticeBanner notice={notice} /> : null}
@@ -313,10 +334,7 @@ export function App() {
             </div>
           </div>
           <div className="flex flex-wrap justify-between gap-2">
-            <Button variant="outline" size="sm" type="button" onClick={() => scanMutation.mutate()} disabled={busy}>
-              {scanMutation.isPending ? <Loader2 data-icon="inline-start" className="animate-spin" aria-hidden="true" /> : <RefreshCw data-icon="inline-start" aria-hidden="true" />}
-              Scan database
-            </Button>
+            <span className="text-xs text-muted-foreground">Setup is ready.</span>
             {hasMessages ? (
               <Button variant="outline" size="sm" type="button" onClick={() => proposeMutation.mutate()} disabled={busy || !sessionId}>
                 {proposeMutation.isPending ? <Loader2 data-icon="inline-start" className="animate-spin" aria-hidden="true" /> : <Sparkles data-icon="inline-start" aria-hidden="true" />}
@@ -360,6 +378,105 @@ function EmptyChat() {
   );
 }
 
+function Shell({ status, children }: { status: SetupStatusResponse | null; children: ReactNode }) {
+  return (
+    <main className="flex min-h-svh items-center justify-center bg-background px-5 py-10 text-foreground">
+      <div className="flex w-full max-w-[744px] flex-col gap-8">
+        <header className="flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="truncate font-heading text-sm leading-snug font-semibold">CSV Chat</h1>
+            <p className="truncate text-xs text-muted-foreground">
+              {status?.ready ? "Validated database exports" : "Setup check"}
+            </p>
+          </div>
+          <ReadinessStatus status={status} />
+        </header>
+        {typeof children === "string" ? <p className="text-sm text-muted-foreground">{children}</p> : children}
+      </div>
+    </main>
+  );
+}
+
+function SetupGate({
+  status,
+  providerSettings,
+  model,
+  apiKey,
+  busy,
+  error,
+  onModelChange,
+  onApiKeyChange,
+  onSaveProvider,
+  onBootstrap
+}: {
+  status: SetupStatusResponse | null;
+  providerSettings?: ModelProviderSettingsResponse;
+  model: string;
+  apiKey: string;
+  busy: boolean;
+  error: string | null;
+  onModelChange: (value: string) => void;
+  onApiKeyChange: (value: string) => void;
+  onSaveProvider: () => void;
+  onBootstrap: () => void;
+}) {
+  const action = status?.next_action;
+  return (
+    <section className="flex flex-col gap-5" aria-label="Setup needed">
+      <div className="flex items-start gap-3 rounded-md border bg-card p-4">
+        <Settings className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+        <div className="min-w-0">
+          <h2 className="text-sm font-medium">Setup needed</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            CSV Chat will open directly to the chat once the database, model provider, and generated context are ready.
+          </p>
+        </div>
+      </div>
+
+      {error ? <NoticeBanner notice={{ type: "error", text: error }} /> : null}
+
+      {action === "configure_database" ? (
+        <div className="rounded-md border p-4 text-sm">
+          <h3 className="font-medium">Database connection missing</h3>
+          <p className="mt-1 text-muted-foreground">
+            Set the local database connection for the backend, then restart or refresh the app.
+          </p>
+          <pre className="mt-3 overflow-auto rounded-md bg-muted p-3 text-xs text-foreground">
+            DATABASE_URL='postgresql://readonly:password@localhost:5432/appdb'
+          </pre>
+        </div>
+      ) : null}
+
+      {action === "configure_model_provider" ? (
+        <ProviderPanel
+          settings={providerSettings}
+          model={model}
+          apiKey={apiKey}
+          busy={busy}
+          onModelChange={onModelChange}
+          onApiKeyChange={onApiKeyChange}
+          onSave={onSaveProvider}
+        />
+      ) : null}
+
+      {action === "setup_context" ? (
+        <div className="flex flex-col gap-3 rounded-md border p-4 text-sm">
+          <div>
+            <h3 className="font-medium">Preparing database context</h3>
+            <p className="mt-1 text-muted-foreground">
+              The app needs to scan the database once before chat exports are available.
+            </p>
+          </div>
+          <Button className="w-fit" onClick={onBootstrap} disabled={busy}>
+            {busy ? <Loader2 data-icon="inline-start" className="animate-spin" aria-hidden="true" /> : <RefreshCw data-icon="inline-start" aria-hidden="true" />}
+            Prepare app
+          </Button>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function Line({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="flex justify-between gap-3">
@@ -373,12 +490,9 @@ function Status({ value }: { value: string }) {
   return <Badge variant="secondary">{value.split("_").join(" ")}</Badge>;
 }
 
-function ProviderStatus({ settings }: { settings?: ModelProviderSettingsResponse }) {
-  return (
-    <Badge variant={settings?.api_key_configured ? "outline" : "secondary"}>
-      {settings?.api_key_configured ? "OpenRouter" : "provider needed"}
-    </Badge>
-  );
+function ReadinessStatus({ status }: { status: SetupStatusResponse | null }) {
+  if (!status) return <Badge variant="secondary">checking</Badge>;
+  return <Badge variant={status.ready ? "outline" : "secondary"}>{status.ready ? "ready" : "setup needed"}</Badge>;
 }
 
 function ProviderPanel({

@@ -181,6 +181,20 @@ class ModelProviderSettingsResponse(BaseModel):
     api_key_configured: bool
 
 
+class SetupCheck(BaseModel):
+    configured: bool
+    ready: bool
+    message: str | None = None
+
+
+class SetupStatusResponse(BaseModel):
+    ready: bool
+    database: SetupCheck
+    model_provider: SetupCheck
+    context: SetupCheck
+    next_action: str | None = None
+
+
 class ModelMessage(BaseModel):
     role: str = Field(pattern="^(system|user|assistant)$")
     content: str = Field(min_length=1)

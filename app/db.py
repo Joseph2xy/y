@@ -5,6 +5,11 @@ import psycopg
 from psycopg.rows import dict_row
 
 
+def test_database_connection(database_url: str) -> None:
+    with psycopg.connect(database_url) as conn:
+        conn.execute("select 1")
+
+
 def run_read_only_query(
     database_url: str,
     sql: str,

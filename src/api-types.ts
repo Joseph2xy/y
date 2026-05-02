@@ -244,6 +244,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/setup/bootstrap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Bootstrap Setup Endpoint */
+        post: operations["bootstrap_setup_endpoint_setup_bootstrap_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/setup/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Setup Status Endpoint */
+        get: operations["get_setup_status_endpoint_setup_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sql/validate": {
         parameters: {
             query?: never;
@@ -570,6 +604,25 @@ export interface components {
          * @enum {string}
          */
         SessionStatus: "drafting_intent" | "awaiting_approval" | "generating_sql" | "validating_sql" | "exporting" | "complete" | "failed";
+        /** SetupCheck */
+        SetupCheck: {
+            /** Configured */
+            configured: boolean;
+            /** Message */
+            message?: string | null;
+            /** Ready */
+            ready: boolean;
+        };
+        /** SetupStatusResponse */
+        SetupStatusResponse: {
+            context: components["schemas"]["SetupCheck"];
+            database: components["schemas"]["SetupCheck"];
+            model_provider: components["schemas"]["SetupCheck"];
+            /** Next Action */
+            next_action?: string | null;
+            /** Ready */
+            ready: boolean;
+        };
         /** ValidationError */
         ValidationError: {
             /** Context */
@@ -1045,6 +1098,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bootstrap_setup_endpoint_setup_bootstrap_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupStatusResponse"];
+                };
+            };
+        };
+    };
+    get_setup_status_endpoint_setup_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupStatusResponse"];
                 };
             };
         };

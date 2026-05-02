@@ -16,7 +16,8 @@ Update this file at the end of each section of work.
 - Added `tools/model_eval.py` and pytest coverage for behavior-based model flow evals covering clear requests, joins, aggregates, vague/gibberish requests, blocked sensitive-field requests, and SQL repair.
 - Added persisted session debug traces for model prompts, model outputs, SQL validation attempts, repair attempts, and export execution, exposed through the read-only Advanced UI.
 - Reviewed the trace changes with CodeRabbit (`0 issues`) and a manual pass; fixed failed model calls so they also persist prompt/error traces. Verified with `106 passed`, compileall, model evals, frontend tests, and `pnpm build`.
+- Added lightweight setup readiness/bootstrap flow: backend reports database/provider/context readiness, checks the configured database connection, bootstraps context scanning when configuration exists, and the frontend shows setup UI only when something is missing. Verified with `112 passed`, compileall, model evals, frontend tests/build, and Postgres smoke.
 
 ## Next Step
 
-- Review generated context from one or two realistic schemas and tune only obvious noisy/missing hints, using persisted debug traces to identify whether misses come from context, prompts, model output, or SQL validation.
+- Connect a real model provider, then review generated context from one or two realistic schemas and tune only obvious noisy/missing hints, using persisted debug traces to identify whether misses come from context, prompts, model output, or SQL validation.

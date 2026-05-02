@@ -7,6 +7,7 @@ import type {
   ExportSession,
   ModelProviderSettingsResponse,
   ModelProviderSettingsUpdate,
+  SetupStatusResponse,
   SQLPreparationResponse
 } from "./types";
 
@@ -52,6 +53,14 @@ export function updateModelProviderSettings(
     method: "PUT",
     body: JSON.stringify(settings)
   });
+}
+
+export function getSetupStatus(): Promise<SetupStatusResponse> {
+  return request<SetupStatusResponse>("/setup/status");
+}
+
+export function bootstrapSetup(): Promise<SetupStatusResponse> {
+  return request<SetupStatusResponse>("/setup/bootstrap", { method: "POST" });
 }
 
 export async function createSession(): Promise<ExportSession> {

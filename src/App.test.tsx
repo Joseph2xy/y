@@ -69,6 +69,22 @@ const providerResponse = {
   api_key_configured: false
 };
 
+const setupReadyResponse = {
+  ready: true,
+  database: { configured: true, ready: true, message: null },
+  model_provider: { configured: true, ready: true, message: null },
+  context: { configured: true, ready: true, message: null },
+  next_action: null
+};
+
+const providerNeededResponse = {
+  ready: false,
+  database: { configured: true, ready: true, message: null },
+  model_provider: { configured: false, ready: false, message: "Model provider is not configured." },
+  context: { configured: false, ready: false, message: "Context files are missing." },
+  next_action: "configure_model_provider"
+};
+
 function renderApp() {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -92,6 +108,12 @@ describe("App", () => {
         const url = String(input);
         if (url === "/context") {
           return new Response(JSON.stringify(contextResponse), {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+          });
+        }
+        if (url === "/setup/status") {
+          return new Response(JSON.stringify(setupReadyResponse), {
             status: 200,
             headers: { "Content-Type": "application/json" }
           });
@@ -157,8 +179,9 @@ describe("App", () => {
   it("renders the main CSV workflow", async () => {
     renderApp();
 
+    expect(await screen.findByPlaceholderText("Export customer emails for active accounts created this quarter.")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "CSV Chat" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Scan database/i })).toBeInTheDocument();
+    expect(screen.getByText("Setup is ready.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Propose CSV plan/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/Prepare SQL/i)).not.toBeInTheDocument();
   });
@@ -167,7 +190,7 @@ describe("App", () => {
     const user = userEvent.setup();
     renderApp();
 
-    await user.type(screen.getByPlaceholderText("Export customer emails for active accounts created this quarter."), "Export customer emails");
+    await user.type(await screen.findByPlaceholderText("Export customer emails for active accounts created this quarter."), "Export customer emails");
     await user.click(screen.getByRole("button", { name: "Send" }));
     await user.click(await screen.findByRole("button", { name: "Prepare export" }));
 
@@ -183,21 +206,14 @@ describe("App", () => {
   it("saves OpenRouter provider settings", async () => {
     const user = userEvent.setup();
     const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
-    fetchMock.mockImplementationOnce(async (input: RequestInfo | URL) => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url === "/settings/model-provider") {
-        return new Response(JSON.stringify(providerResponse), {
+      if (url === "/setup/status") {
+        return new Response(JSON.stringify(providerNeededResponse), {
           status: 200,
           headers: { "Content-Type": "application/json" }
         });
       }
-      return new Response(JSON.stringify({ detail: "Not found" }), {
-        status: 404,
-        headers: { "Content-Type": "application/json" }
-      });
-    });
-    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
       if (url === "/settings/model-provider" && init?.method === "PUT") {
         return new Response(
           JSON.stringify({
@@ -216,6 +232,12 @@ describe("App", () => {
           headers: { "Content-Type": "application/json" }
         });
       }
+      if (url === "/setup/bootstrap") {
+        return new Response(JSON.stringify(setupReadyResponse), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
       return new Response(JSON.stringify({ detail: "Not found" }), {
         status: 404,
         headers: { "Content-Type": "application/json" }
@@ -224,10 +246,9 @@ describe("App", () => {
 
     renderApp();
 
-    await user.click(screen.getByRole("button", { name: "Provider settings" }));
-    await user.type(screen.getByLabelText("API key"), "sk-or-test");
+    await user.type(await screen.findByLabelText("API key"), "sk-or-test");
     await user.click(screen.getByRole("button", { name: "Save" }));
 
-    expect(await screen.findByText("OpenRouter provider saved.")).toBeInTheDocument();
+    expect(await screen.findByText("What CSV do you need?")).toBeInTheDocument();
   });
 });

@@ -4,7 +4,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 
 from app.context_store import ContextStoreError, load_context, save_scanned_schema, update_context
-from app.db import read_only_query_runner
+from app.db import read_only_query_runner, test_database_connection
 from app.export_service import ExportError, create_export, export_path
 from app.model_provider import LiteLLMModelProvider, ModelProviderError
 from app.models import (
@@ -23,6 +23,8 @@ from app.models import (
     SessionExportRequest,
     SessionIntentApprovalRequest,
     SessionMessageRequest,
+    SetupCheck,
+    SetupStatusResponse,
     SQLProposal,
     SQLPreparationResponse,
     SQLValidationRequest,
@@ -71,9 +73,85 @@ def get_model_provider() -> StructuredModelProvider:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+def configured_database_url() -> str | None:
+    return os.environ.get("DATABASE_URL")
+
+
+def setup_status() -> SetupStatusResponse:
+    database_url = configured_database_url()
+    if not database_url:
+        database = SetupCheck(
+            configured=False,
+            ready=False,
+            message="Database connection is not configured.",
+        )
+    else:
+        try:
+            test_database_connection(database_url)
+        except Exception as exc:
+            database = SetupCheck(
+                configured=True,
+                ready=False,
+                message=f"Database connection failed: {exc}",
+            )
+        else:
+            database = SetupCheck(configured=True, ready=True)
+
+    try:
+        model_config_from_settings_or_env(os.environ)
+    except ProviderSettingsError as exc:
+        provider = SetupCheck(configured=False, ready=False, message=str(exc))
+    except (ModelProviderError, ValueError) as exc:
+        provider = SetupCheck(configured=True, ready=False, message=str(exc))
+    else:
+        provider = SetupCheck(configured=True, ready=True)
+
+    try:
+        load_context()
+    except ContextStoreError as exc:
+        context = SetupCheck(configured=False, ready=False, message=str(exc))
+    else:
+        context = SetupCheck(configured=True, ready=True)
+
+    next_action = None
+    if not database.ready:
+        next_action = "configure_database"
+    elif not provider.ready:
+        next_action = "configure_model_provider"
+    elif not context.ready:
+        next_action = "setup_context"
+
+    return SetupStatusResponse(
+        ready=database.ready and provider.ready and context.ready,
+        database=database,
+        model_provider=provider,
+        context=context,
+        next_action=next_action,
+    )
+
+
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     return HealthResponse(status="ok")
+
+
+@app.get("/setup/status", response_model=SetupStatusResponse)
+def get_setup_status_endpoint() -> SetupStatusResponse:
+    return setup_status()
+
+
+@app.post("/setup/bootstrap", response_model=SetupStatusResponse)
+def bootstrap_setup_endpoint() -> SetupStatusResponse:
+    status = setup_status()
+    if not status.database.ready:
+        raise HTTPException(status_code=400, detail=status.database.message)
+    if not status.model_provider.ready:
+        raise HTTPException(status_code=400, detail=status.model_provider.message)
+    if status.context.ready:
+        return status
+
+    scan_context()
+    return setup_status()
 
 
 @app.get("/settings/model-provider", response_model=ModelProviderSettingsResponse)
@@ -96,7 +174,7 @@ def put_model_provider_settings_endpoint(
 
 @app.post("/context/scan", response_model=ContextScanResponse)
 def scan_context() -> ContextScanResponse:
-    database_url = os.environ.get("DATABASE_URL")
+    database_url = configured_database_url()
     if not database_url:
         raise HTTPException(status_code=400, detail="DATABASE_URL is not configured.")
 
