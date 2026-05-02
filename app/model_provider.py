@@ -43,6 +43,8 @@ class LiteLLMModelProvider:
             "messages": request_messages,
             "temperature": self.config.temperature,
         }
+        if _supports_json_mode(self.config.model):
+            kwargs["response_format"] = {"type": "json_object"}
         if self.config.api_key:
             kwargs["api_key"] = self.config.api_key
         if self.config.base_url:
@@ -81,6 +83,14 @@ def model_config_from_env(environ: dict[str, str]) -> ModelConfig:
         base_url=environ.get("MODEL_BASE_URL") or environ.get("LITELLM_API_BASE"),
         temperature=temperature,
     )
+
+
+def _supports_json_mode(model: str) -> bool:
+    try:
+        supported_params = litellm.get_supported_openai_params(model=model) or []
+    except Exception:
+        return False
+    return "response_format" in supported_params
 
 
 def _extract_content(response: Any) -> str:

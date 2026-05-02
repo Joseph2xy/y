@@ -6,7 +6,6 @@ import {
   approveIntent,
   createSession,
   createSessionExport,
-  getContext,
   getSession,
   prepareSql,
   proposeIntent,
@@ -37,12 +36,6 @@ export function App() {
   const [notice, setNotice] = useState<Notice>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const pendingSessionRef = useRef<Promise<ExportSession> | null>(null);
-
-  const contextQuery = useQuery({
-    queryKey: ["context"],
-    queryFn: getContext,
-    retry: false
-  });
 
   const sessionQuery = useQuery({
     queryKey: ["session", sessionId],

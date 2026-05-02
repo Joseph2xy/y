@@ -31,6 +31,14 @@ def test_rejects_non_select_statement() -> None:
     assert "SQL contains a write, DDL, or command expression." in result.errors
 
 
+def test_rejects_locking_select_clause() -> None:
+    for clause in ("for update", "for share"):
+        result = validate_sql(f"select id from customers limit 10 {clause}")
+
+        assert not result.valid
+        assert "SQL must not include row-locking clauses." in result.errors
+
+
 def test_rejects_blocked_table_and_column() -> None:
     policy = SQLPolicy(blocked_tables={"private_notes"}, blocked_columns={"customers.password_hash"})
 

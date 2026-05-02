@@ -232,7 +232,11 @@ def get_session_endpoint(session_id: str) -> ExportSession:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
-@app.get("/exports/{export_id}/download")
+@app.get(
+    "/exports/{export_id}/download",
+    response_class=FileResponse,
+    responses={200: {"content": {"text/csv": {}}}},
+)
 def download_export(export_id: str) -> FileResponse:
     try:
         path = export_path(export_id)

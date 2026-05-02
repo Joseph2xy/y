@@ -23,7 +23,7 @@ input {
 }
 
 @layer base {
-  .theme {
+  :root {
     --font-heading: var(--font-sans);
     --font-sans: 'Geist Variable', sans-serif;
   }

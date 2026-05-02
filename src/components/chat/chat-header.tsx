@@ -17,11 +17,6 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import {
-  AvatarFallbackProps,
-  AvatarImageProps,
-  AvatarProps,
-} from "@radix-ui/react-avatar";
-import {
   Avatar,
   AvatarFallback,
   AvatarImage,
@@ -131,22 +126,22 @@ export function ChatHeaderAddon({
   );
 }
 
-export interface ChatHeaderAvatarProps extends AvatarProps {
+export interface ChatHeaderAvatarProps extends React.ComponentProps<typeof Avatar> {
   className?: string;
   /** Image URL for the avatar. */
-  src?: AvatarImageProps["src"];
+  src?: React.ComponentProps<typeof AvatarImage>["src"];
   /** Alt text for the avatar image. */
   alt?: string;
   /** Fallback content shown while the image loads or if it fails (e.g. initials). */
   fallback?: React.ReactNode;
   /** Additional props forwarded to the inner `AvatarImage`. */
-  imageProps?: AvatarImageProps;
+  imageProps?: React.ComponentProps<typeof AvatarImage>;
   /** Additional props forwarded to the inner `AvatarFallback`. */
-  fallbackProps?: AvatarFallbackProps;
+  fallbackProps?: React.ComponentProps<typeof AvatarFallback>;
 }
 
 /**
- * Avatar component sized for the header. Built on Radix UI Avatar
+ * Avatar component sized for the header. Built on the local shadcn Avatar
  * primitives with rounded styling.
  *
  * @example

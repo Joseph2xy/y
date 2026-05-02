@@ -57,7 +57,7 @@ pnpm build
 ```
 
 Last known focused backend review result: `48 passed` on 2026-05-01.
-Last known full-suite result: `70 passed` on 2026-05-02.
+Last known full-suite result: `71 passed` on 2026-05-02.
 Last known frontend result: `pnpm test` passed with `2 passed`; `pnpm build` passed on 2026-05-02.
 
 Frontend visual review:
@@ -156,13 +156,14 @@ data/context/policy.json
 data/sessions/*.json
 ```
 
-The current `data/context/policy.json` may contain test values such as `private_notes` and `max_row_count: 10`. Treat these as local smoke-test data, not product defaults.
+Local smoke-test data may appear under `data/context/`, `data/sessions/`, and `data/exports/*.csv`. These paths are ignored and can be cleaned between runs. Keep `data/exports/.gitkeep`.
 
 Frontend local state:
 
 - Native Linux Node and pnpm were installed in Fedora WSL with `sudo dnf install -y nodejs pnpm`.
 - Avoid Windows Node/npm shims from `/mnt/c/...`; package install scripts can fail on UNC paths.
 - `packageManager` is pinned to `pnpm@10.33.0`.
+- `vitest` is pinned at `^3.2.4` so frontend test tooling uses the same Vite major version as the app.
 - shadcn was initialized with `components.json`, `@/` import aliases, Tailwind theme tokens, and Vite/Vitest alias config.
 - The official `@shadcn` registry did not return a chat block for `chat` or `message`; the small `shadcn-chat` registry item was installed instead. Avoid the full `chat-basic` block unless the product really needs sidebars, reactions, profiles, emoji picker, and mock chat features.
 - `agent-browser install` and `agent-browser install --with-deps` were run so browser screenshots work in this Fedora WSL environment. This installed managed Chrome plus Linux browser dependencies.

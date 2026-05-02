@@ -3,7 +3,7 @@
  *
  * Composable components for rendering a single message or event row
  * inside `ChatMessages`. Build different message layouts (primary
- * messages, follow-ups, date separators) by combining these primitives.
+ * messages by combining these primitives.
  *
  * Typical structure for a primary message:
  * ```
@@ -12,26 +12,8 @@
  * │   └── ChatEventAvatar
  * └── ChatEventBody    ← main content (flex-1)
  *     ├── ChatEventTitle
- *     │   ├── sender name
- *     │   └── ChatEventTime
+ *     │   └── sender name
  *     └── ChatEventContent
- * ```
- *
- * Typical structure for a follow-up (additional) message:
- * ```
- * ChatEvent
- * ├── ChatEventAddon   ← side column (hover timestamp)
- * │   └── ChatEventTime (visible on group-hover)
- * └── ChatEventBody
- *     └── ChatEventContent
- * ```
- *
- * Typical structure for a date separator:
- * ```
- * ChatEvent
- * ├── Separator
- * ├── ChatEventTime (format="longDate")
- * └── Separator
  * ```
  *
  * @see {@link ChatMessages} for the parent scrollable container.
@@ -39,53 +21,10 @@
 
 import { cn } from "@/lib/utils";
 import {
-  AvatarFallbackProps,
-  AvatarImageProps,
-  AvatarProps,
-} from "@radix-ui/react-avatar";
-import {
   Avatar,
   AvatarFallback,
   AvatarImage,
 } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import { useMemo } from "react";
-
-/**
- * Preset format names for `ChatEventTime`.
- *
- * - `"time"` — short time only (e.g. "12:30 PM")
- * - `"date"` — medium date (e.g. "Jan 1, 2024")
- * - `"dateTime"` — date + time (e.g. "Jan 1, 2024, 12:30 PM")
- * - `"longDate"` — long date (e.g. "January 1, 2024")
- * - `"relative"` — relative time (e.g. "2 hours ago", "yesterday")
- */
-export type ChatEventTimeFormat =
-  | "time"
-  | "date"
-  | "dateTime"
-  | "longDate"
-  | "relative";
-
-export interface ChatEventTimeProps extends React.ComponentProps<"time"> {
-  /** Unix timestamp (ms) or Date object. */
-  timestamp: number | Date;
-  /** Preset display format. Defaults to `"dateTime"`. */
-  format?: ChatEventTimeFormat;
-  /** BCP 47 locale string. Defaults to the browser locale. */
-  locale?: string;
-  /** Custom `Intl.DateTimeFormat` options — overrides the `format` preset. */
-  formatOptions?: Intl.DateTimeFormatOptions;
-}
-
-const FORMAT_PRESETS: Record<ChatEventTimeFormat, Intl.DateTimeFormatOptions> =
-  {
-    time: { timeStyle: "short" },
-    date: { dateStyle: "medium" },
-    dateTime: { dateStyle: "medium", timeStyle: "short" },
-    longDate: { dateStyle: "long" },
-    relative: { dateStyle: "medium", timeStyle: "short" },
-  };
 
 export type ChatEventProps = React.ComponentProps<"div">;
 
@@ -104,38 +43,9 @@ export type ChatEventProps = React.ComponentProps<"div">;
  *   <ChatEventBody>
  *     <ChatEventTitle>
  *       <span className="font-medium">Ann Smith</span>
- *       <ChatEventTime timestamp={1700000000000} />
  *     </ChatEventTitle>
  *     <ChatEventContent>Hello, world!</ChatEventContent>
  *   </ChatEventBody>
- * </ChatEvent>
- *
- * // Follow-up message (same sender, no avatar)
- * <ChatEvent className="hover:bg-accent">
- *   <ChatEventAddon>
- *     <ChatEventTime
- *       timestamp={1700000000000}
- *       format="time"
- *       className="text-right text-[8px] group-hover/event:visible invisible"
- *     />
- *   </ChatEventAddon>
- *   <ChatEventBody>
- *     <ChatEventContent>Another message from the same sender.</ChatEventContent>
- *   </ChatEventBody>
- *   <ChatEventHoverActions>
- *     ...
- *   </ChatEventHoverActions>
- * </ChatEvent>
- *
- * // Date separator
- * <ChatEvent className="items-center gap-1 my-4">
- *   <Separator className="flex-1" />
- *   <ChatEventTime
- *     timestamp={1700000000000}
- *     format="longDate"
- *     className="font-semibold min-w-max"
- *   />
- *   <Separator className="flex-1" />
  * </ChatEvent>
  * ```
  */
@@ -157,8 +67,8 @@ export type ChatEventAddonProps = React.ComponentProps<"div">;
 
 /**
  * Fixed-width side column within a `ChatEvent`. Typically holds a
- * `ChatEventAvatar` for primary messages or a `ChatEventTime` for
- * follow-up messages. Responsive width via container queries.
+ * `ChatEventAvatar` for primary messages. Responsive width via
+ * container queries.
  *
  * @example
  * ```tsx
@@ -197,7 +107,6 @@ export type ChatEventBodyProps = React.ComponentProps<"div">;
  * <ChatEventBody>
  *   <ChatEventTitle>
  *     <span className="font-medium">Ann Smith</span>
- *     <ChatEventTime timestamp={1700000000000} />
  *   </ChatEventTitle>
  *   <ChatEventContent>Hello, world!</ChatEventContent>
  * </ChatEventBody>
@@ -247,14 +156,13 @@ export function ChatEventContent({
 export type ChatEventTitleProps = React.ComponentProps<"div">;
 
 /**
- * Row for the sender name and metadata (e.g. timestamp, badges).
- * Typically the first child of `ChatEventBody`.
+ * Row for the sender name and metadata. Typically the first child of
+ * `ChatEventBody`.
  *
  * @example
  * ```tsx
  * <ChatEventTitle>
  *   <span className="font-medium">Ann Smith</span>
- *   <ChatEventTime timestamp={1700000000000} />
  * </ChatEventTitle>
  * ```
  */
@@ -273,18 +181,18 @@ export function ChatEventTitle({
   );
 }
 
-export interface ChatEventAvatarProps extends AvatarProps {
+export interface ChatEventAvatarProps extends React.ComponentProps<typeof Avatar> {
   className?: string;
   /** Image URL for the avatar. */
-  src?: AvatarImageProps["src"];
+  src?: React.ComponentProps<typeof AvatarImage>["src"];
   /** Alt text for the avatar image. */
   alt?: string;
   /** Fallback content shown while the image loads or if it fails (e.g. initials). */
   fallback?: React.ReactNode;
   /** Additional props forwarded to the inner `AvatarImage`. */
-  imageProps?: AvatarImageProps;
+  imageProps?: React.ComponentProps<typeof AvatarImage>;
   /** Additional props forwarded to the inner `AvatarFallback`. */
-  fallbackProps?: AvatarFallbackProps;
+  fallbackProps?: React.ComponentProps<typeof AvatarFallback>;
 }
 
 /**
@@ -320,188 +228,5 @@ export function ChatEventAvatar({
         <AvatarFallback {...fallbackProps}>{fallback}</AvatarFallback>
       )}
     </Avatar>
-  );
-}
-
-function getRelativeTimeString(date: Date, locale: string): string {
-  const now = new Date();
-  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
-
-  if (diffInSeconds < 60) {
-    return rtf.format(-diffInSeconds, "second");
-  }
-
-  const diffInMinutes = Math.floor(diffInSeconds / 60);
-  if (diffInMinutes < 60) {
-    return rtf.format(-diffInMinutes, "minute");
-  }
-
-  const diffInHours = Math.floor(diffInMinutes / 60);
-  if (diffInHours < 24) {
-    return rtf.format(-diffInHours, "hour");
-  }
-
-  const diffInDays = Math.floor(diffInHours / 24);
-  if (diffInDays < 7) {
-    return rtf.format(-diffInDays, "day");
-  }
-
-  return new Intl.DateTimeFormat(locale, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
-}
-
-/**
- * Locale-aware timestamp display with preset and custom formatting.
- * Renders a semantic `<time>` element with an ISO `dateTime` attribute.
- *
- * Preset formats:
- * - `"time"` — short time (e.g. "12:30 PM")
- * - `"date"` — medium date (e.g. "Jan 1, 2024")
- * - `"dateTime"` — date + time (e.g. "Jan 1, 2024, 12:30 PM") **(default)**
- * - `"longDate"` — long date (e.g. "January 1, 2024")
- * - `"relative"` — relative time (e.g. "2 hours ago", "yesterday")
- *
- * @example
- * ```tsx
- * // Inline timestamp in a title row
- * <ChatEventTime timestamp={1700000000000} />
- *
- * // Time-only format for follow-up messages
- * <ChatEventTime
- *   timestamp={1700000000000}
- *   format="time"
- *   className="text-right text-[8px] group-hover/event:visible invisible"
- * />
- *
- * // Long date format for date separators
- * <ChatEventTime
- *   timestamp={1700000000000}
- *   format="longDate"
- *   className="font-semibold min-w-max"
- * />
- * ```
- */
-export function ChatEventTime({
-  timestamp,
-  format = "dateTime",
-  locale,
-  formatOptions,
-  className,
-  ...props
-}: ChatEventTimeProps) {
-  const date = useMemo(
-    () => (timestamp instanceof Date ? timestamp : new Date(timestamp)),
-    [timestamp],
-  );
-
-  const resolvedLocale =
-    locale ?? (typeof navigator !== "undefined" ? navigator.language : "en-US");
-
-  const formattedTime = useMemo(() => {
-    if (format === "relative") {
-      return getRelativeTimeString(date, resolvedLocale);
-    }
-
-    const options = formatOptions ?? FORMAT_PRESETS[format];
-    return new Intl.DateTimeFormat(resolvedLocale, options).format(date);
-  }, [date, format, formatOptions, resolvedLocale]);
-
-  const isoString = useMemo(() => date.toISOString(), [date]);
-
-  return (
-    <time
-      dateTime={isoString}
-      className={cn("text-xs text-muted-foreground", className)}
-      {...props}
-    >
-      {formattedTime}
-    </time>
-  );
-}
-
-export type ChatEventHoverActionsProps = React.ComponentProps<"div">;
-
-/**
- * Container for hover action buttons. Appears absolutely positioned at the
- * top-right of the `ChatEvent` row when it is hovered. Place as a direct
- * child of `ChatEvent`, after `ChatEventBody`.
- *
- * `ChatEvent` provides the named group (`group/event`) and `relative`
- * positioning required for this component to work.
- *
- * @example
- * ```tsx
- * <ChatEvent className="hover:bg-accent">
- *   <ChatEventBody>...</ChatEventBody>
- *   <ChatEventHoverActions>
- *     <Button variant="ghost" size="icon" className="size-7 [&_svg]:size-3.5">
- *       <SmilePlusIcon />
- *     </Button>
- *     <Button variant="ghost" size="icon" className="size-7 [&_svg]:size-3.5">
- *       <MoreHorizontalIcon />
- *     </Button>
- *   </ChatEventHoverActions>
- * </ChatEvent>
- * ```
- */
-export function ChatEventHoverActions({
-  children,
-  className,
-  ...props
-}: ChatEventHoverActionsProps) {
-  return (
-    <div
-      className={cn(
-        "opacity-0 group-hover/event:opacity-100 pointer-events-none group-hover/event:pointer-events-auto",
-        "[&:has([data-state=open])]:opacity-100 [&:has([data-state=open])]:pointer-events-auto",
-        "absolute right-2 -top-4",
-        "bg-background border rounded-md shadow-sm",
-        "flex items-center gap-0.5 p-0.5",
-        "z-15",
-        className,
-      )}
-      {...props}
-    >
-      {children}
-    </div>
-  );
-}
-
-export type ChatEventHoverActionsButtonProps = React.ComponentProps<
-  typeof Button
->;
-
-/**
- * Pre-styled ghost icon button for use inside `ChatEventHoverActions`.
- * Applies `variant="ghost"`, `size="icon"`, and the standard size classes
- * (`size-7 [&_svg]:size-3.5`) so every action button is consistent.
- *
- * @example
- * ```tsx
- * <ChatEventHoverActions>
- *   <ChatEventHoverActionsButton aria-label="Add reaction">
- *     <SmilePlusIcon />
- *   </ChatEventHoverActionsButton>
- * </ChatEventHoverActions>
- * ```
- */
-export function ChatEventHoverActionsButton({
-  className,
-  children,
-  ...props
-}: ChatEventHoverActionsButtonProps) {
-  return (
-    <Button
-      variant="ghost"
-      size="icon"
-      className={cn("size-7 [&_svg]:size-3.5", className)}
-      {...props}
-    >
-      {children}
-    </Button>
   );
 }

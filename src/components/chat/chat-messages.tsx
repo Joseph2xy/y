@@ -36,7 +36,6 @@ export type ChatMessagesProps = React.ComponentProps<"div">;
  *       <ChatEventBody>
  *         <ChatEventTitle>
  *           <span className="font-medium">{msg.sender.name}</span>
- *           <ChatEventTime timestamp={msg.timestamp} />
  *         </ChatEventTitle>
  *         <ChatEventContent>{msg.content}</ChatEventContent>
  *       </ChatEventBody>

@@ -60,6 +60,7 @@ def validate_sql(
         errors.append("SQL must be a SELECT statement.")
 
     _check_for_writes(statement, errors)
+    _check_for_locking_reads(statement, errors)
     _check_limit(statement, policy, errors)
     _check_blocked_tables(statement, policy, errors)
     _check_blocked_columns(statement, policy, errors)
@@ -83,6 +84,11 @@ def _check_for_writes(statement: exp.Expression, errors: list[str]) -> None:
     )
     if any(statement.find(unsafe_type) for unsafe_type in unsafe_types):
         errors.append("SQL contains a write, DDL, or command expression.")
+
+
+def _check_for_locking_reads(statement: exp.Expression, errors: list[str]) -> None:
+    if statement.find(exp.Lock):
+        errors.append("SQL must not include row-locking clauses.")
 
 
 def _check_limit(statement: exp.Expression, policy: SQLPolicy, errors: list[str]) -> None:

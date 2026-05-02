@@ -45,6 +45,7 @@ def test_model_provider_parses_structured_json_response() -> None:
     assert calls[0]["model"] == "openai/gpt-4.1-mini"
     assert calls[0]["api_key"] == "test-key"
     assert calls[0]["api_base"] == "https://example.test"
+    assert calls[0]["response_format"] == {"type": "json_object"}
     assert "Return JSON matching this schema" in calls[0]["messages"][-1]["content"]
 
 
