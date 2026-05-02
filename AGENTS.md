@@ -30,7 +30,6 @@ Frontend:
 - Tailwind CSS
 - shadcn/ui selectively
 - React Hook Form only when forms become nontrivial
-- Native EventSource for SSE
 - Vitest + React Testing Library
 - Playwright later
 
@@ -47,8 +46,8 @@ Backend/export engine:
 Model provider layer:
 
 - LiteLLM SDK first.
-- Users should be able to choose providers if they have API keys.
-- Support OpenAI, Anthropic, Google/Gemini, Mistral, Groq, OpenRouter, Ollama/local OpenAI-compatible servers, and custom base URLs where practical.
+- Users should be able to choose API-key-based providers.
+- Start with OpenRouter and custom OpenAI-compatible base URLs; keep room for more API-key providers and later account/subscription integrations.
 - Do not use Pi, LangChain, or LlamaIndex initially unless a concrete need appears.
 
 ## Product Flow
@@ -74,10 +73,11 @@ Model provider layer:
 - Never let the model execute SQL directly.
 - Never execute SQL before user approval of the CSV intent.
 - Never execute SQL before app validation passes.
-- Never send raw database rows or final CSV contents back to the model by default.
+- Never send database credentials or final CSV contents back to the model by default.
+- Generated context may include representative database values unless blocked by policy.
 - Use read-only DB credentials.
 - Use read-only transactions, statement timeout, lock timeout, row limits, and export-size limits together.
-- SQL must be hidden by default and shown only in Advanced/debug views.
+- SQL must be hidden by default and shown only in read-only Advanced/debug views.
 - Never expose a final CSV when validation fails.
 
 ## UX Language
@@ -86,7 +86,7 @@ Model provider layer:
 - Prefer "CSV" and "CSV plan" or "CSV intent".
 - Avoid SQL/table/column jargon in normal user-facing copy.
 - Avoid the word "contract" in user-facing copy.
-- SQL and validation details belong in Advanced/debug views.
+- SQL and validation details belong in read-only Advanced/debug views.
 
 ## Non-Goals For V0
 
@@ -95,25 +95,18 @@ Model provider layer:
 - Approval workflows.
 - Separate background queue.
 - Redis/Celery.
-- WebSockets unless SSE is insufficient.
+- SSE or WebSockets unless request/response progress proves insufficient.
 - Multiple database support.
 - Local model management.
+- Uploaded example CSVs.
+- Editable SQL.
+- LiteLLM proxy.
 - Complex semantic/query compiler unless raw SQL validation proves insufficient.
 
 ## Agent skills
 
-### Issue tracker
+This is a solo direct-to-main project. Do not assume issues, pull requests, triage labels, or a formal tracker unless the user says that workflow has changed.
 
-This is a solo direct-to-main project. Do not assume issues, pull requests, or a formal tracker unless the user says that has changed. See `docs/agents/issue-tracker.md`.
+Single-context repo. Read `CONTEXT.md`, `docs/implementation-status.md`, `docs/architecture.md`, `docs/decisions.md`, and relevant ADRs when they exist.
 
-### Triage labels
-
-No active triage label workflow is used right now. See `docs/agents/triage-labels.md`.
-
-### Domain docs
-
-Single-context repo. Read `AGENTS.md`, `docs/architecture.md`, `docs/implementation-status.md`, and relevant ADRs when they exist. See `docs/agents/domain.md`.
-
-### Memory
-
-Keep a lightweight section-by-section memory of completed steps and the next step. See `docs/agents/memory.md`.
+Keep a lightweight section-by-section memory of completed steps and the next step in `docs/agents/memory.md`.

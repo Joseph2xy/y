@@ -376,4 +376,7 @@ def test_model_endpoint_requires_model_configuration(tmp_path, monkeypatch) -> N
     response = client.post(f"/sessions/{session_id}/clarify")
 
     assert response.status_code == 400
-    assert response.json()["detail"] == "MODEL_NAME or LITELLM_MODEL is not configured."
+    assert response.json()["detail"] == (
+        "Model provider is not configured. Add an OpenRouter API key in provider settings, "
+        "or set MODEL_NAME and MODEL_API_KEY."
+    )

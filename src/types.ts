@@ -57,3 +57,7 @@ export type SQLPreparationResponse = Omit<
 };
 
 export type ExportCreateResponse = Schema["ExportCreateResponse"];
+
+export type ModelProviderSettingsResponse = Schema["ModelProviderSettingsResponse"];
+
+export type ModelProviderSettingsUpdate = Schema["ModelProviderSettingsUpdate"];

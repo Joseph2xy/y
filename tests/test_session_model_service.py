@@ -41,6 +41,14 @@ class QueueProvider:
         return self.responses.pop(0)
 
 
+class RaisingProvider:
+    def __init__(self, exc: Exception) -> None:
+        self.exc = exc
+
+    def generate_json(self, *, messages: list, response_model: type[BaseModel]) -> BaseModel:
+        raise self.exc
+
+
 def intent() -> CSVIntent:
     return CSVIntent(
         summary="Customer emails",
@@ -172,6 +180,20 @@ def test_prepare_sql_requires_approved_intent(tmp_path, monkeypatch) -> None:
         prepare_sql(session_id=session.id, model_provider=provider)
 
 
+def test_prepare_sql_marks_session_failed_when_model_generation_fails(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    ensure_context_files()
+    session = create_session()
+    approve_intent(session.id, intent())
+
+    with pytest.raises(RuntimeError, match="provider unavailable"):
+        prepare_sql(session_id=session.id, model_provider=RaisingProvider(RuntimeError("provider unavailable")))
+
+    updated = load_session(session.id)
+    assert updated.status == "failed"
+    assert updated.last_error == "Model provider failed: provider unavailable"
+
+
 def test_prepare_sql_rejects_negative_repair_attempts(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     ensure_context_files()
@@ -215,6 +237,29 @@ def test_prepare_sql_repairs_invalid_proposal(tmp_path, monkeypatch) -> None:
     assert len(response.attempts) == 2
     assert response.attempts[0].errors == ["SQL must include a LIMIT."]
     assert response.attempts[1].repair_changes == ["Added a limit."]
+
+
+def test_prepare_sql_marks_session_failed_when_repair_generation_fails(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    ensure_context_files()
+    session = create_session()
+    approve_intent(session.id, intent())
+    provider = QueueProvider([SQLProposal(sql="select email from customers")])
+    original_generate_json = provider.generate_json
+
+    def raise_on_repair(*, messages: list, response_model: type[BaseModel]) -> BaseModel:
+        if response_model is SQLRepairProposal:
+            raise RuntimeError("repair failed")
+        return original_generate_json(messages=messages, response_model=response_model)
+
+    provider.generate_json = raise_on_repair  # type: ignore[method-assign]
+
+    with pytest.raises(RuntimeError, match="repair failed"):
+        prepare_sql(session_id=session.id, model_provider=provider)
+
+    updated = load_session(session.id)
+    assert updated.status == "failed"
+    assert updated.last_error == "Model provider failed: repair failed"
 
 
 def test_prepare_sql_rejects_wrong_output_columns(tmp_path, monkeypatch) -> None:

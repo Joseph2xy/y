@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse
 from app.context_store import ContextStoreError, load_context, save_scanned_schema, update_context
 from app.db import read_only_query_runner
 from app.export_service import ExportError, create_export, export_path
-from app.model_provider import LiteLLMModelProvider, ModelProviderError, model_config_from_env
+from app.model_provider import LiteLLMModelProvider, ModelProviderError
 from app.models import (
     CSVIntentProposal,
     ClarificationResponse,
@@ -16,6 +16,8 @@ from app.models import (
     ExportSession,
     ExportCreateResponse,
     HealthResponse,
+    ModelProviderSettingsResponse,
+    ModelProviderSettingsUpdate,
     SessionCreateResponse,
     SessionExportRequest,
     SessionIntentApprovalRequest,
@@ -24,6 +26,13 @@ from app.models import (
     SQLPreparationResponse,
     SQLValidationRequest,
     SQLValidationResponse,
+)
+from app.provider_settings import (
+    ProviderSettingsError,
+    load_provider_settings,
+    model_config_from_settings_or_env,
+    provider_settings_response,
+    save_provider_settings,
 )
 from app.schema_scan import scan_postgres_schema
 from app.session_model_service import (
@@ -55,8 +64,8 @@ app = FastAPI(
 
 def get_model_provider() -> StructuredModelProvider:
     try:
-        return LiteLLMModelProvider(model_config_from_env(os.environ))
-    except (ModelProviderError, ValueError) as exc:
+        return LiteLLMModelProvider(model_config_from_settings_or_env(os.environ))
+    except (ProviderSettingsError, ModelProviderError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
@@ -65,13 +74,36 @@ def health() -> HealthResponse:
     return HealthResponse(status="ok")
 
 
+@app.get("/settings/model-provider", response_model=ModelProviderSettingsResponse)
+def get_model_provider_settings_endpoint() -> ModelProviderSettingsResponse:
+    try:
+        return provider_settings_response(load_provider_settings())
+    except ProviderSettingsError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.put("/settings/model-provider", response_model=ModelProviderSettingsResponse)
+def put_model_provider_settings_endpoint(
+    update: ModelProviderSettingsUpdate,
+) -> ModelProviderSettingsResponse:
+    try:
+        return provider_settings_response(save_provider_settings(update))
+    except ProviderSettingsError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @app.post("/context/scan", response_model=ContextScanResponse)
 def scan_context() -> ContextScanResponse:
     database_url = os.environ.get("DATABASE_URL")
     if not database_url:
         raise HTTPException(status_code=400, detail="DATABASE_URL is not configured.")
 
-    schema = scan_postgres_schema(database_url)
+    try:
+        policy = load_context().policy
+    except ContextStoreError:
+        policy = None
+
+    schema = scan_postgres_schema(database_url, policy=policy)
     document = save_scanned_schema(schema)
     return ContextScanResponse(
         context=document.context,

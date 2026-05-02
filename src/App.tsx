@@ -9,6 +9,7 @@ import {
   Play,
   Plus,
   RefreshCw,
+  Settings,
   Sparkles,
   Terminal
 } from "lucide-react";
@@ -18,10 +19,12 @@ import {
   approveIntent,
   createSession,
   createSessionExport,
+  getModelProviderSettings,
   getSession,
   prepareSql,
   proposeIntent,
-  scanContext
+  scanContext,
+  updateModelProviderSettings
 } from "./api";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -29,7 +32,14 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import type { CSVIntent, CSVIntentProposal, ExportCreateResponse, ExportSession, SQLPreparationResponse } from "./types";
+import type {
+  CSVIntent,
+  CSVIntentProposal,
+  ExportCreateResponse,
+  ExportSession,
+  ModelProviderSettingsResponse,
+  SQLPreparationResponse
+} from "./types";
 
 type Notice = { type: "error" | "info"; text: string } | null;
 
@@ -42,7 +52,15 @@ export function App() {
   const [exportResult, setExportResult] = useState<ExportCreateResponse | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [providerOpen, setProviderOpen] = useState(false);
+  const [providerModel, setProviderModel] = useState("openrouter/openai/gpt-4o-mini");
+  const [providerApiKey, setProviderApiKey] = useState("");
   const pendingSessionRef = useRef<Promise<ExportSession> | null>(null);
+
+  const providerQuery = useQuery({
+    queryKey: ["model-provider"],
+    queryFn: getModelProviderSettings
+  });
 
   const sessionQuery = useQuery({
     queryKey: ["session", sessionId],
@@ -68,6 +86,23 @@ export function App() {
     onSuccess: (context) => {
       queryClient.setQueryData(["context"], context);
       setNotice({ type: "info", text: "Database context refreshed." });
+    },
+    onError: showError
+  });
+
+  const providerMutation = useMutation({
+    mutationFn: () =>
+      updateModelProviderSettings({
+        provider: "openrouter",
+        model: providerModel.trim(),
+        api_key: providerApiKey.trim() || null,
+        temperature: 0
+      }),
+    onSuccess: (settings) => {
+      setProviderApiKey("");
+      setProviderModel(settings.model);
+      setNotice({ type: "info", text: "OpenRouter provider saved." });
+      queryClient.setQueryData(["model-provider"], settings);
     },
     onError: showError
   });
@@ -178,6 +213,7 @@ export function App() {
   const busy =
     startSessionMutation.isPending ||
     scanMutation.isPending ||
+    providerMutation.isPending ||
     sendMutation.isPending ||
     proposeMutation.isPending ||
     approveMutation.isPending ||
@@ -187,6 +223,7 @@ export function App() {
   const session = sessionQuery.data;
   const hasMessages = Boolean(session?.messages.length);
   const hasWorkflow = Boolean(proposal || session?.approved_intent || sqlPrep || exportResult || advancedOpen);
+  const providerSettings = providerQuery.data;
 
   return (
     <main className="flex min-h-svh items-center justify-center bg-background px-5 py-10 text-foreground">
@@ -199,7 +236,20 @@ export function App() {
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            <ProviderStatus settings={providerSettings} />
             <Status value={session?.status ?? "not_started"} />
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              onClick={() => {
+                setProviderOpen((open) => !open);
+                if (providerSettings?.model) setProviderModel(providerSettings.model);
+              }}
+              disabled={busy}
+              aria-label="Provider settings"
+            >
+              <Settings aria-hidden="true" />
+            </Button>
             {session ? (
               <Button size="icon-sm" variant="ghost" onClick={() => startSessionMutation.mutate()} disabled={busy} aria-label="New session">
                 <Plus aria-hidden="true" />
@@ -214,6 +264,18 @@ export function App() {
           prepared={Boolean(sqlPrep?.valid)}
           exported={Boolean(exportResult)}
         />
+
+        {providerOpen ? (
+          <ProviderPanel
+            settings={providerSettings}
+            model={providerModel}
+            apiKey={providerApiKey}
+            busy={busy}
+            onModelChange={setProviderModel}
+            onApiKeyChange={setProviderApiKey}
+            onSave={() => providerMutation.mutate()}
+          />
+        ) : null}
 
         <section className="flex flex-col gap-4" aria-label="Messages">
           {notice ? <NoticeBanner notice={notice} /> : null}
@@ -307,6 +369,72 @@ function Line({ label, value }: { label: string; value: string | number }) {
 
 function Status({ value }: { value: string }) {
   return <Badge variant="secondary">{value.split("_").join(" ")}</Badge>;
+}
+
+function ProviderStatus({ settings }: { settings?: ModelProviderSettingsResponse }) {
+  return (
+    <Badge variant={settings?.api_key_configured ? "outline" : "secondary"}>
+      {settings?.api_key_configured ? "OpenRouter" : "provider needed"}
+    </Badge>
+  );
+}
+
+function ProviderPanel({
+  settings,
+  model,
+  apiKey,
+  busy,
+  onModelChange,
+  onApiKeyChange,
+  onSave
+}: {
+  settings?: ModelProviderSettingsResponse;
+  model: string;
+  apiKey: string;
+  busy: boolean;
+  onModelChange: (value: string) => void;
+  onApiKeyChange: (value: string) => void;
+  onSave: () => void;
+}) {
+  return (
+    <section className="flex flex-col gap-3 border-t pt-6" aria-label="Provider settings">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-medium">OpenRouter</h2>
+          <p className="text-xs text-muted-foreground">
+            {settings?.api_key_configured ? "API key saved locally on the backend." : "Add an API key before using model features."}
+          </p>
+        </div>
+        <Badge variant="outline">default provider</Badge>
+      </div>
+      <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+          Model
+          <input
+            value={model}
+            onChange={(event) => onModelChange(event.target.value)}
+            className="h-8 rounded-md border bg-background px-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+          API key
+          <input
+            value={apiKey}
+            onChange={(event) => onApiKeyChange(event.target.value)}
+            type="password"
+            placeholder={settings?.api_key_configured ? "Leave blank to keep saved key" : "sk-or-..."}
+            className="h-8 rounded-md border bg-background px-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+        </label>
+        <div className="flex items-end">
+          <Button size="sm" onClick={onSave} disabled={busy || !model.trim() || (!apiKey.trim() && !settings?.api_key_configured)}>
+            {busy ? <Loader2 data-icon="inline-start" className="animate-spin" aria-hidden="true" /> : <Check data-icon="inline-start" aria-hidden="true" />}
+            Save
+          </Button>
+        </div>
+      </div>
+    </section>
+  );
 }
 
 function NoticeBanner({ notice }: { notice: Exclude<Notice, null> }) {

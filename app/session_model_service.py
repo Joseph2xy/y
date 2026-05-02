@@ -17,7 +17,7 @@ from app.models import (
     SessionStatus,
 )
 from app.prompt_builder import build_intent_prompt, build_sql_prompt, build_sql_repair_prompt
-from app.session_store import load_session, save_session
+from app.session_store import load_session, mark_session_failed, save_session
 from app.sql_guard import sql_policy_from_context, validate_sql
 
 
@@ -90,14 +90,18 @@ def propose_sql(
     session.status = SessionStatus.GENERATING_SQL
     save_session(session)
 
-    proposal = model_provider.generate_json(
-        messages=build_sql_prompt(
-            context=context,
-            messages=session.messages,
-            approved_intent=session.approved_intent,
-        ),
-        response_model=SQLProposal,
-    )
+    try:
+        proposal = model_provider.generate_json(
+            messages=build_sql_prompt(
+                context=context,
+                messages=session.messages,
+                approved_intent=session.approved_intent,
+            ),
+            response_model=SQLProposal,
+        )
+    except Exception as exc:
+        _mark_model_failure(session.id, exc)
+        raise
 
     session.status = SessionStatus.VALIDATING_SQL
     session.last_error = None
@@ -122,14 +126,18 @@ def prepare_sql(
     session.status = SessionStatus.GENERATING_SQL
     save_session(session)
 
-    proposal = model_provider.generate_json(
-        messages=build_sql_prompt(
-            context=context,
-            messages=session.messages,
-            approved_intent=session.approved_intent,
-        ),
-        response_model=SQLProposal,
-    )
+    try:
+        proposal = model_provider.generate_json(
+            messages=build_sql_prompt(
+                context=context,
+                messages=session.messages,
+                approved_intent=session.approved_intent,
+            ),
+            response_model=SQLProposal,
+        )
+    except Exception as exc:
+        _mark_model_failure(session.id, exc)
+        raise
 
     policy = sql_policy_from_context(context.policy)
     policy = replace(policy, max_limit=min(policy.max_limit, session.approved_intent.max_row_count))
@@ -163,15 +171,19 @@ def prepare_sql(
         if attempt_number == max_repair_attempts:
             break
 
-        repair = model_provider.generate_json(
-            messages=build_sql_repair_prompt(
-                context=context,
-                approved_intent=session.approved_intent,
-                sql=current_sql,
-                validation_errors=result.errors,
-            ),
-            response_model=SQLRepairProposal,
-        )
+        try:
+            repair = model_provider.generate_json(
+                messages=build_sql_repair_prompt(
+                    context=context,
+                    approved_intent=session.approved_intent,
+                    sql=current_sql,
+                    validation_errors=result.errors,
+                ),
+                response_model=SQLRepairProposal,
+            )
+        except Exception as exc:
+            _mark_model_failure(session.id, exc)
+            raise
         current_sql = repair.sql
         repair_changes = repair.changes
 
@@ -189,3 +201,7 @@ def prepare_sql(
 
 def _validate_session(session: ExportSession) -> ExportSession:
     return ExportSession.model_validate(session)
+
+
+def _mark_model_failure(session_id: str, exc: Exception) -> None:
+    mark_session_failed(session_id, f"Model provider failed: {exc}")

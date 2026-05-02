@@ -1,6 +1,6 @@
 # Architecture
 
-This is the canonical product and technical shape for V0.
+Canonical V0 product and technical shape. Resolved trade-offs live in `docs/decisions.md`; current implementation status lives in `docs/implementation-status.md`; product vocabulary lives in `CONTEXT.md`.
 
 ## Goal
 
@@ -8,43 +8,29 @@ Build a local/customer-installed app where a user chats naturally to generate a 
 
 The model helps interpret the request and propose SQL. The application owns credentials, validation, execution, CSV writing, and download.
 
-## Product Flow
+## Flow
 
 1. Admin connects read-only Postgres credentials.
 2. App scans schema and metadata.
-3. App writes editable local context files.
+3. App writes editable context files.
 4. User asks for a CSV in chat.
 5. Model asks clarification only when needed.
-6. Model proposes a user-facing CSV intent.
-7. User approves the CSV intent once.
+6. Model proposes a user-facing CSV plan.
+7. User approves the CSV plan once.
 8. Model proposes SQL internally.
-9. App validates SQL, including output names against the approved CSV intent.
-10. If invalid, app gives structured validation errors to the model for limited server-side repair.
+9. App validates SQL, including output names against the approved intent.
+10. App gives validation errors to the model for up to two repair attempts if needed.
 11. App executes validated SQL with read-only limits.
-12. App validates result columns and basic values against the approved intent.
+12. App validates result columns against the approved intent.
 13. App escapes formula-like CSV cells.
 14. App writes the CSV and returns a download.
 
-## CSV Intent
-
-The one user-approved object should be understandable without SQL:
-
-- Summary.
-- Row meaning.
-- Columns.
-- Filters.
-- Derived or aggregate fields.
-- Assumptions.
-- Maximum row count.
-
-Normal users approve the CSV intent, not raw SQL. SQL belongs in Advanced/debug views and should stay hidden unless the user explicitly opens those views.
-
-## Target Shape
+## Shape
 
 ```text
 React/Vite frontend
   -> FastAPI backend
-      -> LiteLLM model adapter
+      -> LiteLLM SDK model adapter
       -> context.md + schema.json + policy.json
       -> Postgres via psycopg
       -> SQLGlot guard
@@ -52,88 +38,81 @@ React/Vite frontend
       -> local export files
 ```
 
-There is no separate worker process in V0. The backend is the execution boundary.
+There is no worker, queue, scheduler, or separate execution service in V0. The backend process is the execution boundary.
+
+Frontend and backend stay in one repo for V0.
 
 ## Frontend
 
-Exists because the user needs to chat, review the proposed CSV intent, approve it, see progress, and download the result.
+Purpose:
 
-Chosen stack:
+- chat with the user
+- scan/setup context
+- show the CSV plan for approval
+- run SQL preparation/export actions
+- provide the CSV download
+- hide SQL and validation details behind read-only Advanced UI
 
-- React + TypeScript + Vite.
-- TanStack Query for REST server state.
-- Native EventSource for SSE streaming.
-- Tailwind CSS.
-- shadcn/ui selectively.
-- shadcn-compatible chat primitives where they keep the chat surface conventional.
-- OpenAPI-generated API types.
-- Vitest + React Testing Library.
-- Playwright later.
+Stack:
 
-Primary views:
-
-- setup/context view.
-- chat/export session.
-- CSV intent approval card.
-- progress/status area.
-- download result.
-- Advanced/debug disclosure.
+- React + TypeScript + Vite
+- TanStack Query
+- OpenAPI-generated API types
+- Tailwind CSS
+- shadcn/ui selectively
+- Vitest + React Testing Library
+- Playwright later
 
 UX constraints:
 
-- Keep the app centered and compact.
-- Default to dark mode until a theme toggle exists.
-- The first screen should feel like a chat, not a dashboard or form.
+- Keep the app compact, centered, dark by default, and chat-first.
 - Show setup/export/debug controls only when useful.
-- Do not add an upload panel unless uploaded example CSVs are explicitly chosen for V0.
+- Do not add a dashboard shell or upload panel in V0.
+- Use plain user-facing language: CSV, CSV plan, CSV intent.
+- Keep SQL/table/column jargon in Advanced/debug surfaces.
 
-Do not build a dashboard shell until the app has enough repeated workflows to justify it.
+## Backend
 
-## Backend / Export Engine
+Purpose:
 
-Exists because the browser and model must not hold DB credentials or execute SQL directly.
+- store runtime settings
+- scan schema/context
+- manage chat/export sessions
+- call the configured model provider
+- validate SQL
+- execute read-only SQL
+- validate and write CSVs
+- keep enough debug trace information to inspect failures
 
-Responsibilities:
+Stack:
 
-- Store runtime settings.
-- Scan schema.
-- Manage chat/export sessions.
-- Call model provider.
-- Validate SQL.
-- Execute read-only SQL.
-- Validate and write CSV.
-- Keep logs/audit/debug information.
+- Python + FastAPI
+- Pydantic
+- psycopg v3
+- SQLGlot
+- Python `csv` stdlib
+- pytest
 
-Chosen stack:
+State starts as filesystem JSON. Move to SQLite only after querying sessions, exports, audit history, or debug traces becomes a real need.
 
-- Python + FastAPI.
-- Pydantic for request/response and model-output validation.
-- pytest for tests.
+## Model Provider
 
-## Model Provider Layer
+Use LiteLLM SDK inside the backend for V0. Do not run LiteLLM proxy.
 
-Exists because users should be able to choose providers with API keys.
+Provider setup is API-key-first:
 
-Chosen approach:
-
-- LiteLLM SDK inside the Python backend first.
-- Do not run LiteLLM proxy initially.
-- Add LiteLLM proxy later only if provider routing, budgets, organization-level settings, observability, or key isolation justify it.
-
-Provider config should support:
-
-- provider or model identifier.
-- API key.
-- optional base URL.
-- optional provider-specific settings.
-
-Support OpenAI, Anthropic, Google/Gemini, Mistral, Groq, OpenRouter, Ollama/local OpenAI-compatible servers, and custom OpenAI-compatible base URLs where practical.
+- OpenRouter is the first-class default.
+- Custom OpenAI-compatible base URLs cover local/internal endpoints.
+- More API-key providers can be added later.
+- Account/subscription-style integrations can come later after the local flow is stable.
 
 Model outputs must be parsed into Pydantic models before the app acts on them.
 
-## Context Layer
+Model suitability is judged by app behavior, not a benchmark name. Candidate models should be tested against clear requests, under-specified requests, invalid/gibberish requests, SQL validation failures, and repair loops.
 
-Exists because raw database schema is too ambiguous for a useful nontechnical chat experience.
+## Context
+
+Context exists because raw database schema is too ambiguous for a useful nontechnical chat experience.
 
 Files:
 
@@ -143,56 +122,57 @@ data/context/schema.json
 data/context/policy.json
 ```
 
-`context.md` is readable/editable by admins and useful to the model.
+- `context.md`: editable Markdown business/database context for the model.
+- `schema.json`: structured schema metadata.
+- `policy.json`: explicit blocked schemas/tables/columns/functions plus execution/export limits.
 
-`schema.json` is structured schema metadata for the app and model.
+For V0, context setup stays file-based. The app scans the database, prepares useful starter Markdown, and lets admins tweak it directly. Generated context may include relationship hints, common filter fields, and representative values where useful for model precision. Explicit policy blocks define exclusions.
 
-`policy.json` contains blocked schemas/tables/columns, sensitivity notes, and limits.
+If the configured model provider is external, generated context may leave the machine when sent to the provider. Credentials must never be included in context. V0 does not manage provider-side logging or retention.
 
 ## SQL Guard
 
-Exists because model-generated SQL is untrusted.
+Model-generated SQL is untrusted. Use model-generated SQL plus app validation for V0; do not add a structured query compiler unless evidence shows validation/repair is insufficient.
 
 Minimum checks:
 
-- single statement.
-- SELECT only.
-- no writes, DDL, COPY, execute, unsafe commands.
-- blocked schemas/tables/columns/functions.
-- required LIMIT.
-- selected output fields match the approved CSV intent.
-- SQL parses under Postgres dialect.
+- single Postgres statement
+- `SELECT` only
+- no writes, DDL, COPY, EXECUTE, or unsafe commands
+- no blocked schemas/tables/columns/functions
+- required integer `LIMIT`
+- selected output fields match the approved CSV intent
+- parseable under Postgres dialect
 
-Do not expose a public repair endpoint that accepts caller-supplied validation errors. Repair attempts should be driven by server-computed validation errors and bounded by the app.
+Repair attempts are driven only by server-computed validation errors and are bounded to two attempts in V0.
 
-Use SQLGlot for parsing and AST inspection.
+## Execution
 
-## Database Execution
+Database execution uses:
 
-Exists because the final CSV must come from the real database, under controlled conditions.
+- read-only database credentials
+- read-only transaction
+- statement timeout
+- lock timeout
+- row limit
+- max export byte limit
 
-Use:
+The model never receives credentials, directly connects to the database, directly executes SQL, or receives final CSV contents by default.
 
-- psycopg v3.
-- read-only database credentials.
-- read-only transaction.
-- statement timeout.
-- lock timeout.
-- row limit.
-- max export byte limit.
+## CSV Output
 
-## CSV Writer
-
-Exists because the final artifact is the product and has its own safety requirements.
+The final CSV is the product artifact.
 
 Responsibilities:
 
-- verify output columns match approved intent.
-- validate basic types where possible.
-- enforce max rows and max bytes.
-- escape formula-like cells.
-- write local CSV file.
-- provide download endpoint.
+- verify output columns match the approved intent
+- validate basic values where possible
+- enforce row and byte limits
+- escape formula-like string cells
+- write a local CSV file
+- provide a download endpoint
+
+There is no special export retention workflow in V0. Once the CSV is ready, the user downloads it to their chosen location.
 
 Formula-like string cells start with:
 
@@ -205,58 +185,18 @@ tab
 carriage return
 ```
 
-## Trust Boundary
-
-The backend/export engine is trusted. The model is not.
-
-The model can read prepared schema/context, ask clarifying questions, propose a CSV intent, propose SQL, and repair SQL after server-computed structured validation errors.
-
-The model must not receive database credentials, directly connect to the database, directly execute SQL, receive raw database rows by default, or receive final CSV contents by default.
-
-## UX Language
-
-- Use plain user-facing language.
-- Prefer "CSV" and "CSV plan" or "CSV intent".
-- Avoid SQL/table/column jargon in normal user-facing copy.
-- Avoid the word "contract" in user-facing copy.
-- SQL and validation details belong in Advanced/debug views.
-
-## Suggested API Surface
-
-```text
-GET  /health
-
-POST /context/scan
-GET  /context
-PUT  /context
-
-POST /sessions
-GET  /sessions/{session_id}
-POST /sessions/{session_id}/messages
-GET  /sessions/{session_id}/events
-
-POST /sessions/{session_id}/approve-intent
-GET  /exports/{export_id}/download
-```
-
-The exact API can change, but keep it small.
-
-## State
-
-Start with filesystem JSON or SQLite.
-
-Use SQLite once sessions, exports, audit events, and debug traces need reliable querying.
-
-Do not add Redis, Celery, or a job queue until export execution is clearly too slow or unreliable inside the API process.
-
 ## Non-Goals For V0
 
-- Hosted SaaS.
-- Scheduling.
-- Approval workflows.
-- Separate background queue.
-- Redis/Celery.
-- WebSockets unless SSE is insufficient.
-- Multiple database support.
-- Local model management.
-- Complex semantic/query compiler unless raw SQL validation proves insufficient.
+- Hosted SaaS
+- Scheduling
+- Approval workflows beyond one CSV-plan approval
+- Worker/queue/scheduler
+- Redis/Celery
+- SSE/WebSockets
+- Multiple database support
+- Local model management
+- Uploaded example CSVs
+- Editable SQL
+- LiteLLM proxy
+- LangChain/LlamaIndex
+- Structured query compiler

@@ -100,3 +100,12 @@ Expected behavior:
 Ask the user to narrow the request or propose a safe limited CSV intent. Do not generate an all-database export.
 ```
 
+```text
+asdkj qwepoi zzz export thing
+```
+
+Expected behavior:
+
+```text
+Ask a short clarification or say the request is not understandable enough to propose a CSV plan.
+```

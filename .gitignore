@@ -11,3 +11,4 @@ data/exports/*
 !data/exports/.gitkeep
 data/context/*
 data/sessions/*
+data/settings/*

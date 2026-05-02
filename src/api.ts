@@ -5,6 +5,8 @@ import type {
   ContextDocument,
   ExportCreateResponse,
   ExportSession,
+  ModelProviderSettingsResponse,
+  ModelProviderSettingsUpdate,
   SQLPreparationResponse
 } from "./types";
 
@@ -37,6 +39,19 @@ export function getContext(): Promise<ContextDocument> {
 
 export function scanContext(): Promise<ContextDocument> {
   return request<ContextDocument>("/context/scan", { method: "POST" });
+}
+
+export function getModelProviderSettings(): Promise<ModelProviderSettingsResponse> {
+  return request<ModelProviderSettingsResponse>("/settings/model-provider");
+}
+
+export function updateModelProviderSettings(
+  settings: ModelProviderSettingsUpdate
+): Promise<ModelProviderSettingsResponse> {
+  return request<ModelProviderSettingsResponse>("/settings/model-provider", {
+    method: "PUT",
+    body: JSON.stringify(settings)
+  });
 }
 
 export async function createSession(): Promise<ExportSession> {

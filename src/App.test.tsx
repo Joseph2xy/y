@@ -54,6 +54,14 @@ const sessionResponse = {
   last_error: null
 };
 
+const providerResponse = {
+  provider: "openrouter",
+  model: "openrouter/openai/gpt-4o-mini",
+  base_url: "https://openrouter.ai/api/v1",
+  temperature: 0,
+  api_key_configured: false
+};
+
 function renderApp() {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -77,6 +85,12 @@ describe("App", () => {
         const url = String(input);
         if (url === "/context") {
           return new Response(JSON.stringify(contextResponse), {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+          });
+        }
+        if (url === "/settings/model-provider") {
+          return new Response(JSON.stringify(providerResponse), {
             status: 200,
             headers: { "Content-Type": "application/json" }
           });
@@ -156,5 +170,56 @@ describe("App", () => {
     await user.click(screen.getByRole("button", { name: /Advanced/i }));
 
     expect(screen.getByText("select email from customers limit 10")).toBeInTheDocument();
+  });
+
+  it("saves OpenRouter provider settings", async () => {
+    const user = userEvent.setup();
+    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+    fetchMock.mockImplementationOnce(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/settings/model-provider") {
+        return new Response(JSON.stringify(providerResponse), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      return new Response(JSON.stringify({ detail: "Not found" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" }
+      });
+    });
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/settings/model-provider" && init?.method === "PUT") {
+        return new Response(
+          JSON.stringify({
+            ...providerResponse,
+            api_key_configured: true
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+          }
+        );
+      }
+      if (url === "/settings/model-provider") {
+        return new Response(JSON.stringify(providerResponse), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      return new Response(JSON.stringify({ detail: "Not found" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" }
+      });
+    });
+
+    renderApp();
+
+    await user.click(screen.getByRole("button", { name: "Provider settings" }));
+    await user.type(screen.getByLabelText("API key"), "sk-or-test");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByText("OpenRouter provider saved.")).toBeInTheDocument();
   });
 });

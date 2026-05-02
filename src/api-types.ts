@@ -226,6 +226,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/settings/model-provider": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Model Provider Settings Endpoint */
+        get: operations["get_model_provider_settings_endpoint_settings_model_provider_get"];
+        /** Put Model Provider Settings Endpoint */
+        put: operations["put_model_provider_settings_endpoint_settings_model_provider_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sql/validate": {
         parameters: {
             query?: never;
@@ -391,6 +409,41 @@ export interface components {
              */
             status: string;
         };
+        /** ModelProviderSettingsResponse */
+        ModelProviderSettingsResponse: {
+            /** Api Key Configured */
+            api_key_configured: boolean;
+            /** Base Url */
+            base_url?: string | null;
+            /** Model */
+            model: string;
+            /** Provider */
+            provider: string;
+            /** Temperature */
+            temperature: number;
+        };
+        /** ModelProviderSettingsUpdate */
+        ModelProviderSettingsUpdate: {
+            /** Api Key */
+            api_key?: string | null;
+            /** Base Url */
+            base_url?: string | null;
+            /**
+             * Model
+             * @default openrouter/openai/gpt-4o-mini
+             */
+            model: string;
+            /**
+             * Provider
+             * @default openrouter
+             */
+            provider: string;
+            /**
+             * Temperature
+             * @default 0
+             */
+            temperature: number;
+        };
         /** SQLPreparationResponse */
         SQLPreparationResponse: {
             /** Attempts */
@@ -444,16 +497,37 @@ export interface components {
             name: string;
             /** Ordinal Position */
             ordinal_position: number;
+            /** Sample Values */
+            sample_values?: string[];
         };
         /** SchemaContext */
         SchemaContext: {
+            /** Relationships */
+            relationships?: components["schemas"]["SchemaRelationship"][];
             /** Tables */
             tables?: components["schemas"]["SchemaTable"][];
+        };
+        /** SchemaRelationship */
+        SchemaRelationship: {
+            /** From Columns */
+            from_columns: string[];
+            /** From Schema */
+            from_schema: string;
+            /** From Table */
+            from_table: string;
+            /** To Columns */
+            to_columns: string[];
+            /** To Schema */
+            to_schema: string;
+            /** To Table */
+            to_table: string;
         };
         /** SchemaTable */
         SchemaTable: {
             /** Columns */
             columns?: components["schemas"]["SchemaColumn"][];
+            /** Primary Key */
+            primary_key?: string[];
             /** Schema Name */
             schema_name: string;
             /** Table Name */
@@ -896,6 +970,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SQLProposal"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_model_provider_settings_endpoint_settings_model_provider_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelProviderSettingsResponse"];
+                };
+            };
+        };
+    };
+    put_model_provider_settings_endpoint_settings_model_provider_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModelProviderSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelProviderSettingsResponse"];
                 };
             };
             /** @description Validation Error */

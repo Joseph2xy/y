@@ -15,6 +15,7 @@ class SchemaColumn(BaseModel):
     is_nullable: bool
     ordinal_position: int = Field(gt=0)
     default: str | None = None
+    sample_values: list[str] = Field(default_factory=list)
 
 
 class SchemaTable(BaseModel):
@@ -22,10 +23,21 @@ class SchemaTable(BaseModel):
     table_name: str = Field(min_length=1)
     table_type: str = Field(min_length=1)
     columns: list[SchemaColumn] = Field(default_factory=list)
+    primary_key: list[str] = Field(default_factory=list)
+
+
+class SchemaRelationship(BaseModel):
+    from_schema: str = Field(min_length=1)
+    from_table: str = Field(min_length=1)
+    from_columns: list[str] = Field(min_length=1)
+    to_schema: str = Field(min_length=1)
+    to_table: str = Field(min_length=1)
+    to_columns: list[str] = Field(min_length=1)
 
 
 class SchemaContext(BaseModel):
     tables: list[SchemaTable] = Field(default_factory=list)
+    relationships: list[SchemaRelationship] = Field(default_factory=list)
 
 
 class ContextPolicy(BaseModel):
@@ -135,6 +147,30 @@ class ModelConfig(BaseModel):
     api_key: str | None = None
     base_url: str | None = None
     temperature: float = Field(default=0, ge=0, le=2)
+
+
+class ModelProviderSettings(BaseModel):
+    provider: str = Field(default="openrouter", pattern="^(openrouter|custom)$")
+    model: str = Field(default="openrouter/openai/gpt-4o-mini", min_length=1)
+    api_key: str | None = Field(default=None, min_length=1)
+    base_url: str | None = Field(default=None, min_length=1)
+    temperature: float = Field(default=0, ge=0, le=2)
+
+
+class ModelProviderSettingsUpdate(BaseModel):
+    provider: str = Field(default="openrouter", pattern="^(openrouter|custom)$")
+    model: str = Field(default="openrouter/openai/gpt-4o-mini", min_length=1)
+    api_key: str | None = Field(default=None)
+    base_url: str | None = Field(default=None)
+    temperature: float = Field(default=0, ge=0, le=2)
+
+
+class ModelProviderSettingsResponse(BaseModel):
+    provider: str
+    model: str
+    base_url: str | None = None
+    temperature: float
+    api_key_configured: bool
 
 
 class ModelMessage(BaseModel):
