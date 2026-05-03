@@ -43,6 +43,8 @@ The frontend was then reworked into an Artifact Split layout on 2026-05-03. Chat
 
 The shadcn preset was switched on 2026-05-03 from `b2fA` to `b1Ymqvgiu`: Nova style, neutral base, blue theme/chart tokens, lucide icons, Inter font, inherited heading font, default radius, and subtle default menus. Existing shadcn UI components were reinstalled through the CLI with `init --preset b1Ymqvgiu --force --reinstall`.
 
+The ready-state header now includes a shadcn settings dialog. It keeps setup/change controls out of the normal CSV flow while making database/context status, context rescans, and model-provider changes available from chat. Database credentials still come from the backend environment in V0; the dialog shows the current context source and points users to update `.env` and rescan rather than editing `DATABASE_URL` in the browser.
+
 ## Implemented
 
 Backend:
@@ -65,7 +67,7 @@ Backend:
 
 Frontend:
 
-- `src/`: Artifact Split React/Vite workspace using Prompt Kit chat primitives for the left-side conversation/composer and shadcn components for the right-side CSV artifact panel, readiness-gated setup fallback, approval/export actions, safety status, and read-only Advanced debug trace dialog.
+- `src/`: Artifact Split React/Vite workspace using Prompt Kit chat primitives for the left-side conversation/composer and shadcn components for the right-side CSV artifact panel, readiness-gated setup fallback, settings dialog, approval/export actions, safety status, and read-only Advanced debug trace dialog.
 - `src/api-types.ts`: generated OpenAPI TypeScript types.
 - `src/types.ts`: frontend-friendly aliases.
 - `src/components/ui/` and `src/components/prompt-kit/`: reset shadcn/ui defaults plus selected Prompt Kit components for chat input, messages, suggestions, scrolling, progress, notices, markdown, and read-only code rendering.

@@ -103,6 +103,7 @@ describe("App", () => {
       vi.fn(async (input: RequestInfo | URL) => {
         const url = String(input);
         if (url === "/setup/status") return jsonResponse(setupReadyResponse);
+        if (url === "/settings/model-provider") return jsonResponse(providerResponse);
         if (url === "/sessions") return jsonResponse({ session: sessionResponse });
         if (url === "/sessions/session123") return jsonResponse(sessionResponse);
         return jsonResponse({ detail: "Not found" }, 404);
@@ -147,6 +148,58 @@ describe("App", () => {
 
     expect(document.documentElement).toHaveClass("dark");
     expect(document.documentElement.style.colorScheme).toBe("dark");
+  });
+
+  it("shows database and provider settings from the ready state", async () => {
+    const user = userEvent.setup();
+    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+    const requests: Array<{ url: string; method: string; body?: string }> = [];
+
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      requests.push({ url, method, body: typeof init?.body === "string" ? init.body : undefined });
+      if (url === "/setup/status") return jsonResponse(setupReadyResponse);
+      if (url === "/settings/model-provider" && method === "GET") return jsonResponse({ ...providerResponse, api_key_configured: true });
+      if (url === "/settings/model-provider" && method === "PUT") {
+        return jsonResponse({
+          provider: "custom",
+          model: "local-model",
+          base_url: "http://127.0.0.1:4010/v1",
+          temperature: 0,
+          api_key_configured: true
+        });
+      }
+      if (url === "/context/scan") {
+        return jsonResponse({ context_markdown: "", schema: {}, policy: {} });
+      }
+      if (url === "/sessions") return jsonResponse({ session: sessionResponse });
+      if (url === "/sessions/session123") return jsonResponse(sessionResponse);
+      return jsonResponse({ detail: "Not found" }, 404);
+    });
+
+    renderApp();
+
+    await screen.findByText("What CSV do you need?");
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Database connection")).toBeInTheDocument();
+    expect(within(dialog).getByText(/DATABASE_URL=postgresql/)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Rescan context" }));
+
+    await user.click(within(dialog).getByRole("tab", { name: "Provider" }));
+    await user.click(within(dialog).getByText("Custom"));
+    await user.clear(within(dialog).getByLabelText("Model"));
+    await user.type(within(dialog).getByLabelText("Model"), "local-model");
+    await user.type(within(dialog).getByLabelText("Base URL"), "http://127.0.0.1:4010/v1");
+    await user.type(within(dialog).getByLabelText("API key"), "secret-key");
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    expect(requests.some((request) => request.url === "/context/scan" && request.method === "POST")).toBe(true);
+    const providerUpdate = requests.find((request) => request.url === "/settings/model-provider" && request.method === "PUT");
+    expect(providerUpdate?.body).toContain('"provider":"custom"');
+    expect(providerUpdate?.body).toContain('"api_key":"secret-key"');
   });
 
   it("keeps prepared SQL hidden until Advanced is opened", async () => {

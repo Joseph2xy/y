@@ -32,10 +32,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ChatContainerContent, ChatContainerRoot, ChatContainerScrollAnchor } from "@/components/prompt-kit/chat-container";
 import { CodeBlock, CodeBlockCode } from "@/components/prompt-kit/code-block";
@@ -93,7 +95,7 @@ export function App() {
   const providerQuery = useQuery({
     queryKey: ["model-provider"],
     queryFn: getModelProviderSettings,
-    enabled: setupQuery.data?.next_action === "configure_model_provider"
+    enabled: !setupQuery.isLoading
   });
 
   const sessionQuery = useQuery({
@@ -150,6 +152,7 @@ export function App() {
       setProviderKind(settings.provider === "custom" ? "custom" : "openrouter");
       setProviderModel(settings.model);
       setProviderBaseUrl(settings.base_url ?? "");
+      setNotice({ type: "info", text: "Model provider settings saved." });
       queryClient.setQueryData(["model-provider"], settings);
       void queryClient.invalidateQueries({ queryKey: ["setup-status"] });
     },
@@ -330,8 +333,19 @@ export function App() {
         session={session ?? null}
         busy={busy}
         theme={theme}
+        providerSettings={providerSettings}
+        provider={providerKind}
+        model={providerModel}
+        baseUrl={providerBaseUrl}
+        apiKey={providerApiKey}
         onToggleTheme={toggleTheme}
         onNewSession={() => startSessionMutation.mutate()}
+        onProviderChange={setProviderKind}
+        onModelChange={setProviderModel}
+        onBaseUrlChange={setProviderBaseUrl}
+        onApiKeyChange={setProviderApiKey}
+        onSaveProvider={() => providerMutation.mutate()}
+        onRescanContext={() => rescanContextMutation.mutate()}
       />
       <section className="mx-auto grid min-h-0 w-full max-w-7xl flex-1 grid-cols-1 gap-4 px-4 pb-4 lg:grid-cols-[minmax(0,1fr)_minmax(360px,440px)] lg:px-6" aria-label="CSV Chat">
         <ConversationPane
@@ -342,7 +356,6 @@ export function App() {
           busy={busy}
           sending={sendMutation.isPending}
           planning={proposeMutation.isPending}
-          setupStatus={setupStatus}
           onMessageChange={setMessage}
           onSubmit={submitCurrentMessage}
           onSuggestion={setMessage}
@@ -370,15 +383,37 @@ function AppHeader({
   session,
   busy,
   theme,
+  providerSettings,
+  provider,
+  model,
+  baseUrl,
+  apiKey,
   onToggleTheme,
-  onNewSession
+  onNewSession,
+  onProviderChange,
+  onModelChange,
+  onBaseUrlChange,
+  onApiKeyChange,
+  onSaveProvider,
+  onRescanContext
 }: {
   status: SetupStatusResponse;
   session: ExportSession | null;
   busy: boolean;
   theme: Theme;
+  providerSettings?: ModelProviderSettingsResponse;
+  provider: "openrouter" | "custom";
+  model: string;
+  baseUrl: string;
+  apiKey: string;
   onToggleTheme: () => void;
   onNewSession: () => void;
+  onProviderChange: (value: "openrouter" | "custom") => void;
+  onModelChange: (value: string) => void;
+  onBaseUrlChange: (value: string) => void;
+  onApiKeyChange: (value: string) => void;
+  onSaveProvider: () => void;
+  onRescanContext: () => void;
 }) {
   return (
     <header className="mx-auto flex w-full max-w-7xl shrink-0 items-center justify-between gap-3 px-4 py-4 lg:px-6">
@@ -388,6 +423,21 @@ function AppHeader({
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <ReadinessBadge status={status} />
+        <SettingsDialog
+          status={status}
+          providerSettings={providerSettings}
+          provider={provider}
+          model={model}
+          baseUrl={baseUrl}
+          apiKey={apiKey}
+          busy={busy}
+          onProviderChange={onProviderChange}
+          onModelChange={onModelChange}
+          onBaseUrlChange={onBaseUrlChange}
+          onApiKeyChange={onApiKeyChange}
+          onSaveProvider={onSaveProvider}
+          onRescanContext={onRescanContext}
+        />
         <ThemeToggle theme={theme} onToggle={onToggleTheme} />
         {session ? (
           <Button size="icon-sm" variant="ghost" type="button" onClick={onNewSession} disabled={busy} aria-label="New CSV">
@@ -396,6 +446,118 @@ function AppHeader({
         ) : null}
       </div>
     </header>
+  );
+}
+
+function SettingsDialog({
+  status,
+  providerSettings,
+  provider,
+  model,
+  baseUrl,
+  apiKey,
+  busy,
+  onProviderChange,
+  onModelChange,
+  onBaseUrlChange,
+  onApiKeyChange,
+  onSaveProvider,
+  onRescanContext
+}: {
+  status: SetupStatusResponse;
+  providerSettings?: ModelProviderSettingsResponse;
+  provider: "openrouter" | "custom";
+  model: string;
+  baseUrl: string;
+  apiKey: string;
+  busy: boolean;
+  onProviderChange: (value: "openrouter" | "custom") => void;
+  onModelChange: (value: string) => void;
+  onBaseUrlChange: (value: string) => void;
+  onApiKeyChange: (value: string) => void;
+  onSaveProvider: () => void;
+  onRescanContext: () => void;
+}) {
+  return (
+    <Dialog>
+      <DialogTrigger render={<Button type="button" variant="ghost" size="icon-sm" aria-label="Settings" />}>
+        <SettingsIcon data-icon="inline-start" />
+      </DialogTrigger>
+      <DialogContent className="max-h-[90svh] overflow-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Settings</DialogTitle>
+          <DialogDescription>Database context and model provider setup for this local app.</DialogDescription>
+        </DialogHeader>
+        <Tabs defaultValue="database">
+          <TabsList>
+            <TabsTrigger value="database">Database</TabsTrigger>
+            <TabsTrigger value="provider">Provider</TabsTrigger>
+          </TabsList>
+          <TabsContent value="database" className="flex flex-col gap-4">
+            <DatabaseSettingsPanel status={status} busy={busy} onRescanContext={onRescanContext} />
+          </TabsContent>
+          <TabsContent value="provider">
+            <ProviderForm
+              settings={providerSettings}
+              provider={provider}
+              model={model}
+              baseUrl={baseUrl}
+              apiKey={apiKey}
+              busy={busy}
+              onProviderChange={onProviderChange}
+              onModelChange={onModelChange}
+              onBaseUrlChange={onBaseUrlChange}
+              onApiKeyChange={onApiKeyChange}
+              onSave={onSaveProvider}
+            />
+          </TabsContent>
+        </Tabs>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DatabaseSettingsPanel({
+  status,
+  busy,
+  onRescanContext
+}: {
+  status: SetupStatusResponse;
+  busy: boolean;
+  onRescanContext: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Database connection</CardTitle>
+          <CardDescription>{status.database.ready ? "Connected through the backend environment." : status.database.message ?? "Database setup needs attention."}</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <ContextSourceDetails status={status} />
+          <div className="flex flex-col gap-2">
+            <p className="text-sm text-muted-foreground">To change the database, update the backend `.env` value and restart or refresh the backend.</p>
+            <CodeBlock>
+              <CodeBlockCode code="DATABASE_URL=postgresql://readonly:password@localhost:5432/appdb" language="shell" />
+            </CodeBlock>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Context</CardTitle>
+          <CardDescription>{status.context.ready ? "Database context is ready for CSV requests." : status.context.message ?? "Context needs to be prepared."}</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <p className="text-sm text-muted-foreground">Rescan after changing the database or after schema changes. Local context notes and policy stay file-based for V0.</p>
+          <Button type="button" variant="outline" onClick={onRescanContext} disabled={busy || !status.database.ready}>
+            {busy ? <Spinner data-icon="inline-start" /> : <RefreshCwIcon data-icon="inline-start" />}
+            Rescan context
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
@@ -416,7 +578,6 @@ function ConversationPane({
   busy,
   sending,
   planning,
-  setupStatus,
   onMessageChange,
   onSubmit,
   onSuggestion
@@ -428,7 +589,6 @@ function ConversationPane({
   busy: boolean;
   sending: boolean;
   planning: boolean;
-  setupStatus: SetupStatusResponse;
   onMessageChange: (value: string) => void;
   onSubmit: () => void;
   onSuggestion: (value: string) => void;
@@ -465,10 +625,16 @@ function ConversationPane({
             maxHeight={160}
           >
             <PromptInputTextarea placeholder="Describe the CSV you need" disabled={busy} />
-            <PromptInputActions className="justify-between">
-              <p className="min-w-0 truncate px-2 text-xs text-muted-foreground">{contextStatusText(setupStatus)}</p>
+            <PromptInputActions className="justify-end pt-2">
               <PromptInputAction tooltip="Send">
-                <Button size="icon-sm" type="button" disabled={busy || !message.trim()} aria-label="Send" onClick={onSubmit}>
+                <Button
+                  size="icon"
+                  type="button"
+                  disabled={busy || !message.trim()}
+                  aria-label="Send"
+                  onClick={onSubmit}
+                  className="rounded-full"
+                >
                   {sending || planning ? <Spinner data-icon="inline-start" /> : <ArrowUp data-icon="inline-start" />}
                 </Button>
               </PromptInputAction>
@@ -577,7 +743,7 @@ function ArtifactPanel({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-auto p-4">
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-4">
           {!intent && !proposal && !planning ? <EmptyArtifact /> : null}
           {planning ? <InlineStatus text="Drafting CSV plan" /> : null}
           {needsClarification ? <Clarification proposal={proposal} /> : null}
@@ -605,15 +771,15 @@ function ArtifactPanel({
 
 function EmptyArtifact() {
   return (
-    <div className="flex h-full min-h-[300px] flex-col justify-center gap-4 text-center">
-      <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-muted">
-        <FileSpreadsheetIcon className="text-muted-foreground" />
-      </div>
-      <div className="flex flex-col gap-1">
-        <p className="font-medium">CSV plan will appear here</p>
-        <p className="text-sm text-muted-foreground">Start in chat. The plan becomes the artifact you approve.</p>
-      </div>
-    </div>
+    <Empty className="min-h-[300px]">
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <FileSpreadsheetIcon />
+        </EmptyMedia>
+        <EmptyTitle>CSV plan will appear here</EmptyTitle>
+        <EmptyDescription>Start in chat. The plan becomes the artifact you approve.</EmptyDescription>
+      </EmptyHeader>
+    </Empty>
   );
 }
 
@@ -649,10 +815,12 @@ function PlanArtifact({ intent, message, approved }: { intent: CSVIntent; messag
         <p className="text-xs font-medium text-muted-foreground">Columns</p>
         <div className="flex flex-col gap-2">
           {intent.columns.map((column) => (
-            <div key={column.name} className="rounded-lg border p-3">
-              <p className="font-medium">{column.name}</p>
-              <p className="text-sm text-muted-foreground">{column.description}</p>
-            </div>
+            <Card key={column.name} size="sm">
+              <CardHeader>
+                <CardTitle>{column.name}</CardTitle>
+                <CardDescription>{column.description}</CardDescription>
+              </CardHeader>
+            </Card>
           ))}
         </div>
       </section>
@@ -668,7 +836,7 @@ function PlanArtifact({ intent, message, approved }: { intent: CSVIntent; messag
 
 function SafetyStatus({ mode }: { mode: "checking" | "ready" }) {
   return (
-    <Card className="mt-4">
+    <Card>
       <CardHeader>
         <CardTitle>{mode === "checking" ? "Checking CSV" : "Ready to create"}</CardTitle>
         <CardDescription>{mode === "checking" ? "The app is validating the export before anything runs." : "Validation passed. The app will create the file with read-only limits."}</CardDescription>
@@ -693,7 +861,7 @@ function SafetyLine({ icon, text, done }: { icon: ReactNode; text: string; done:
 
 function ExportSummary({ exportResult }: { exportResult: ExportCreateResponse }) {
   return (
-    <Card className="mt-4">
+    <Card>
       <CardHeader>
         <CardTitle>CSV ready</CardTitle>
         <CardDescription>{exportResult.row_count} rows exported.</CardDescription>
@@ -784,13 +952,15 @@ function AdvancedDetails({ sqlPrep, traces }: { sqlPrep: SQLPreparationResponse 
             <CodeBlockCode code={sqlPrep.sql} language="sql" />
           </CodeBlock>
           {sqlPrep.attempts.map((attempt, index) => (
-            <div key={`${attempt.sql}-${index}`} className="rounded-lg border p-3">
-              <p className="font-medium">
-                Attempt {index + 1}: {attempt.valid ? "valid" : "invalid"}
-              </p>
-              {attempt.errors.length ? <p className="text-destructive">{attempt.errors.join("; ")}</p> : null}
-              {attempt.repair_changes.length ? <p className="text-muted-foreground">{attempt.repair_changes.join("; ")}</p> : null}
-            </div>
+            <Card key={`${attempt.sql}-${index}`} size="sm">
+              <CardHeader>
+                <CardTitle>
+                  Attempt {index + 1}: {attempt.valid ? "valid" : "invalid"}
+                </CardTitle>
+                {attempt.errors.length ? <CardDescription className="text-destructive">{attempt.errors.join("; ")}</CardDescription> : null}
+                {attempt.repair_changes.length ? <CardDescription>{attempt.repair_changes.join("; ")}</CardDescription> : null}
+              </CardHeader>
+            </Card>
           ))}
         </div>
       ) : null}
@@ -1091,11 +1261,6 @@ function visibleMessages(messages: ChatMessage[], proposal: CSVIntentProposal | 
   }
   if (duplicateIndex === -1) return messages;
   return messages.filter((_, index) => index !== duplicateIndex);
-}
-
-function contextStatusText(status: SetupStatusResponse | undefined) {
-  if (!status?.context_source) return "Ready";
-  return `Context: ${databaseSourceLabel(status.context_source)}`;
 }
 
 function databaseSourceLabel(source: NonNullable<SetupStatusResponse["context_source"]>) {
