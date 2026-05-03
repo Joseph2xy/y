@@ -25,6 +25,7 @@ import {
   getSetupStatus,
   prepareSql,
   proposeIntent,
+  rescanContext,
   updateModelProviderSettings
 } from "./api";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -101,6 +102,15 @@ export function App() {
     onError: showError
   });
 
+  const rescanContextMutation = useMutation({
+    mutationFn: rescanContext,
+    onSuccess: () => {
+      setNotice({ type: "info", text: "Database context was rescanned. Review local context notes before exporting." });
+      void queryClient.invalidateQueries({ queryKey: ["setup-status"] });
+    },
+    onError: showError
+  });
+
   const providerMutation = useMutation({
     mutationFn: () =>
       updateModelProviderSettings({
@@ -116,7 +126,6 @@ export function App() {
       setProviderModel(settings.model);
       setProviderBaseUrl(settings.base_url ?? "");
       queryClient.setQueryData(["model-provider"], settings);
-      void bootstrapMutation.mutateAsync().catch(showError);
       void queryClient.invalidateQueries({ queryKey: ["setup-status"] });
     },
     onError: showError
@@ -227,6 +236,7 @@ export function App() {
 
   const busy =
     bootstrapMutation.isPending ||
+    rescanContextMutation.isPending ||
     startSessionMutation.isPending ||
     providerMutation.isPending ||
     sendMutation.isPending ||
@@ -277,6 +287,7 @@ export function App() {
           onApiKeyChange={setProviderApiKey}
           onSaveProvider={() => providerMutation.mutate()}
           onBootstrap={() => bootstrapMutation.mutate()}
+          onRescanContext={() => rescanContextMutation.mutate()}
         />
       </Shell>
     );
@@ -345,7 +356,7 @@ export function App() {
             </div>
           </div>
           <div className="flex flex-wrap justify-between gap-2">
-            <span className="text-xs text-muted-foreground">Setup is ready.</span>
+            <span className="text-xs text-muted-foreground">{contextStatusText(setupStatus)}</span>
             {hasMessages ? (
               <Button variant="outline" size="sm" type="button" onClick={() => proposeMutation.mutate()} disabled={busy || !sessionId}>
                 {proposeMutation.isPending ? <Loader2 data-icon="inline-start" className="animate-spin" aria-hidden="true" /> : <Sparkles data-icon="inline-start" aria-hidden="true" />}
@@ -422,7 +433,8 @@ function SetupGate({
   onBaseUrlChange,
   onApiKeyChange,
   onSaveProvider,
-  onBootstrap
+  onBootstrap,
+  onRescanContext
 }: {
   status: SetupStatusResponse | null;
   providerSettings?: ModelProviderSettingsResponse;
@@ -438,6 +450,7 @@ function SetupGate({
   onApiKeyChange: (value: string) => void;
   onSaveProvider: () => void;
   onBootstrap: () => void;
+  onRescanContext: () => void;
 }) {
   const action = status?.next_action;
   return (
@@ -496,6 +509,22 @@ function SetupGate({
           </Button>
         </div>
       ) : null}
+
+      {action === "rescan_context" ? (
+        <div className="flex flex-col gap-3 rounded-md border p-4 text-sm">
+          <div>
+            <h3 className="font-medium">Database context needs a rescan</h3>
+            <p className="mt-1 text-muted-foreground">
+              {status?.context.message ?? "The saved context does not match the configured database."}
+            </p>
+          </div>
+          <ContextSourceDetails status={status} />
+          <Button className="w-fit" onClick={onRescanContext} disabled={busy}>
+            {busy ? <Loader2 data-icon="inline-start" className="animate-spin" aria-hidden="true" /> : <RefreshCw data-icon="inline-start" aria-hidden="true" />}
+            Rescan context
+          </Button>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -507,6 +536,35 @@ function Line({ label, value }: { label: string; value: string | number }) {
       <dd className="font-medium text-foreground">{value}</dd>
     </div>
   );
+}
+
+function ContextSourceDetails({ status }: { status: SetupStatusResponse | null }) {
+  if (!status?.current_database && !status?.context_source) return null;
+  return (
+    <dl className="grid gap-2 rounded-md bg-muted p-3 text-xs text-muted-foreground">
+      {status.current_database ? <Line label="Current database" value={databaseSourceLabel(status.current_database)} /> : null}
+      {status.context_source ? <Line label="Context scanned from" value={databaseSourceLabel(status.context_source)} /> : null}
+      {status.context_source?.scanned_at ? <Line label="Last scanned" value={formatDateTime(status.context_source.scanned_at)} /> : null}
+    </dl>
+  );
+}
+
+function contextStatusText(status: SetupStatusResponse | undefined) {
+  if (!status?.context_source) return "Setup is ready.";
+  return `Context: ${databaseSourceLabel(status.context_source)}; scanned ${formatDateTime(status.context_source.scanned_at)}.`;
+}
+
+function databaseSourceLabel(source: NonNullable<SetupStatusResponse["context_source"]>) {
+  const database = source.database || "default database";
+  let host = source.host || "default host";
+  if (source.port) host = `${host}:${source.port}`;
+  return `${database} on ${host}`;
+}
+
+function formatDateTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString();
 }
 
 function Status({ value }: { value: string }) {

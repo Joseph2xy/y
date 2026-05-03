@@ -93,7 +93,7 @@ def ensure_context_files(
         _write_json(policy_path, ContextPolicy().model_dump())
 
     if schema is not None:
-        _write_json(schema_path, schema.model_dump())
+        _write_json(schema_path, schema.model_dump(mode="json"))
         if _context_is_unmodified_default(context_path):
             context_path.write_text(default_context_markdown(schema), encoding="utf-8")
     elif not schema_path.exists():

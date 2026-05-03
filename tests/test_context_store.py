@@ -1,4 +1,5 @@
 from app.context_store import ensure_context_files, load_context, update_context
+from app.database_identity import database_source_from_url
 from app.models import (
     ContextPolicy,
     ContextUpdate,
@@ -168,3 +169,14 @@ def test_update_context_preserves_schema(tmp_path) -> None:
     assert document.context == "# Updated\n"
     assert document.policy.blocked_tables == ["audit_log"]
     assert load_context(tmp_path).schema_context.tables[0].table_name == "orders"
+
+
+def test_save_schema_preserves_source_metadata(tmp_path) -> None:
+    source = database_source_from_url("postgresql://readonly:secret@localhost:5432/appdb")
+    document = ensure_context_files(tmp_path, schema=SchemaContext(source=source))
+
+    assert document.schema_context.source is not None
+    assert document.schema_context.source.database == "appdb"
+    assert document.schema_context.source.host == "localhost"
+    assert document.schema_context.source.port == "5432"
+    assert document.schema_context.source.fingerprint == source.fingerprint

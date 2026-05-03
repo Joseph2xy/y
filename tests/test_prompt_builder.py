@@ -9,6 +9,7 @@ from app.models import (
     SchemaTable,
     SQLProposal,
 )
+from app.database_identity import database_source_from_url
 from app.prompt_builder import build_intent_prompt, build_sql_prompt, response_format_for
 
 
@@ -79,3 +80,17 @@ def test_response_format_for_includes_model_schema() -> None:
     assert "Return JSON matching this schema" in format_prompt
     assert "sql" in format_prompt
     assert "notes" in format_prompt
+
+
+def test_build_prompt_serializes_schema_source_metadata() -> None:
+    document = context_document()
+    document.schema_context.source = database_source_from_url("postgresql://readonly:secret@localhost:5432/appdb")
+
+    prompt = build_intent_prompt(
+        context=document,
+        messages=[ChatMessage(role="user", content="I need customer emails.")],
+    )
+    content = "\n".join(message.content for message in prompt)
+
+    assert "scanned_at" in content
+    assert "appdb" in content

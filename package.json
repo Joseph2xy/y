@@ -8,6 +8,7 @@
     "dev": "vite --host 0.0.0.0",
     "dev:app": ".venv/bin/python tools/dev.py",
     "check:setup": ".venv/bin/python tools/check_setup.py",
+    "rescan:context": ".venv/bin/python tools/rescan_context.py",
     "build": "tsc -p tsconfig.app.json && tsc -p tsconfig.node.json && vite build",
     "generate:api-types": ".venv/bin/python tools/export_openapi.py .openapi/openapi.json && openapi-typescript .openapi/openapi.json -o src/api-types.ts",
     "test": "vitest run",

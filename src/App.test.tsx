@@ -85,6 +85,32 @@ const providerNeededResponse = {
   next_action: "configure_model_provider"
 };
 
+const contextStaleResponse = {
+  ready: false,
+  database: { configured: true, ready: true, message: null },
+  model_provider: { configured: true, ready: true, message: null },
+  context: {
+    configured: true,
+    ready: false,
+    message: "Context was scanned from old_app on localhost:5432, but .env points to new_app on localhost:5432. Run a context rescan."
+  },
+  current_database: {
+    host: "localhost",
+    port: "5432",
+    database: "new_app",
+    scanned_at: "2026-05-03T00:00:00Z",
+    fingerprint: "new"
+  },
+  context_source: {
+    host: "localhost",
+    port: "5432",
+    database: "old_app",
+    scanned_at: "2026-05-02T23:00:00Z",
+    fingerprint: "old"
+  },
+  next_action: "rescan_context"
+};
+
 function renderApp() {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -270,16 +296,18 @@ describe("App", () => {
     const user = userEvent.setup();
     const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
     let savedBody: unknown = null;
+    let providerSaved = false;
     fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url === "/setup/status") {
-        return new Response(JSON.stringify(providerNeededResponse), {
+        return new Response(JSON.stringify(providerSaved ? setupReadyResponse : providerNeededResponse), {
           status: 200,
           headers: { "Content-Type": "application/json" }
         });
       }
       if (url === "/settings/model-provider" && init?.method === "PUT") {
         savedBody = JSON.parse(String(init.body));
+        providerSaved = true;
         return new Response(
           JSON.stringify({
             ...providerResponse,
@@ -293,12 +321,6 @@ describe("App", () => {
       }
       if (url === "/settings/model-provider") {
         return new Response(JSON.stringify(providerResponse), {
-          status: 200,
-          headers: { "Content-Type": "application/json" }
-        });
-      }
-      if (url === "/setup/bootstrap") {
-        return new Response(JSON.stringify(setupReadyResponse), {
           status: 200,
           headers: { "Content-Type": "application/json" }
         });
@@ -328,16 +350,18 @@ describe("App", () => {
     const user = userEvent.setup();
     const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
     let savedBody: unknown = null;
+    let providerSaved = false;
     fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url === "/setup/status") {
-        return new Response(JSON.stringify(providerNeededResponse), {
+        return new Response(JSON.stringify(providerSaved ? setupReadyResponse : providerNeededResponse), {
           status: 200,
           headers: { "Content-Type": "application/json" }
         });
       }
       if (url === "/settings/model-provider" && init?.method === "PUT") {
         savedBody = JSON.parse(String(init.body));
+        providerSaved = true;
         return new Response(
           JSON.stringify({
             provider: "custom",
@@ -354,12 +378,6 @@ describe("App", () => {
       }
       if (url === "/settings/model-provider") {
         return new Response(JSON.stringify(providerResponse), {
-          status: 200,
-          headers: { "Content-Type": "application/json" }
-        });
-      }
-      if (url === "/setup/bootstrap") {
-        return new Response(JSON.stringify(setupReadyResponse), {
           status: 200,
           headers: { "Content-Type": "application/json" }
         });
@@ -387,5 +405,86 @@ describe("App", () => {
       base_url: "http://127.0.0.1:4010/v1",
       temperature: 0
     });
+  });
+
+  it("shows stale context details and rescans context", async () => {
+    const user = userEvent.setup();
+    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+    let scanned = false;
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/setup/status") {
+        return new Response(JSON.stringify(scanned ? setupReadyResponse : contextStaleResponse), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      if (url === "/context/scan") {
+        scanned = true;
+        return new Response(JSON.stringify(contextResponse), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      return new Response(JSON.stringify({ detail: "Not found" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" }
+      });
+    });
+
+    renderApp();
+
+    expect(await screen.findByText("Database context needs a rescan")).toBeInTheDocument();
+    expect(screen.getByText("Current database")).toBeInTheDocument();
+    expect(screen.getByText("new_app on localhost:5432")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Rescan context" }));
+
+    expect(await screen.findByText("What CSV do you need?")).toBeInTheDocument();
+    expect(scanned).toBe(true);
+  });
+
+  it("does not silently rescan stale context after saving provider settings", async () => {
+    const user = userEvent.setup();
+    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+    let providerSaved = false;
+    let bootstrapCalled = false;
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/setup/status") {
+        return new Response(JSON.stringify(providerSaved ? contextStaleResponse : providerNeededResponse), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      if (url === "/settings/model-provider" && init?.method === "PUT") {
+        providerSaved = true;
+        return new Response(JSON.stringify({ ...providerResponse, api_key_configured: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      if (url === "/settings/model-provider") {
+        return new Response(JSON.stringify(providerResponse), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      if (url === "/setup/bootstrap") {
+        bootstrapCalled = true;
+      }
+      return new Response(JSON.stringify({ detail: "Not found" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" }
+      });
+    });
+
+    renderApp();
+
+    await user.type(await screen.findByLabelText("API key"), "sk-or-test");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByText("Database context needs a rescan")).toBeInTheDocument();
+    expect(bootstrapCalled).toBe(false);
   });
 });

@@ -32,10 +32,13 @@ Update this file at the end of each section of work.
 - Cleaned repo hygiene: removed ignored build/cache/runtime artifacts and old generated session/export files, deleted stale docs `docs/agents/domain.md` and `docs/dependency-audit.md`, and updated README/implementation status to reflect the smaller active doc set.
 - Added `docs/flow.excalidraw`, an editable lane diagram explaining the app process, boundaries, and safety flow from setup through CSV download.
 - Remade and polished `docs/flow.excalidraw` as a cleaner four-lane 13-step flow after the first version proved too dense. Verified readability with agent-browser against a temporary local render and kept the source as valid Excalidraw JSON.
+- Simplified local tester onboarding. The root README now focuses on first-run and everyday use; added `tools/setup_local.sh` for Linux/WSL setup without overwriting `.env`; improved `.env.example`; added `docs/local-user-guide.md`, `docs/troubleshooting.md`, and `docs/development.md`; and made `pnpm check:setup` print concrete next actions. Windows support is WSL-first for now. Verified the focused check setup tests, `bash -n tools/setup_local.sh`, and `pnpm check:setup`.
+- Made context lifecycle explicit for testers. First-run setup creates context only when files are missing; changing `DATABASE_URL` later requires `pnpm rescan:context` or deleting context files for a fresh regenerate. Added `tools/rescan_context.py`, the `pnpm rescan:context` script, docs, and focused test coverage.
+- Added context freshness tracking. Schema context now stores sanitized database source metadata and scan time; setup status warns when the current `DATABASE_URL` differs from the context source; `pnpm check:setup` prints current/scanned database labels; and the setup UI shows a rescan panel with a button when context is stale.
 
 ## Next Step
 
-- Re-run the remaining finance calibration scenarios after provider quota resets or with a paid/non-free provider: overdue-invoices SQL/export and vague-finance clarification. Then decide whether the next local-install step should be a packaged command, containerized smoke path, or no extra setup surface.
+- Ask a tester to follow the README from a fresh Linux/WSL clone and record any setup friction. After that, decide whether native Windows PowerShell setup, Docker, or a more packaged local install path is justified. Also re-run the remaining finance calibration scenarios after provider quota resets or with a paid/non-free provider: overdue-invoices SQL/export and vague-finance clarification.
 
 ## Next Session Prompt
 
@@ -44,7 +47,7 @@ Use this prompt to continue:
 ```text
 Read AGENTS.md and docs/implementation-status.md first. Continue from the current V0 CSV Chat state.
 
-Goal for this session: re-run the remaining finance calibration scenarios after provider quota resets or with a paid/non-free provider: overdue-invoices SQL/export and vague-finance clarification. Then decide whether the next local-install step should be a packaged command, containerized smoke path, or no extra setup surface.
+Goal for this session: test the documented local onboarding path from a fresh Linux/WSL clone if possible, record any setup friction, and only then decide whether native Windows PowerShell setup, Docker, or a more packaged local install path is justified. Also re-run the remaining finance calibration scenarios after provider quota resets or with a paid/non-free provider: overdue-invoices SQL/export and vague-finance clarification.
 
 Start by checking git status and setup readiness. Do not print secrets, database credentials, or final CSV contents. Use the configured .env provider/database if available.
 
@@ -61,7 +64,7 @@ Report for each request: request text, whether the model proposed a plan or clar
 
 If a concrete bug appears, fix it with focused changes and tests. If the issue is schema/business ambiguity, tune data/context/context.md or prompt wording only when the traces show a specific confusion. Keep the product narrow: chat -> context -> approved CSV plan -> validated SQL -> CSV download.
 
-If local-install friction comes up, start from the existing `pnpm dev:app` and `pnpm check:setup` paths before adding anything broader.
+If local-install friction comes up, start from `README.md`, `tools/setup_local.sh`, `pnpm check:setup`, and `pnpm dev:app` before adding anything broader.
 
 Before final response, run relevant verification: pytest, frontend tests/build when frontend/API types changed, compileall, and model_eval if prompt/model-flow behavior changed. End with conclusions and recommended next actions.
 ```

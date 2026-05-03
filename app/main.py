@@ -5,6 +5,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 
 from app.context_store import ContextStoreError, load_context, save_scanned_schema, update_context
+from app.database_identity import database_source_from_url, database_source_label, database_sources_match
 from app.db import read_only_query_runner, test_database_connection
 from app.export_service import ExportError, create_export, export_path
 from app.model_provider import LiteLLMModelProvider, ModelProviderError
@@ -82,6 +83,10 @@ def configured_database_url() -> str | None:
 
 def setup_status() -> SetupStatusResponse:
     database_url = configured_database_url()
+    try:
+        current_database = database_source_from_url(database_url) if database_url else None
+    except Exception:
+        current_database = None
     if not database_url:
         database = SetupCheck(
             configured=False,
@@ -109,12 +114,25 @@ def setup_status() -> SetupStatusResponse:
     else:
         provider = SetupCheck(configured=True, ready=True)
 
+    context_source = None
     try:
-        load_context()
+        document = load_context()
     except ContextStoreError as exc:
         context = SetupCheck(configured=False, ready=False, message=str(exc))
     else:
-        context = SetupCheck(configured=True, ready=True)
+        context_source = document.schema_context.source
+        if database.ready and not database_sources_match(context_source, current_database):
+            if context_source is None:
+                message = "Context has no database scan metadata. Run a context rescan."
+            else:
+                message = (
+                    "Context was scanned from "
+                    f"{database_source_label(context_source)}, but .env points to "
+                    f"{database_source_label(current_database)}. Run a context rescan."
+                )
+            context = SetupCheck(configured=True, ready=False, message=message)
+        else:
+            context = SetupCheck(configured=True, ready=True)
 
     next_action = None
     if not database.ready:
@@ -122,13 +140,15 @@ def setup_status() -> SetupStatusResponse:
     elif not provider.ready:
         next_action = "configure_model_provider"
     elif not context.ready:
-        next_action = "setup_context"
+        next_action = "rescan_context" if context.configured else "setup_context"
 
     return SetupStatusResponse(
         ready=database.ready and provider.ready and context.ready,
         database=database,
         model_provider=provider,
         context=context,
+        current_database=current_database,
+        context_source=context_source,
         next_action=next_action,
     )
 
@@ -151,6 +171,8 @@ def bootstrap_setup_endpoint() -> SetupStatusResponse:
     if not status.model_provider.ready:
         raise HTTPException(status_code=400, detail=status.model_provider.message)
     if status.context.ready:
+        return status
+    if status.context.configured:
         return status
 
     scan_context()
@@ -187,6 +209,7 @@ def scan_context() -> ContextScanResponse:
         policy = None
 
     schema = scan_postgres_schema(database_url, policy=policy)
+    schema.source = database_source_from_url(database_url)
     document = save_scanned_schema(schema)
     return ContextScanResponse(
         context=document.context,

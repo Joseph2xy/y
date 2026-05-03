@@ -104,9 +104,9 @@ def _context_message(context: ContextDocument) -> ModelMessage:
             "Database context markdown:\n"
             f"{context.context}\n\n"
             "Schema JSON:\n"
-            f"{_dump(context.schema_context.model_dump())}\n\n"
+            f"{_dump(context.schema_context.model_dump(mode='json'))}\n\n"
             "Policy JSON:\n"
-            f"{_dump(context.policy.model_dump())}"
+            f"{_dump(context.policy.model_dump(mode='json'))}"
         ),
     )
 

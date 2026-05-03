@@ -1,130 +1,104 @@
 # CSV Chat
 
-A small local app for generating CSV exports from a Postgres database through a constrained chat flow.
+CSV Chat is a local app for generating a validated CSV from a Postgres database.
 
-The model helps interpret the user's request and propose SQL. The app owns the database connection, SQL guardrails, read-only execution limits, CSV writing, and final download.
+You describe the CSV in plain language. The app scans your database context, proposes a CSV plan for approval, generates SQL internally, validates it, runs it with read-only limits, and gives you a CSV download.
 
-## Docs
+The model never receives database credentials and never executes SQL directly.
 
-- `AGENTS.md`: working rules for coding agents.
-- `CONTEXT.md`: canonical product vocabulary.
-- `docs/architecture.md`: canonical V0 product, stack, safety, and API shape.
-- `docs/decisions.md`: resolved V0 decisions and revisit triggers.
-- `docs/implementation-status.md`: current status, next step, and new-session handoff.
-- `docs/example-requests.md`: sample user requests for prompt and flow testing.
-- `docs/flow.excalidraw`: editable process diagram.
-- `docs/agents/memory.md`: lightweight work memory and copy-pasteable continuation prompt.
+## Recommended Setup
 
-## Shape
+Linux or Windows with WSL.
 
-```text
-Browser or API client
-  -> FastAPI app
-      -> editable context files
-      -> LiteLLM model provider adapter
-      -> Postgres schema/read tools
-      -> SQL guard
-      -> CSV writer
-```
+Prerequisites:
 
-There is no separate worker, queue, scheduler, or approval workflow in this version.
+- Python 3.11 or newer
+- Node.js and pnpm
+- access to a Postgres database through a read-only user
+- an OpenRouter API key, or a custom OpenAI-compatible model endpoint
 
-## Flow
+For Windows, install WSL and run these commands inside the Linux shell. Keep the repo inside the WSL filesystem, such as `~/code/csv-chat`, instead of under `/mnt/c/...`.
 
-1. Scan Postgres metadata.
-2. Write `data/context/schema.json` and `data/context/context.md`.
-3. User asks for a CSV.
-4. Model asks for clarification only when needed.
-5. Model proposes a user-facing CSV plan.
-6. User approves the CSV intent once.
-7. App asks the model for SQL.
-8. App validates the SQL, including output fields against the approved CSV intent.
-9. If needed, the app gives structured validation errors back to the model for a limited repair loop.
-10. App executes with read-only settings and limits.
-11. App validates and writes the CSV.
-12. App returns a download link.
+## First Run
 
-## Local Setup
-
-Install backend and frontend dependencies:
+Install dependencies and create `.env` if it does not exist:
 
 ```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -e '.[test]'
-pnpm install
+./tools/setup_local.sh
 ```
 
-Create a local `.env`:
-
-```bash
-cp .env.example .env
-```
-
-Then edit `.env`:
+Edit `.env` with your database and model provider settings:
 
 ```text
 DATABASE_URL=postgresql://readonly:password@localhost:5432/appdb
 WORKER_LLM_PROVIDER=openrouter
-WORKER_OPENROUTER_MODEL=nvidia/nemotron-3-super-120b-a12b:free
-OPENROUTER_API_KEY=...
+WORKER_OPENROUTER_MODEL=openrouter/openai/gpt-4o-mini
+OPENROUTER_API_KEY=your-api-key
 MODEL_TEMPERATURE=0
 ```
 
-`DATABASE_URL` should point to a read-only Postgres user. The real `.env` file is ignored by git.
-
-Check readiness:
+Check whether the app is ready:
 
 ```bash
 pnpm check:setup
 ```
 
-Run the app for local development:
+Start the app:
 
 ```bash
 pnpm dev:app
 ```
 
-This starts the FastAPI backend on `http://127.0.0.1:8000` and the Vite frontend on `http://127.0.0.1:5173`.
+Open:
 
-For a custom OpenAI-compatible endpoint, use the setup screen or configure:
-
-```bash
-MODEL_NAME=openai/gpt-4.1-mini
-MODEL_API_KEY=...
-MODEL_BASE_URL=http://127.0.0.1:4010/v1
-MODEL_TEMPERATURE=0
+```text
+http://127.0.0.1:5173
 ```
 
-Provider settings saved through the setup screen are stored locally under `data/settings/model_provider.json`; API responses never include the saved key.
+The backend runs on `http://127.0.0.1:8000`.
 
-You can also run the backend and frontend separately:
+## Everyday Use
 
-```bash
-.venv/bin/python -m uvicorn app.main:app --reload
-pnpm dev
-```
-
-The Vite dev server proxies API calls to `http://127.0.0.1:8000`.
-
-Verification:
+After setup is complete:
 
 ```bash
-.venv/bin/python -m pytest -q
-.venv/bin/python -m compileall -q app tests tools
-pnpm test
-pnpm build
+pnpm check:setup
+pnpm dev:app
 ```
 
-The frontend uses official shadcn/ui primitives. The app should stay compact, centered, dark by default, and chat-first. Workflow controls should appear only when useful.
+If setup is not ready, `pnpm check:setup` prints the next required action.
 
-On WSL, use native Linux Node and pnpm. Avoid the Windows `node.exe`/npm shims from `/mnt/c/...`; package install scripts can fail on UNC paths. On Fedora WSL, this works:
+## Database Changes
+
+First run creates the local context files when they are missing. After that, the app treats those files as local editable state.
+
+If you change `DATABASE_URL` to a different database, the app will warn that context was scanned from a different database and ask for a rescan. You can rescan from the setup screen or run:
 
 ```bash
-sudo dnf install -y nodejs pnpm
+pnpm rescan:context
 ```
 
-## Current Status
+This updates `data/context/schema.json` from the new database and preserves your existing `policy.json`. It also preserves `context.md` if you have edited it, because that file may contain your own business notes. Review `context.md` after switching databases and remove old notes that no longer apply.
 
-The current handoff and next steps live in `docs/implementation-status.md`.
+## Local Files
 
-As of the latest update, the backend model harness, bounded SQL preparation/repair loop, compact shadcn-based React/Vite chat frontend, and first real end-to-end local Postgres demo are implemented and tested. A repeatable Postgres smoke script is available at `tools/postgres_smoke.py`.
+These files are local runtime data and are ignored by git:
+
+```text
+.env
+data/context/context.md
+data/context/schema.json
+data/context/policy.json
+data/settings/model_provider.json
+data/sessions/*.json
+data/exports/*.csv
+```
+
+`context.md` and `policy.json` are local editable context and safety files. CSV exports are written under `data/exports/`.
+
+## More Help
+
+- [Local user guide](docs/local-user-guide.md)
+- [Troubleshooting](docs/troubleshooting.md)
+- [Development guide](docs/development.md)
+- [Current implementation status](docs/implementation-status.md)

@@ -31,6 +31,8 @@ A finance/invoicing schema calibration pass on 2026-05-02 used a seeded five-tab
 
 Repo hygiene cleanup on 2026-05-02 removed ignored build/cache/runtime artifacts from the working tree and deleted stale docs that duplicated current handoff material (`docs/agents/domain.md`, `docs/dependency-audit.md`). The active docs are now README, AGENTS, CONTEXT, architecture, decisions, implementation status, example requests, the editable Excalidraw flow diagram, and agent memory.
 
+Local tester onboarding was simplified on 2026-05-03. The root README now focuses on first-run/everyday local use, `tools/setup_local.sh` creates the venv, installs dependencies, and copies `.env.example` without overwriting existing secrets, and detailed reference material moved to `docs/local-user-guide.md`, `docs/troubleshooting.md`, and `docs/development.md`. Windows guidance is WSL-first for now; native Windows PowerShell setup is explicitly not first-class yet. Context lifecycle is now explicit: first-run setup creates context only when missing; schema context stores sanitized database source metadata and scan time; setup status warns when current `DATABASE_URL` differs from the context source; users can rescan from the setup screen or `pnpm rescan:context`.
+
 ## Implemented
 
 Backend:
@@ -62,15 +64,20 @@ Setup/readiness:
 
 - `GET /setup/status`: reports whether the database connection, model provider configuration, and generated context are ready.
 - `POST /setup/bootstrap`: runs missing automatic setup work when configuration is present; currently scans the configured database and generates context files.
+- `pnpm check:setup`: reports setup readiness and prints the next user action when setup is incomplete.
+- `pnpm rescan:context`: rescans the current `DATABASE_URL`, updates `schema.json` with sanitized source metadata, preserves `policy.json`, and preserves edited `context.md` notes.
 - Normal frontend entry goes directly to chat when setup is ready.
 - The frontend shows a compact setup-needed panel only when database configuration, model provider configuration, or generated context is missing.
+- The frontend shows a context-rescan panel when existing context was scanned from a different database than the current `DATABASE_URL`.
 - The setup-needed provider panel can save either OpenRouter settings or a custom OpenAI-compatible base URL.
 - Manual provider settings and database scan controls are no longer part of the normal chat surface.
 
 Tools:
 
+- `tools/setup_local.sh`: Linux/WSL first-run helper that creates `.venv`, installs Python/frontend dependencies, and copies `.env.example` to `.env` only when missing.
+- `tools/rescan_context.py`: CLI helper for explicitly regenerating schema context after changing `DATABASE_URL`.
 - `tools/export_openapi.py`: exports OpenAPI schema.
-- `tools/check_setup.py`: prints setup readiness and exits nonzero when database, provider, or context setup is incomplete.
+- `tools/check_setup.py`: prints setup readiness, gives a concrete next step, and exits nonzero when database, provider, or context setup is incomplete.
 - `tools/dev.py`: starts backend and frontend dev servers together and shuts both down on exit.
 - `tools/finance_calibration.py`: provisions a disposable realistic finance/invoicing Postgres schema and drives real-provider calibration without printing credentials or CSV contents.
 - `tools/mock_openai_server.py`: deterministic local model server for demos.
@@ -115,11 +122,13 @@ pnpm test
 pnpm build
 ```
 
-Last documented full backend suite: `121 passed` on 2026-05-02.
+Last documented full backend suite: `127 passed` on 2026-05-03.
+
+Last documented onboarding check update: `tests/test_check_setup.py` passed, `bash -n tools/setup_local.sh` passed, and `pnpm check:setup` reported ready on 2026-05-03.
 
 Last documented model eval verification: `.venv/bin/python tools/model_eval.py` passed on 2026-05-02.
 
-Last documented frontend verification: `pnpm test` passed with `5 passed`; `pnpm build` passed on 2026-05-02.
+Last documented frontend verification: `pnpm test` passed with `7 passed`; `pnpm build` passed on 2026-05-03.
 
 Optional local Postgres smoke test:
 
@@ -202,12 +211,12 @@ Ignored generated artifacts such as `.openapi/`, `dist/`, `__pycache__/`, `.pyte
 ## Next Work
 
 1. Re-run the remaining finance calibration scenarios after provider quota resets or with a paid/non-free provider: overdue-invoices SQL/export and vague-finance clarification.
-2. Review generated context and persisted debug traces from any new runs, then tune only obvious noisy/missing hints.
-3. Add an optional real-provider calibration mode for `tools/model_eval.py` once provider credentials and target models are stable enough for repeatable runs.
-4. Keep `tools/postgres_smoke.py` passing as the API flow changes; consider a containerized CI-friendly version only after the smoke path stabilizes.
-5. Use persisted debug traces during future realistic-schema runs to identify prompt/context/validation issues before broadening the product surface.
-6. Consider a small packaged/local install path only after the dev runner and setup checker prove insufficient.
-7. Current evidence does not justify adding a query compiler, worker, queue, or broader setup surface.
+2. Ask a tester to follow the README from a fresh Linux/WSL clone and record any friction before adding Docker, native Windows scripts, or installers.
+3. Review generated context and persisted debug traces from any new runs, then tune only obvious noisy/missing hints.
+4. Add an optional real-provider calibration mode for `tools/model_eval.py` once provider credentials and target models are stable enough for repeatable runs.
+5. Keep `tools/postgres_smoke.py` passing as the API flow changes; consider a containerized CI-friendly version only after the smoke path stabilizes.
+6. Use persisted debug traces during future realistic-schema runs to identify prompt/context/validation issues before broadening the product surface.
+7. Current evidence does not justify adding a query compiler, worker, queue, scheduler, Docker path, native installer, or broader setup surface.
 
 For a copy-pasteable continuation prompt, see `docs/agents/memory.md`.
 

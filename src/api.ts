@@ -6,6 +6,7 @@ import type {
   ExportSession,
   ModelProviderSettingsResponse,
   ModelProviderSettingsUpdate,
+  ContextDocument,
   SetupStatusResponse,
   SQLPreparationResponse
 } from "./types";
@@ -52,6 +53,10 @@ export function getSetupStatus(): Promise<SetupStatusResponse> {
 
 export function bootstrapSetup(): Promise<SetupStatusResponse> {
   return request<SetupStatusResponse>("/setup/bootstrap", { method: "POST" });
+}
+
+export function rescanContext(): Promise<ContextDocument> {
+  return request<ContextDocument>("/context/scan", { method: "POST" });
 }
 
 export async function createSession(): Promise<ExportSession> {

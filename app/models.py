@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -36,9 +37,18 @@ class SchemaRelationship(BaseModel):
     to_columns: list[str] = Field(min_length=1)
 
 
+class DatabaseSource(BaseModel):
+    host: str | None = None
+    port: str | None = None
+    database: str | None = None
+    scanned_at: datetime
+    fingerprint: str = Field(min_length=1)
+
+
 class SchemaContext(BaseModel):
     tables: list[SchemaTable] = Field(default_factory=list)
     relationships: list[SchemaRelationship] = Field(default_factory=list)
+    source: DatabaseSource | None = None
 
 
 class ContextPolicy(BaseModel):
@@ -199,6 +209,8 @@ class SetupStatusResponse(BaseModel):
     database: SetupCheck
     model_provider: SetupCheck
     context: SetupCheck
+    current_database: DatabaseSource | None = None
+    context_source: DatabaseSource | None = None
     next_action: str | None = None
 
 

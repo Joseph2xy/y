@@ -405,6 +405,22 @@ export interface components {
             context: string;
             policy: components["schemas"]["ContextPolicy"];
         };
+        /** DatabaseSource */
+        DatabaseSource: {
+            /** Database */
+            database?: string | null;
+            /** Fingerprint */
+            fingerprint: string;
+            /** Host */
+            host?: string | null;
+            /** Port */
+            port?: string | null;
+            /**
+             * Scanned At
+             * Format: date-time
+             */
+            scanned_at: string;
+        };
         /** ExportCreateResponse */
         ExportCreateResponse: {
             /** Byte Count */
@@ -542,6 +558,7 @@ export interface components {
         SchemaContext: {
             /** Relationships */
             relationships?: components["schemas"]["SchemaRelationship"][];
+            source?: components["schemas"]["DatabaseSource"] | null;
             /** Tables */
             tables?: components["schemas"]["SchemaTable"][];
         };
@@ -618,6 +635,8 @@ export interface components {
         /** SetupStatusResponse */
         SetupStatusResponse: {
             context: components["schemas"]["SetupCheck"];
+            context_source?: components["schemas"]["DatabaseSource"] | null;
+            current_database?: components["schemas"]["DatabaseSource"] | null;
             database: components["schemas"]["SetupCheck"];
             model_provider: components["schemas"]["SetupCheck"];
             /** Next Action */
