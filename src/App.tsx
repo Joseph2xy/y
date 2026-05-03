@@ -476,6 +476,19 @@ function SetupGate({
         </div>
       ) : null}
 
+      {action === "connect_database" ? (
+        <div className="rounded-md border p-4 text-sm">
+          <h3 className="font-medium">Database connection failed</h3>
+          <p className="mt-1 text-muted-foreground">
+            {status?.database.message ?? "The configured database could not be reached."}
+          </p>
+          <p className="mt-3 text-muted-foreground">
+            Start Postgres, or update `.env` so `DATABASE_URL` points to a reachable read-only database.
+          </p>
+          <ContextSourceDetails status={status} />
+        </div>
+      ) : null}
+
       {action === "configure_model_provider" ? (
         <ProviderPanel
           settings={providerSettings}

@@ -136,7 +136,7 @@ def setup_status() -> SetupStatusResponse:
 
     next_action = None
     if not database.ready:
-        next_action = "configure_database"
+        next_action = "configure_database" if not database.configured else "connect_database"
     elif not provider.ready:
         next_action = "configure_model_provider"
     elif not context.ready:

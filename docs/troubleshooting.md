@@ -12,6 +12,8 @@ Restart `pnpm dev:app` after changing `.env`.
 
 ## Database Connection Fails
 
+If `pnpm check:setup` reports `configured=True`, `.env` has a `DATABASE_URL`, but the app cannot connect to it. For example, `Connection refused` on `127.0.0.1:5432` usually means Postgres is not running there, is listening on a different port, or the database is outside WSL.
+
 Check:
 
 - the database host and port are reachable from this machine or WSL

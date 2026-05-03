@@ -54,3 +54,21 @@ def test_check_setup_returns_zero_when_setup_is_ready(tmp_path, monkeypatch, cap
     assert "Context: ready" in output
     assert "Context scanned from: appdb on localhost:5432" in output
     assert "run `pnpm dev:app`" in output
+
+
+def test_check_setup_points_to_reachability_when_database_is_configured(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("DATABASE_URL", "postgresql://readonly:password@localhost:5432/appdb")
+
+    def fail_connection(database_url: str) -> None:
+        raise RuntimeError("connection refused")
+
+    monkeypatch.setattr(main, "test_database_connection", fail_connection)
+
+    assert check_setup.main() == 1
+
+    output = capsys.readouterr().out
+    assert "Next action: connect_database" in output
+    assert "start Postgres or update .env" in output

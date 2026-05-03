@@ -36,6 +36,7 @@ Update this file at the end of each section of work.
 - Made context lifecycle explicit for testers. First-run setup creates context only when files are missing; changing `DATABASE_URL` later requires `pnpm rescan:context` or deleting context files for a fresh regenerate. Added `tools/rescan_context.py`, the `pnpm rescan:context` script, docs, and focused test coverage.
 - Added context freshness tracking. Schema context now stores sanitized database source metadata and scan time; setup status warns when the current `DATABASE_URL` differs from the context source; `pnpm check:setup` prints current/scanned database labels; and the setup UI shows a rescan panel with a button when context is stale.
 - Reworked the main chat UX so sending a request automatically asks for a CSV plan, approving the plan automatically prepares/validates the export, and the normal path shows one next action instead of separate propose/prepare/run pipeline controls. Added friendlier provider quota and malformed-model-output error messages while keeping raw details in Advanced traces.
+- Split setup diagnostics for missing database configuration vs configured-but-unreachable database. `setup_status` now returns `connect_database` when `DATABASE_URL` exists but the connection fails; `pnpm check:setup`, the setup UI, troubleshooting docs, and focused tests now point users toward starting Postgres or fixing host/port/credentials.
 
 ## Next Step
 

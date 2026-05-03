@@ -162,4 +162,4 @@ def test_setup_status_reports_database_connection_failure(tmp_path, monkeypatch)
     assert body["database"]["configured"] is True
     assert body["database"]["ready"] is False
     assert "connection refused" in body["database"]["message"]
-    assert body["next_action"] == "configure_database"
+    assert body["next_action"] == "connect_database"

@@ -43,6 +43,9 @@ def print_next_step(action: str) -> None:
     if action == "configure_database":
         print("Next step: edit .env and set DATABASE_URL for a read-only Postgres user.")
         print("Then rerun: pnpm check:setup")
+    elif action == "connect_database":
+        print("Next step: start Postgres or update .env so DATABASE_URL points to a reachable database.")
+        print("Check the host, port, database name, username, and password, then rerun: pnpm check:setup")
     elif action == "configure_model_provider":
         print("Next step: edit .env with OpenRouter settings, or use the setup screen.")
         print("Then rerun: pnpm check:setup")
