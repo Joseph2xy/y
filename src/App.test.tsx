@@ -112,6 +112,9 @@ describe("App", () => {
 
   afterEach(() => {
     cleanup();
+    document.documentElement.className = "";
+    document.documentElement.style.colorScheme = "";
+    window.localStorage.clear();
     vi.unstubAllGlobals();
   });
 
@@ -124,6 +127,26 @@ describe("App", () => {
     expect(screen.getByPlaceholderText("Describe the CSV you need")).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Setup needed" })).not.toBeInTheDocument();
     expect(screen.queryByText(/select email/i)).not.toBeInTheDocument();
+  });
+
+  it("toggles between dark and light mode", async () => {
+    const user = userEvent.setup();
+
+    renderApp();
+
+    await screen.findByText("What CSV do you need?");
+    expect(document.documentElement).toHaveClass("dark");
+
+    await user.click(screen.getByRole("button", { name: "Switch to light mode" }));
+
+    expect(document.documentElement).not.toHaveClass("dark");
+    expect(document.documentElement.style.colorScheme).toBe("light");
+    expect(window.localStorage.getItem("csv-chat-theme")).toBe("light");
+
+    await user.click(screen.getByRole("button", { name: "Switch to dark mode" }));
+
+    expect(document.documentElement).toHaveClass("dark");
+    expect(document.documentElement.style.colorScheme).toBe("dark");
   });
 
   it("keeps prepared SQL hidden until Advanced is opened", async () => {

@@ -41,10 +41,13 @@ Update this file at the end of each section of work.
 - Reset the frontend UX from first principles. Reinstalled/reset shadcn defaults, kept only useful prompt-kit primitives, replaced `src/App.tsx` with one centered chat canvas, moved SQL/debug details into an Advanced dialog, kept setup as fallback-only, removed unused markdown/message UI and dependencies, updated frontend tests, and verified `pnpm test`, `pnpm build`, plus desktop/mobile browser screenshots.
 - Revisited Prompt Kit after reviewing its component list. Replaced custom chat bubbles with Prompt Kit `Message`, added scroll-to-latest, progress `Steps`, `ThinkingBar` loading states, `SystemMessage` notices, and Prompt Kit code blocks in Advanced/setup code surfaces. Added lazy-loaded Markdown and narrowed lazy Shiki highlighting to SQL/JSON/shell so `pnpm build` stays below the main-bundle warning threshold. Verified `pnpm test` and `pnpm build`.
 - Rebuilt the ready-state chat screen around Prompt Kit block composition rather than layering primitives into the old centered screen. Moved Prompt Kit primitives from `src/components/ui` to `src/components/prompt-kit`, kept shadcn UI files for shadcn components only, switched to a full-height conversation shell with centered message rows and anchored composer, and intentionally skipped generic sidebar/history/full-chat blocks because they widen the product beyond the V0 CSV flow. Verified `pnpm test` and `pnpm build`.
+- Reworked the frontend into an Artifact Split layout after deciding chat should remain the entry point but the CSV plan should be a persistent artifact. `src/App.tsx` now has a left conversation pane using Prompt Kit chat/composer primitives and a right CSV artifact panel using shadcn cards, badges, dialogs, fields, and buttons for plan review, clarification, approval, safety/validation status, export, download, and Advanced details. Verified with `pnpm test`, `pnpm build`, and an agent-browser Vite check against mocked setup/session endpoints.
+- Added a persisted light/dark mode header toggle using the existing shadcn theme variables and lucide icons. Verified with `pnpm test` (`8 passed`) and `pnpm build`.
+- Switched the shadcn preset to `b1Ymqvgiu` using `pnpm dlx shadcn@latest init --preset b1Ymqvgiu --force --reinstall`, which moved the design tokens to the blue theme/chart palette and Inter font while keeping Nova/Base UI/lucide/default radius. Removed the stale Geist font dependency/import after the CLI added Inter. Verified with `pnpm test` (`8 passed`), `pnpm build`, and `pnpm dlx shadcn@latest preset resolve --json`.
 
 ## Next Step
 
-- Ask a tester to follow the README from a fresh Linux/WSL clone and record any setup friction. Re-test the reset centered chat flow end-to-end with a stable provider/model. Also re-run the remaining finance calibration scenarios after provider quota resets or with a paid/non-free provider: overdue-invoices SQL/export and vague-finance clarification.
+- Ask a tester to follow the README from a fresh Linux/WSL clone and record any setup friction. Re-test the Artifact Split chat flow end-to-end with a stable provider/model, including approve -> prepare -> create -> download. Also re-run the remaining finance calibration scenarios after provider quota resets or with a paid/non-free provider: overdue-invoices SQL/export and vague-finance clarification.
 
 ## Next Session Prompt
 
@@ -53,7 +56,7 @@ Use this prompt to continue:
 ```text
 Read AGENTS.md and docs/implementation-status.md first. Continue from the current V0 CSV Chat state.
 
-Goal for this session: test the documented local onboarding path from a fresh Linux/WSL clone if possible, record any setup friction, and re-test the reset centered chat flow with a stable provider/model. Also re-run the remaining finance calibration scenarios after provider quota resets or with a paid/non-free provider: overdue-invoices SQL/export and vague-finance clarification.
+Goal for this session: test the documented local onboarding path from a fresh Linux/WSL clone if possible, record any setup friction, and re-test the Artifact Split chat flow with a stable provider/model. Also re-run the remaining finance calibration scenarios after provider quota resets or with a paid/non-free provider: overdue-invoices SQL/export and vague-finance clarification.
 
 Start by checking git status and setup readiness. Do not print secrets, database credentials, or final CSV contents. Use the configured .env provider/database if available.
 

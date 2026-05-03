@@ -1,5 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowUp, CheckIcon, CircleCheckIcon, CircleIcon, DownloadIcon, PlusIcon, RefreshCwIcon, SettingsIcon, TerminalIcon } from "lucide-react";
+import {
+  ArrowUp,
+  CheckIcon,
+  DownloadIcon,
+  FileSpreadsheetIcon,
+  LockKeyholeIcon,
+  MoonIcon,
+  PlusIcon,
+  RefreshCwIcon,
+  SettingsIcon,
+  ShieldCheckIcon,
+  SunIcon,
+  TerminalIcon
+} from "lucide-react";
 import { ReactNode, useEffect, useRef, useState } from "react";
 import {
   addMessage,
@@ -30,23 +43,23 @@ import { Message, MessageAvatar, MessageContent } from "@/components/prompt-kit/
 import { PromptInput, PromptInputAction, PromptInputActions, PromptInputTextarea } from "@/components/prompt-kit/prompt-input";
 import { PromptSuggestion } from "@/components/prompt-kit/prompt-suggestion";
 import { ScrollButton } from "@/components/prompt-kit/scroll-button";
-import { Steps, StepsContent, StepsItem, StepsTrigger } from "@/components/prompt-kit/steps";
 import { SystemMessage } from "@/components/prompt-kit/system-message";
 import { ThinkingBar } from "@/components/prompt-kit/thinking-bar";
 import { cn } from "@/lib/utils";
 import type {
-  ChatMessage,
   CSVIntent,
   CSVIntentProposal,
+  ChatMessage,
   ExportCreateResponse,
   ExportSession,
   ModelProviderSettingsResponse,
+  SQLPreparationResponse,
   SessionDebugTrace,
-  SetupStatusResponse,
-  SQLPreparationResponse
+  SetupStatusResponse
 } from "./types";
 
 type Notice = { type: "error" | "info"; text: string } | null;
+type Theme = "light" | "dark";
 
 const EXAMPLE_REQUESTS = [
   "Active customer emails created this quarter",
@@ -54,8 +67,11 @@ const EXAMPLE_REQUESTS = [
   "Open high-priority support tickets"
 ];
 
+const THEME_STORAGE_KEY = "csv-chat-theme";
+
 export function App() {
   const queryClient = useQueryClient();
+  const [theme, setTheme] = useState<Theme>(() => initialTheme());
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [proposal, setProposal] = useState<CSVIntentProposal | null>(null);
@@ -94,6 +110,7 @@ export function App() {
       setSqlPrep(null);
       setExportResult(null);
       setNotice(null);
+      setMessage("");
       queryClient.setQueryData(["session", session.id], session);
     },
     onError: showError
@@ -250,6 +267,10 @@ export function App() {
   const workflowNotice = notice ?? (session?.last_error ? { type: "error" as const, text: session.last_error } : null);
 
   useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
+
+  useEffect(() => {
     if (providerSettings?.model) {
       setProviderKind(providerSettings.provider === "custom" ? "custom" : "openrouter");
       setProviderModel(providerSettings.model);
@@ -262,9 +283,17 @@ export function App() {
     sendMutation.mutate();
   }
 
+  function toggleTheme() {
+    setTheme((current) => {
+      const next = current === "dark" ? "light" : "dark";
+      saveTheme(next);
+      return next;
+    });
+  }
+
   if (setupQuery.isLoading) {
     return (
-      <CenteredShell status={null}>
+      <CenteredShell status={null} theme={theme} onToggleTheme={toggleTheme}>
         <InlineStatus text="Checking setup" />
       </CenteredShell>
     );
@@ -272,7 +301,7 @@ export function App() {
 
   if (!setupStatus?.ready) {
     return (
-      <CenteredShell status={setupStatus ?? null}>
+      <CenteredShell status={setupStatus ?? null} theme={theme} onToggleTheme={toggleTheme}>
         <SetupFallback
           status={setupStatus ?? null}
           providerSettings={providerSettings}
@@ -295,63 +324,42 @@ export function App() {
   }
 
   return (
-    <main className="relative isolate flex h-svh flex-col overflow-hidden bg-background text-foreground">
-      <section className="flex min-h-0 flex-1 flex-col" aria-label="CSV Chat">
-        <AppHeader
-          status={setupStatus}
+    <main className="flex h-svh min-w-0 flex-col overflow-hidden bg-background text-foreground">
+      <AppHeader
+        status={setupStatus}
+        session={session ?? null}
+        busy={busy}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        onNewSession={() => startSessionMutation.mutate()}
+      />
+      <section className="mx-auto grid min-h-0 w-full max-w-7xl flex-1 grid-cols-1 gap-4 px-4 pb-4 lg:grid-cols-[minmax(0,1fr)_minmax(360px,440px)] lg:px-6" aria-label="CSV Chat">
+        <ConversationPane
           session={session ?? null}
+          proposal={proposal}
+          notice={workflowNotice}
+          message={message}
           busy={busy}
-          onNewSession={() => startSessionMutation.mutate()}
+          sending={sendMutation.isPending}
+          planning={proposeMutation.isPending}
+          setupStatus={setupStatus}
+          onMessageChange={setMessage}
+          onSubmit={submitCurrentMessage}
+          onSuggestion={setMessage}
         />
-
-        <ChatContainerRoot className="relative min-h-0 flex-1 px-4">
-          <ChatContainerContent className="min-h-full gap-6 py-8">
-            <Conversation
-              session={session ?? null}
-              proposal={proposal}
-              sqlPrep={sqlPrep}
-              exportResult={exportResult}
-              notice={workflowNotice}
-              planning={proposeMutation.isPending}
-              preparing={prepareMutation.isPending}
-              busy={busy}
-              onApprove={(intent) => approveMutation.mutate(intent)}
-              onExport={() => exportMutation.mutate()}
-              onSuggestion={setMessage}
-            />
-            <ChatContainerScrollAnchor />
-          </ChatContainerContent>
-          <div className="pointer-events-none sticky bottom-3 flex justify-center">
-            <ScrollButton className="pointer-events-auto" />
-          </div>
-        </ChatContainerRoot>
-
-        <div className="shrink-0 px-4 pb-4">
-          <div className="mx-auto w-full max-w-3xl px-0 md:px-6">
-            <PromptInput
-              value={message}
-              onValueChange={setMessage}
-              onSubmit={submitCurrentMessage}
-              isLoading={sendMutation.isPending || proposeMutation.isPending}
-              disabled={busy}
-              maxHeight={160}
-            >
-              <PromptInputTextarea placeholder="Describe the CSV you need" disabled={busy} />
-              <PromptInputActions className="justify-between">
-                <p className="min-w-0 truncate px-2 text-xs text-muted-foreground">{contextStatusText(setupStatus)}</p>
-                <PromptInputAction tooltip="Send">
-                  <Button size="icon-sm" type="button" disabled={busy || !message.trim()} aria-label="Send" onClick={submitCurrentMessage}>
-                    {sendMutation.isPending || proposeMutation.isPending ? (
-                      <Spinner data-icon="inline-start" />
-                    ) : (
-                      <ArrowUp data-icon="inline-start" />
-                    )}
-                  </Button>
-                </PromptInputAction>
-              </PromptInputActions>
-            </PromptInput>
-          </div>
-        </div>
+        <ArtifactPanel
+          session={session ?? null}
+          proposal={proposal}
+          sqlPrep={sqlPrep}
+          exportResult={exportResult}
+          traces={session?.debug_traces ?? []}
+          planning={proposeMutation.isPending}
+          preparing={prepareMutation.isPending}
+          exporting={exportMutation.isPending}
+          busy={busy}
+          onApprove={(intent) => approveMutation.mutate(intent)}
+          onExport={() => exportMutation.mutate()}
+        />
       </section>
     </main>
   );
@@ -361,23 +369,28 @@ function AppHeader({
   status,
   session,
   busy,
+  theme,
+  onToggleTheme,
   onNewSession
 }: {
   status: SetupStatusResponse;
   session: ExportSession | null;
   busy: boolean;
+  theme: Theme;
+  onToggleTheme: () => void;
   onNewSession: () => void;
 }) {
   return (
-    <header className="mx-auto flex w-full max-w-3xl shrink-0 items-center justify-between gap-3 px-4 py-4 md:px-10">
+    <header className="mx-auto flex w-full max-w-7xl shrink-0 items-center justify-between gap-3 px-4 py-4 lg:px-6">
       <div className="min-w-0">
         <h1 className="truncate font-heading text-sm font-medium">CSV Chat</h1>
-        <p className="truncate text-xs text-muted-foreground">{session ? statusLabel(session.status) : "Validated CSV exports"}</p>
+        <p className="truncate text-xs text-muted-foreground">{session ? statusLabel(session.status) : "Chat to validated CSV"}</p>
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <ReadinessBadge status={status} />
+        <ThemeToggle theme={theme} onToggle={onToggleTheme} />
         {session ? (
-          <Button size="icon-sm" variant="ghost" type="button" onClick={onNewSession} disabled={busy} aria-label="New chat">
+          <Button size="icon-sm" variant="ghost" type="button" onClick={onNewSession} disabled={busy} aria-label="New CSV">
             <PlusIcon data-icon="inline-start" />
           </Button>
         ) : null}
@@ -386,91 +399,97 @@ function AppHeader({
   );
 }
 
-function Conversation({
+function ThemeToggle({ theme, onToggle }: { theme: Theme; onToggle: () => void }) {
+  const dark = theme === "dark";
+  return (
+    <Button size="icon-sm" variant="ghost" type="button" onClick={onToggle} aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}>
+      {dark ? <SunIcon data-icon="inline-start" /> : <MoonIcon data-icon="inline-start" />}
+    </Button>
+  );
+}
+
+function ConversationPane({
   session,
   proposal,
-  sqlPrep,
-  exportResult,
   notice,
-  planning,
-  preparing,
+  message,
   busy,
-  onApprove,
-  onExport,
+  sending,
+  planning,
+  setupStatus,
+  onMessageChange,
+  onSubmit,
   onSuggestion
 }: {
   session: ExportSession | null;
   proposal: CSVIntentProposal | null;
-  sqlPrep: SQLPreparationResponse | null;
-  exportResult: ExportCreateResponse | null;
   notice: Notice;
-  planning: boolean;
-  preparing: boolean;
+  message: string;
   busy: boolean;
-  onApprove: (intent: CSVIntent) => void;
-  onExport: () => void;
+  sending: boolean;
+  planning: boolean;
+  setupStatus: SetupStatusResponse;
+  onMessageChange: (value: string) => void;
+  onSubmit: () => void;
   onSuggestion: (value: string) => void;
 }) {
   const messages = visibleMessages(session?.messages ?? [], proposal);
-  const traces = session?.debug_traces ?? [];
-  const approved = session?.approved_intent ?? null;
-  const hasWork = Boolean(proposal || approved || sqlPrep || exportResult || planning || preparing);
-  const empty = !messages.length && !hasWork;
-
-  if (empty) {
-    return (
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-0 md:px-6">
-        {notice ? <NoticeBanner notice={notice} /> : null}
-        <EmptyChat onSuggestion={onSuggestion} />
-      </div>
-    );
-  }
+  const empty = !messages.length && !proposal && !planning;
 
   return (
-    <>
-      {notice ? (
-        <div className="mx-auto w-full max-w-3xl px-0 md:px-6">
-          <NoticeBanner notice={notice} />
+    <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border bg-card" aria-label="Conversation">
+      <ChatContainerRoot className="relative min-h-0 flex-1 px-4">
+        <ChatContainerContent className="min-h-full py-6">
+          <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
+            {notice ? <NoticeBanner notice={notice} /> : null}
+            {empty ? <EmptyChat onSuggestion={onSuggestion} /> : null}
+            {messages.map((item, index) => (
+              <ChatBubble key={`${item.role}-${index}-${item.content}`} message={item} />
+            ))}
+            {planning ? <AssistantStatus text="Drafting CSV plan" /> : null}
+          </div>
+          <ChatContainerScrollAnchor />
+        </ChatContainerContent>
+        <div className="pointer-events-none sticky bottom-3 flex justify-center">
+          <ScrollButton className="pointer-events-auto" />
         </div>
-      ) : null}
-      {messages.map((item, index) => (
-        <ChatBubble key={`${item.role}-${index}-${item.content}`} message={item} />
-      ))}
-      {hasWork ? (
-        <AssistantBubble>
-          <CsvWorkCard
-            proposal={proposal}
-            approved={approved}
-            sqlPrep={sqlPrep}
-            exportResult={exportResult}
-            traces={traces}
-            planning={planning}
-            preparing={preparing}
-            busy={busy}
-            onApprove={onApprove}
-            onExport={onExport}
-          />
-        </AssistantBubble>
-      ) : null}
-    </>
+      </ChatContainerRoot>
+      <div className="shrink-0 border-t bg-background/80 p-3">
+        <div className="mx-auto max-w-3xl">
+          <PromptInput
+            value={message}
+            onValueChange={onMessageChange}
+            onSubmit={onSubmit}
+            isLoading={sending || planning}
+            disabled={busy}
+            maxHeight={160}
+          >
+            <PromptInputTextarea placeholder="Describe the CSV you need" disabled={busy} />
+            <PromptInputActions className="justify-between">
+              <p className="min-w-0 truncate px-2 text-xs text-muted-foreground">{contextStatusText(setupStatus)}</p>
+              <PromptInputAction tooltip="Send">
+                <Button size="icon-sm" type="button" disabled={busy || !message.trim()} aria-label="Send" onClick={onSubmit}>
+                  {sending || planning ? <Spinner data-icon="inline-start" /> : <ArrowUp data-icon="inline-start" />}
+                </Button>
+              </PromptInputAction>
+            </PromptInputActions>
+          </PromptInput>
+        </div>
+      </div>
+    </section>
   );
 }
 
 function EmptyChat({ onSuggestion }: { onSuggestion: (value: string) => void }) {
   return (
-    <div className="flex min-h-[55svh] flex-col justify-center gap-5">
+    <div className="flex min-h-[45svh] flex-col justify-center gap-5">
       <div className="flex flex-col gap-2">
         <h2 className="font-heading text-2xl font-medium tracking-normal">What CSV do you need?</h2>
-        <p className="text-sm text-muted-foreground">You will approve the CSV plan before anything runs.</p>
+        <p className="max-w-xl text-sm text-muted-foreground">Describe the file in plain language. You will approve the CSV plan before the app prepares or creates anything.</p>
       </div>
       <div className="flex flex-wrap gap-2">
         {EXAMPLE_REQUESTS.map((request) => (
-          <PromptSuggestion
-            key={request}
-            size="sm"
-            className="h-auto max-w-full whitespace-normal"
-            onClick={() => onSuggestion(request)}
-          >
+          <PromptSuggestion key={request} size="sm" className="h-auto max-w-full whitespace-normal" onClick={() => onSuggestion(request)}>
             {request}
           </PromptSuggestion>
         ))}
@@ -482,7 +501,7 @@ function EmptyChat({ onSuggestion }: { onSuggestion: (value: string) => void }) 
 function ChatBubble({ message }: { message: ChatMessage }) {
   const user = message.role === "user";
   return (
-    <Message className={cn("mx-auto w-full max-w-3xl px-0 md:px-6", user ? "justify-end" : "justify-start")}>
+    <Message className={cn(user ? "justify-end" : "justify-start")}>
       {!user ? <MessageAvatar alt="CSV Chat" fallback="C" /> : null}
       <MessageContent
         markdown={!user}
@@ -497,263 +516,239 @@ function ChatBubble({ message }: { message: ChatMessage }) {
   );
 }
 
-function AssistantBubble({ children }: { children: ReactNode }) {
+function AssistantStatus({ text }: { text: string }) {
   return (
-    <article className="mx-auto flex w-full max-w-3xl justify-start px-0 md:px-6">
-      <div className="w-full">{children}</div>
-    </article>
+    <Message className="justify-start">
+      <MessageAvatar alt="CSV Chat" fallback="C" />
+      <div className="rounded-lg bg-transparent p-0 text-foreground">
+        <InlineStatus text={text} />
+      </div>
+    </Message>
   );
 }
 
-function CsvWorkCard({
+function ArtifactPanel({
+  session,
   proposal,
-  approved,
   sqlPrep,
   exportResult,
   traces,
   planning,
   preparing,
+  exporting,
   busy,
   onApprove,
   onExport
 }: {
+  session: ExportSession | null;
   proposal: CSVIntentProposal | null;
-  approved: CSVIntent | null;
   sqlPrep: SQLPreparationResponse | null;
   exportResult: ExportCreateResponse | null;
   traces: SessionDebugTrace[];
   planning: boolean;
   preparing: boolean;
+  exporting: boolean;
   busy: boolean;
   onApprove: (intent: CSVIntent) => void;
   onExport: () => void;
 }) {
+  const approved = session?.approved_intent ?? null;
   const intent = approved ?? proposal?.intent ?? null;
   const needsClarification = Boolean(proposal && !proposal.intent);
   const hasAdvancedDetails = Boolean(sqlPrep || traces.length);
 
   return (
-    <Card aria-label="CSV plan">
-      <CardHeader>
-        <CardTitle>{workTitle({ planning, preparing, approved, sqlPrep, exportResult, needsClarification })}</CardTitle>
-        <CardDescription>{workDescription({ planning, preparing, approved, sqlPrep, exportResult, needsClarification })}</CardDescription>
-        <CardAction>
-          <div className="flex items-center gap-1">
+    <aside className="min-h-[420px] overflow-hidden rounded-xl border bg-card lg:min-h-0" aria-label="CSV artifact">
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b p-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <FileSpreadsheetIcon className="text-muted-foreground" />
+              <h2 className="truncate font-heading text-sm font-medium">CSV plan</h2>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {artifactSubtitle({ planning, preparing, exporting, approved, sqlPrep, exportResult, needsClarification, hasIntent: Boolean(intent) })}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
             {approved ? <Badge variant="outline">approved</Badge> : null}
-            {needsClarification ? <Badge variant="secondary">question</Badge> : null}
+            {exportResult ? <Badge variant="secondary">ready</Badge> : null}
             {hasAdvancedDetails ? <AdvancedDialog sqlPrep={sqlPrep} traces={traces} /> : null}
           </div>
-        </CardAction>
-      </CardHeader>
+        </div>
 
-      <CardContent className="flex flex-col gap-4">
-        {planning ? <InlineStatus text="Planning CSV" /> : null}
-        {needsClarification ? <Clarification proposal={proposal} /> : null}
-        {intent ? <PlanDetails intent={intent} message={proposal?.message ?? null} approved={Boolean(approved)} /> : null}
-        {preparing ? <InlineStatus text="Checking CSV" /> : null}
-        <CsvSteps
-          proposal={proposal}
-          approved={approved}
+        <div className="min-h-0 flex-1 overflow-auto p-4">
+          {!intent && !proposal && !planning ? <EmptyArtifact /> : null}
+          {planning ? <InlineStatus text="Drafting CSV plan" /> : null}
+          {needsClarification ? <Clarification proposal={proposal} /> : null}
+          {intent ? <PlanArtifact intent={intent} message={proposal?.message ?? null} approved={Boolean(approved)} /> : null}
+          {preparing ? <SafetyStatus mode="checking" /> : null}
+          {sqlPrep?.valid && !exportResult ? <SafetyStatus mode="ready" /> : null}
+          {sqlPrep && !sqlPrep.valid ? <SystemMessage variant="error">The CSV could not be prepared. Open Advanced for validation details.</SystemMessage> : null}
+          {exporting ? <InlineStatus text="Creating CSV" /> : null}
+          {exportResult ? <ExportSummary exportResult={exportResult} /> : null}
+        </div>
+
+        <ArtifactActions
+          intent={intent}
+          approved={Boolean(approved)}
           sqlPrep={sqlPrep}
           exportResult={exportResult}
-          planning={planning}
-          preparing={preparing}
-          needsClarification={needsClarification}
+          busy={busy}
+          onApprove={onApprove}
+          onExport={onExport}
         />
-        {sqlPrep && !sqlPrep.valid ? <SystemMessage variant="error">The CSV could not be prepared.</SystemMessage> : null}
-        {sqlPrep?.valid && !exportResult ? (
-          <SystemMessage>
-            <div>
-              <p className="font-medium">Ready to create</p>
-              <p className="text-muted-foreground">The app checked the CSV and will use read-only limits.</p>
-            </div>
-          </SystemMessage>
-        ) : null}
-        {exportResult ? <ExportSummary exportResult={exportResult} /> : null}
-      </CardContent>
-
-      {!approved && intent ? (
-        <CardFooter>
-          <Button type="button" onClick={() => onApprove(intent)} disabled={busy}>
-            <CheckIcon data-icon="inline-start" />
-            Approve CSV plan
-          </Button>
-        </CardFooter>
-      ) : null}
-
-      {sqlPrep?.valid && !exportResult ? (
-        <CardFooter>
-          <Button type="button" onClick={onExport} disabled={busy}>
-            {busy ? <Spinner data-icon="inline-start" /> : <CheckIcon data-icon="inline-start" />}
-            Create CSV
-          </Button>
-        </CardFooter>
-      ) : null}
-
-      {exportResult ? (
-        <CardFooter>
-          <a className={buttonVariants({ variant: "default" })} href={exportResult.download_url}>
-            <DownloadIcon data-icon="inline-start" />
-            Download CSV
-          </a>
-        </CardFooter>
-      ) : null}
-    </Card>
+      </div>
+    </aside>
   );
 }
 
-function CsvSteps({
-  proposal,
-  approved,
-  sqlPrep,
-  exportResult,
-  planning,
-  preparing,
-  needsClarification
-}: {
-  proposal: CSVIntentProposal | null;
-  approved: CSVIntent | null;
-  sqlPrep: SQLPreparationResponse | null;
-  exportResult: ExportCreateResponse | null;
-  planning: boolean;
-  preparing: boolean;
-  needsClarification: boolean;
-}) {
-  if (!proposal && !approved && !sqlPrep && !exportResult && !planning && !preparing) return null;
-
-  const items = csvStepItems({ proposal, approved, sqlPrep, exportResult, planning, preparing, needsClarification });
-
+function EmptyArtifact() {
   return (
-    <Steps className="rounded-lg border p-3">
-      <StepsTrigger leftIcon={<CircleIcon className="size-4" />}>Progress</StepsTrigger>
-      <StepsContent>
-        {items.map((item) => (
-          <StepsItem key={item.label} className="flex items-start gap-2">
-            {item.done ? <CircleCheckIcon className="mt-0.5 size-4 shrink-0 text-foreground" /> : <CircleIcon className="mt-0.5 size-4 shrink-0" />}
-            <div className="min-w-0">
-              <p className={cn("font-medium", item.active ? "text-foreground" : null)}>{item.label}</p>
-              <p>{item.description}</p>
-            </div>
-          </StepsItem>
-        ))}
-      </StepsContent>
-    </Steps>
-  );
-}
-
-function csvStepItems({
-  proposal,
-  approved,
-  sqlPrep,
-  exportResult,
-  planning,
-  preparing,
-  needsClarification
-}: {
-  proposal: CSVIntentProposal | null;
-  approved: CSVIntent | null;
-  sqlPrep: SQLPreparationResponse | null;
-  exportResult: ExportCreateResponse | null;
-  planning: boolean;
-  preparing: boolean;
-  needsClarification: boolean;
-}) {
-  const hasPlan = Boolean(proposal?.intent || approved);
-  const planDone = hasPlan || Boolean(exportResult);
-  const approvedDone = Boolean(approved || exportResult);
-  const checkedDone = Boolean(sqlPrep?.valid || exportResult);
-  const exportedDone = Boolean(exportResult);
-
-  return [
-    {
-      label: needsClarification ? "Clarify details" : "Draft CSV plan",
-      description: needsClarification ? "Answer the question in chat to continue." : planning ? "Drafting a plan for approval." : planDone ? "Plan is ready." : "Waiting for a request.",
-      done: planDone && !needsClarification,
-      active: planning || needsClarification
-    },
-    {
-      label: "Approve CSV plan",
-      description: approvedDone ? "Approved." : hasPlan ? "Review the plan before anything runs." : "Available after a plan is drafted.",
-      done: approvedDone,
-      active: hasPlan && !approvedDone
-    },
-    {
-      label: "Check export",
-      description: preparing ? "Validating the export against read-only rules." : checkedDone ? "Validation passed." : approvedDone ? "Validation will run next." : "Available after approval.",
-      done: checkedDone,
-      active: preparing
-    },
-    {
-      label: "Create CSV",
-      description: exportedDone ? `Rows exported: ${exportResult?.row_count ?? 0}` : checkedDone ? "Ready to create the download." : "Available after validation.",
-      done: exportedDone,
-      active: checkedDone && !exportedDone
-    }
-  ];
-}
-
-function Clarification({ proposal }: { proposal: CSVIntentProposal | null }) {
-  return (
-    <div className="flex flex-col gap-2">
-      {proposal?.message ? <p>{proposal.message}</p> : null}
-      {proposal?.questions?.length ? (
-        <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-muted-foreground">
-          {proposal.questions.map((question) => (
-            <li key={question}>{question}</li>
-          ))}
-        </ul>
-      ) : null}
+    <div className="flex h-full min-h-[300px] flex-col justify-center gap-4 text-center">
+      <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-muted">
+        <FileSpreadsheetIcon className="text-muted-foreground" />
+      </div>
+      <div className="flex flex-col gap-1">
+        <p className="font-medium">CSV plan will appear here</p>
+        <p className="text-sm text-muted-foreground">Start in chat. The plan becomes the artifact you approve.</p>
+      </div>
     </div>
   );
 }
 
-function PlanDetails({
-  intent,
-  message,
-  approved
-}: {
-  intent: CSVIntent;
-  message: string | null;
-  approved: boolean;
-}) {
+function Clarification({ proposal }: { proposal: CSVIntentProposal | null }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Clarify request</CardTitle>
+        <CardDescription>Answer in chat to continue.</CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        {proposal?.message ? <p className="text-sm">{proposal.message}</p> : null}
+        {proposal?.questions?.length ? <TextList title="Questions" items={proposal.questions} /> : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+function PlanArtifact({ intent, message, approved }: { intent: CSVIntent; message: string | null; approved: boolean }) {
   return (
     <div className="flex flex-col gap-4">
-      {message ? <p>{message}</p> : null}
-      <div className="flex flex-col gap-1">
-        <p className="text-xs font-medium text-muted-foreground">{approved ? "Approved CSV plan" : "CSV plan"}</p>
-        <p className="font-medium">{intent.summary}</p>
+      {message ? <SystemMessage>{message}</SystemMessage> : null}
+      <section className="flex flex-col gap-2">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs font-medium text-muted-foreground">{approved ? "Approved CSV plan" : "Draft CSV plan"}</p>
+          <Badge variant={approved ? "outline" : "secondary"}>{approved ? "locked" : "review"}</Badge>
+        </div>
+        <h3 className="text-lg font-medium">{intent.summary}</h3>
         <p className="text-sm text-muted-foreground">{intent.row_meaning}</p>
-      </div>
+      </section>
       <Separator />
-      <div className="flex flex-col gap-2">
+      <section className="flex flex-col gap-2">
         <p className="text-xs font-medium text-muted-foreground">Columns</p>
-        <ul className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2">
           {intent.columns.map((column) => (
-            <li key={column.name} className="rounded-lg border p-3">
+            <div key={column.name} className="rounded-lg border p-3">
               <p className="font-medium">{column.name}</p>
               <p className="text-sm text-muted-foreground">{column.description}</p>
-            </li>
+            </div>
           ))}
-        </ul>
-      </div>
+        </div>
+      </section>
       {intent.filters.length ? <TextList title="Filters" items={intent.filters} /> : null}
       {intent.derived_fields.length ? <TextList title="Calculated fields" items={intent.derived_fields} /> : null}
       {intent.assumptions.length ? <TextList title="Assumptions" items={intent.assumptions} /> : null}
-      <dl className="text-sm text-muted-foreground">
+      <dl className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">
         <Line label="Max rows" value={intent.max_row_count} />
       </dl>
     </div>
   );
 }
 
+function SafetyStatus({ mode }: { mode: "checking" | "ready" }) {
+  return (
+    <Card className="mt-4">
+      <CardHeader>
+        <CardTitle>{mode === "checking" ? "Checking CSV" : "Ready to create"}</CardTitle>
+        <CardDescription>{mode === "checking" ? "The app is validating the export before anything runs." : "Validation passed. The app will create the file with read-only limits."}</CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3 text-sm">
+        <SafetyLine icon={<LockKeyholeIcon />} text="Read-only database access" done={mode === "ready"} />
+        <SafetyLine icon={<ShieldCheckIcon />} text="CSV matches approved plan" done={mode === "ready"} />
+        <SafetyLine icon={<FileSpreadsheetIcon />} text="Row, size, and spreadsheet-safety limits" done={mode === "ready"} />
+      </CardContent>
+    </Card>
+  );
+}
+
+function SafetyLine({ icon, text, done }: { icon: ReactNode; text: string; done: boolean }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className={cn("text-muted-foreground", done && "text-foreground")}>{icon}</span>
+      <span className={cn(done ? "text-foreground" : "text-muted-foreground")}>{text}</span>
+    </div>
+  );
+}
+
 function ExportSummary({ exportResult }: { exportResult: ExportCreateResponse }) {
   return (
-    <div className="flex flex-col gap-2">
-      <p className="font-medium">CSV ready</p>
-      <dl className="grid gap-1 text-sm text-muted-foreground">
-        <Line label="Rows" value={exportResult.row_count} />
-        <Line label="Columns" value={exportResult.columns.length} />
-      </dl>
+    <Card className="mt-4">
+      <CardHeader>
+        <CardTitle>CSV ready</CardTitle>
+        <CardDescription>{exportResult.row_count} rows exported.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <dl className="grid gap-2 text-sm text-muted-foreground">
+          <Line label="Rows" value={exportResult.row_count} />
+          <Line label="Columns" value={exportResult.columns.length} />
+        </dl>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ArtifactActions({
+  intent,
+  approved,
+  sqlPrep,
+  exportResult,
+  busy,
+  onApprove,
+  onExport
+}: {
+  intent: CSVIntent | null;
+  approved: boolean;
+  sqlPrep: SQLPreparationResponse | null;
+  exportResult: ExportCreateResponse | null;
+  busy: boolean;
+  onApprove: (intent: CSVIntent) => void;
+  onExport: () => void;
+}) {
+  if (!intent && !exportResult) return null;
+
+  return (
+    <div className="shrink-0 border-t bg-background/80 p-4">
+      {!approved && intent ? (
+        <Button type="button" className="w-full" onClick={() => onApprove(intent)} disabled={busy}>
+          {busy ? <Spinner data-icon="inline-start" /> : <CheckIcon data-icon="inline-start" />}
+          Approve CSV plan
+        </Button>
+      ) : null}
+      {sqlPrep?.valid && !exportResult ? (
+        <Button type="button" className="w-full" onClick={onExport} disabled={busy}>
+          {busy ? <Spinner data-icon="inline-start" /> : <CheckIcon data-icon="inline-start" />}
+          Create CSV
+        </Button>
+      ) : null}
+      {exportResult ? (
+        <div className="flex flex-col gap-2">
+          <a className={cn(buttonVariants({ variant: "default" }), "w-full")} href={exportResult.download_url}>
+            <DownloadIcon data-icon="inline-start" />
+            Download CSV
+          </a>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -767,7 +762,7 @@ function AdvancedDialog({ sqlPrep, traces }: { sqlPrep: SQLPreparationResponse |
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Advanced</DialogTitle>
-          <DialogDescription>Read-only validation and debug details.</DialogDescription>
+          <DialogDescription>Read-only SQL, validation, and debug details.</DialogDescription>
         </DialogHeader>
         <AdvancedDetails sqlPrep={sqlPrep} traces={traces} />
       </DialogContent>
@@ -982,12 +977,7 @@ function ProviderForm({
           {custom ? (
             <Field>
               <FieldLabel htmlFor="provider-base-url">Base URL</FieldLabel>
-              <Input
-                id="provider-base-url"
-                value={baseUrl}
-                onChange={(event) => onBaseUrlChange(event.target.value)}
-                placeholder="http://127.0.0.1:4010/v1"
-              />
+              <Input id="provider-base-url" value={baseUrl} onChange={(event) => onBaseUrlChange(event.target.value)} placeholder="http://127.0.0.1:4010/v1" />
             </Field>
           ) : null}
           <Field>
@@ -1013,16 +1003,29 @@ function ProviderForm({
   );
 }
 
-function CenteredShell({ status, children }: { status: SetupStatusResponse | null; children: ReactNode }) {
+function CenteredShell({
+  status,
+  theme,
+  onToggleTheme,
+  children
+}: {
+  status: SetupStatusResponse | null;
+  theme: Theme;
+  onToggleTheme: () => void;
+  children: ReactNode;
+}) {
   return (
     <main className="flex min-h-svh items-center justify-center bg-background px-4 py-10 text-foreground">
       <section className="flex w-full max-w-lg flex-col gap-6">
         <header className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <h1 className="truncate font-heading text-sm font-medium">CSV Chat</h1>
-            <p className="truncate text-xs text-muted-foreground">Validated CSV exports</p>
+            <p className="truncate text-xs text-muted-foreground">Chat to validated CSV</p>
           </div>
-          <ReadinessBadge status={status} />
+          <div className="flex shrink-0 items-center gap-2">
+            <ReadinessBadge status={status} />
+            <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+          </div>
         </header>
         {children}
       </section>
@@ -1155,50 +1158,63 @@ function friendlyErrorMessage(message: string) {
   return message;
 }
 
-function workTitle({
+function artifactSubtitle({
   planning,
   preparing,
+  exporting,
   approved,
   sqlPrep,
   exportResult,
-  needsClarification
+  needsClarification,
+  hasIntent
 }: {
   planning: boolean;
   preparing: boolean;
+  exporting: boolean;
   approved: CSVIntent | null;
   sqlPrep: SQLPreparationResponse | null;
   exportResult: ExportCreateResponse | null;
   needsClarification: boolean;
+  hasIntent: boolean;
 }) {
-  if (exportResult) return "CSV ready";
-  if (sqlPrep?.valid) return "Create CSV";
-  if (preparing) return "Checking CSV";
-  if (approved) return "CSV plan approved";
-  if (needsClarification) return "Clarify request";
-  if (planning) return "Planning CSV";
-  return "CSV plan";
+  if (exportResult) return "Download is ready.";
+  if (exporting) return "Creating the downloadable file.";
+  if (sqlPrep?.valid) return "Validation passed.";
+  if (preparing) return "Checking the approved plan.";
+  if (approved) return "Approved and ready for validation.";
+  if (hasIntent) return "Review before anything runs.";
+  if (needsClarification) return "Answer in chat to continue.";
+  if (planning) return "Drafting from your request.";
+  return "The current CSV appears here.";
 }
 
-function workDescription({
-  planning,
-  preparing,
-  approved,
-  sqlPrep,
-  exportResult,
-  needsClarification
-}: {
-  planning: boolean;
-  preparing: boolean;
-  approved: CSVIntent | null;
-  sqlPrep: SQLPreparationResponse | null;
-  exportResult: ExportCreateResponse | null;
-  needsClarification: boolean;
-}) {
-  if (exportResult) return `${exportResult.row_count} rows exported.`;
-  if (sqlPrep?.valid) return "Ready after validation.";
-  if (preparing) return "Validation is running.";
-  if (approved) return "Preparing the export.";
-  if (needsClarification) return "Answer in chat to continue.";
-  if (planning) return "Drafting the CSV plan.";
-  return "Review before approval.";
+function initialTheme(): Theme {
+  if (typeof window === "undefined") return "dark";
+  const saved = readStoredTheme();
+  if (saved === "light" || saved === "dark") return saved;
+  if (typeof window.matchMedia === "function" && window.matchMedia("(prefers-color-scheme: light)").matches) return "light";
+  return "dark";
+}
+
+function applyTheme(theme: Theme) {
+  if (typeof document === "undefined") return;
+  document.documentElement.classList.toggle("dark", theme === "dark");
+  document.documentElement.style.colorScheme = theme;
+}
+
+function saveTheme(theme: Theme) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+  } catch {
+    // Theme persistence is best-effort; keep the in-memory toggle working.
+  }
+}
+
+function readStoredTheme() {
+  try {
+    return window.localStorage.getItem(THEME_STORAGE_KEY);
+  } catch {
+    return null;
+  }
 }

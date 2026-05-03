@@ -39,6 +39,10 @@ The chat UI was tightened further on 2026-05-03 after reviewing Prompt Kit. Cust
 
 The ready-state screen now uses Prompt Kit's block composition as its base: a full-height conversation shell, centered max-width message rows, Prompt Kit composer, and CSV-specific approval/export surfaces inside the conversation. Generic Prompt Kit sidebar/history/full-chat blocks were not adopted because they imply a broader chatbot product and conflict with the narrow V0 single-session CSV flow.
 
+The frontend was then reworked into an Artifact Split layout on 2026-05-03. Chat remains the starting point and left-side input surface, while the right-side persistent CSV artifact panel holds the current CSV plan, clarification state, approval action, validation/safety status, export summary, download action, and read-only Advanced dialog. The normal user path is now chat request -> review artifact -> approve CSV plan -> create CSV -> download, with SQL and validation internals still hidden by default. The header now includes a persisted light/dark mode toggle using the existing shadcn theme tokens.
+
+The shadcn preset was switched on 2026-05-03 from `b2fA` to `b1Ymqvgiu`: Nova style, neutral base, blue theme/chart tokens, lucide icons, Inter font, inherited heading font, default radius, and subtle default menus. Existing shadcn UI components were reinstalled through the CLI with `init --preset b1Ymqvgiu --force --reinstall`.
+
 ## Implemented
 
 Backend:
@@ -61,7 +65,7 @@ Backend:
 
 Frontend:
 
-- `src/`: full-height Prompt Kit based React/Vite chat workspace using composer, message, suggestions, auto-scrolling chat container, scroll button, status/progress primitives, shadcn CSV plan/export cards, readiness-gated setup fallback, and read-only Advanced debug trace dialog.
+- `src/`: Artifact Split React/Vite workspace using Prompt Kit chat primitives for the left-side conversation/composer and shadcn components for the right-side CSV artifact panel, readiness-gated setup fallback, approval/export actions, safety status, and read-only Advanced debug trace dialog.
 - `src/api-types.ts`: generated OpenAPI TypeScript types.
 - `src/types.ts`: frontend-friendly aliases.
 - `src/components/ui/` and `src/components/prompt-kit/`: reset shadcn/ui defaults plus selected Prompt Kit components for chat input, messages, suggestions, scrolling, progress, notices, markdown, and read-only code rendering.
@@ -134,7 +138,7 @@ Last documented onboarding check update: `tests/test_check_setup.py` passed, `ba
 
 Last documented model eval verification: `.venv/bin/python tools/model_eval.py` passed on 2026-05-02.
 
-Last documented frontend verification: `pnpm test` passed with `7 passed`; `pnpm build` passed on 2026-05-03 after the Prompt Kit component replacements. Browser screenshots were captured with the local FastAPI backend and Vite frontend at desktop and mobile widths on 2026-05-03 before the Prompt Kit replacement pass.
+Last documented frontend verification: `pnpm test` passed with `8 passed`; `pnpm build` passed on 2026-05-03 after the Artifact Split rewrite, theme toggle, and shadcn preset switch. A local Vite browser check with mocked setup/session endpoints confirmed the empty chat/artifact state and the draft CSV plan review state render correctly.
 
 Optional local Postgres smoke test:
 
