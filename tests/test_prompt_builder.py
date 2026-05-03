@@ -70,6 +70,13 @@ def test_build_intent_prompt_includes_context_schema_policy_and_messages() -> No
     assert "intent must be null" in content
     assert "asks for a CSV without saying what should be in it" in content
     assert "useful/everything/all data" in content
+    assert "Exclude ID-like fields by default" in content
+    assert "foreign-key IDs" in content
+    assert "Creation date" in content
+    assert "created_at" in content
+    assert "source_hint" in content
+    assert "policy max_row_count" in content
+    assert "smaller row limit" in content
 
 
 def test_build_sql_prompt_includes_approved_intent_and_sql_requirements() -> None:
@@ -107,6 +114,9 @@ def test_response_format_for_csv_intent_proposal_reinforces_clarification_bounda
     assert "exploratory messages" in format_prompt
     assert "what one row represents" in format_prompt
     assert "business condition" in format_prompt
+    assert "Exclude ID-like fields by default" in format_prompt
+    assert "readable labels" in format_prompt
+    assert "policy max_row_count" in format_prompt
 
 
 def test_build_prompt_serializes_schema_source_metadata() -> None:

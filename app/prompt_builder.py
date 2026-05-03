@@ -36,7 +36,15 @@ def build_intent_prompt(
                 "blocked requests, or missing required choices. Do not infer a default CSV from schema or context when "
                 "the user has not provided enough CSV details. If the user only says hello, asks what you can do, asks "
                 "for a CSV without saying what should be in it, or asks for useful/everything/all data, intent must be null.\n\n"
-                "If proposing a CSV intent, use only user-facing CSV language."
+                "If proposing a CSV intent, use only user-facing CSV language. CSV column names should be readable "
+                "labels for the exported file, not raw database names when a clearer label exists. For example, use "
+                "'Creation date' instead of 'created_at'. Keep source_hint on each column when a specific database "
+                "source is known.\n\n"
+                "Exclude ID-like fields by default, including primary keys, foreign-key IDs, and columns named 'id' "
+                "or ending in '_id', unless the user explicitly asks for identifiers. If the user asks for all/everything "
+                "but has not explicitly asked for IDs, do not include IDs.\n\n"
+                "For max_row_count, use the policy max_row_count from the provided context as the default unless the "
+                "user asks for a smaller row limit."
             ),
         ),
     ]

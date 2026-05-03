@@ -20,6 +20,7 @@ import {
   bootstrapSetup,
   createSession,
   createSessionExport,
+  getContext,
   getModelProviderSettings,
   getSession,
   getSetupStatus,
@@ -27,6 +28,7 @@ import {
   proposeIntent,
   rescanContext,
   testDatabaseConnection,
+  updateContext,
   updateModelProviderSettings
 } from "./api";
 import { Badge } from "@/components/ui/badge";
@@ -42,7 +44,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ChatContainerContent, ChatContainerRoot, ChatContainerScrollAnchor } from "@/components/prompt-kit/chat-container";
 import { CodeBlock, CodeBlockCode } from "@/components/prompt-kit/code-block";
-import { Message, MessageAvatar, MessageContent } from "@/components/prompt-kit/message";
+import { Message, MessageContent } from "@/components/prompt-kit/message";
 import { PromptInput, PromptInputAction, PromptInputActions, PromptInputTextarea } from "@/components/prompt-kit/prompt-input";
 import { PromptSuggestion } from "@/components/prompt-kit/prompt-suggestion";
 import { ScrollButton } from "@/components/prompt-kit/scroll-button";
@@ -53,6 +55,7 @@ import type {
   CSVIntent,
   CSVIntentProposal,
   ChatMessage,
+  ContextDocument,
   DatabaseConnectionTestResponse,
   ExportCreateResponse,
   ExportSession,
@@ -86,6 +89,7 @@ export function App() {
   const [providerModel, setProviderModel] = useState("openrouter/openai/gpt-4o-mini");
   const [providerBaseUrl, setProviderBaseUrl] = useState("");
   const [providerApiKey, setProviderApiKey] = useState("");
+  const [defaultRowLimit, setDefaultRowLimit] = useState("100000");
   const [databaseTest, setDatabaseTest] = useState<DatabaseConnectionTestResponse | null>(null);
   const pendingSessionRef = useRef<Promise<ExportSession> | null>(null);
 
@@ -99,6 +103,12 @@ export function App() {
     queryKey: ["model-provider"],
     queryFn: getModelProviderSettings,
     enabled: !setupQuery.isLoading
+  });
+
+  const contextQuery = useQuery({
+    queryKey: ["context"],
+    queryFn: getContext,
+    enabled: Boolean(setupQuery.data?.context.configured)
   });
 
   const sessionQuery = useQuery({
@@ -167,6 +177,30 @@ export function App() {
       setNotice({ type: "info", text: "Model provider settings saved." });
       queryClient.setQueryData(["model-provider"], settings);
       void queryClient.invalidateQueries({ queryKey: ["setup-status"] });
+    },
+    onError: showError
+  });
+
+  const safetyMutation = useMutation({
+    mutationFn: () => {
+      const document = contextQuery.data;
+      if (!document) throw new Error("Context is not ready.");
+      const parsedLimit = Number(defaultRowLimit);
+      if (!Number.isInteger(parsedLimit) || parsedLimit < 1 || parsedLimit > 100000) {
+        throw new Error("Default row limit must be a whole number from 1 to 100000.");
+      }
+      return updateContext({
+        context: document.context,
+        policy: {
+          ...document.policy,
+          max_row_count: parsedLimit
+        }
+      });
+    },
+    onSuccess: (document) => {
+      setDefaultRowLimit(String(document.policy.max_row_count));
+      setNotice({ type: "info", text: "Export safety settings saved." });
+      queryClient.setQueryData(["context"], document);
     },
     onError: showError
   });
@@ -271,6 +305,7 @@ export function App() {
     rescanContextMutation.isPending ||
     databaseTestMutation.isPending ||
     providerMutation.isPending ||
+    safetyMutation.isPending ||
     sendMutation.isPending ||
     proposeMutation.isPending ||
     approveMutation.isPending ||
@@ -279,6 +314,7 @@ export function App() {
 
   const setupStatus = setupQuery.data;
   const providerSettings = providerQuery.data;
+  const contextDocument = contextQuery.data;
   const session = sessionQuery.data;
   const workflowNotice = notice ?? (session?.last_error ? { type: "error" as const, text: session.last_error } : null);
 
@@ -293,6 +329,12 @@ export function App() {
       setProviderBaseUrl(providerSettings.base_url ?? "");
     }
   }, [providerSettings?.provider, providerSettings?.model, providerSettings?.base_url]);
+
+  useEffect(() => {
+    if (contextDocument?.policy.max_row_count) {
+      setDefaultRowLimit(String(contextDocument.policy.max_row_count));
+    }
+  }, [contextDocument?.policy.max_row_count]);
 
   function submitCurrentMessage() {
     if (!message.trim() || busy || !setupStatus?.ready) return;
@@ -346,13 +388,17 @@ export function App() {
         session={session ?? null}
         busy={busy}
         theme={theme}
+        contextDocument={contextDocument}
         providerSettings={providerSettings}
         provider={providerKind}
         model={providerModel}
         baseUrl={providerBaseUrl}
         apiKey={providerApiKey}
+        defaultRowLimit={defaultRowLimit}
         onToggleTheme={toggleTheme}
         onNewSession={() => startSessionMutation.mutate()}
+        onDefaultRowLimitChange={setDefaultRowLimit}
+        onSaveSafety={() => safetyMutation.mutate()}
         onProviderChange={setProviderKind}
         onModelChange={setProviderModel}
         onBaseUrlChange={setProviderBaseUrl}
@@ -399,13 +445,17 @@ function AppHeader({
   session,
   busy,
   theme,
+  contextDocument,
   providerSettings,
   provider,
   model,
   baseUrl,
   apiKey,
+  defaultRowLimit,
   onToggleTheme,
   onNewSession,
+  onDefaultRowLimitChange,
+  onSaveSafety,
   onProviderChange,
   onModelChange,
   onBaseUrlChange,
@@ -419,13 +469,17 @@ function AppHeader({
   session: ExportSession | null;
   busy: boolean;
   theme: Theme;
+  contextDocument?: ContextDocument;
   providerSettings?: ModelProviderSettingsResponse;
   provider: "openrouter" | "custom";
   model: string;
   baseUrl: string;
   apiKey: string;
+  defaultRowLimit: string;
   onToggleTheme: () => void;
   onNewSession: () => void;
+  onDefaultRowLimitChange: (value: string) => void;
+  onSaveSafety: () => void;
   onProviderChange: (value: "openrouter" | "custom") => void;
   onModelChange: (value: string) => void;
   onBaseUrlChange: (value: string) => void;
@@ -445,11 +499,15 @@ function AppHeader({
         <ReadinessBadge status={status} />
         <SettingsDialog
           status={status}
+          contextDocument={contextDocument}
           providerSettings={providerSettings}
           provider={provider}
           model={model}
           baseUrl={baseUrl}
           apiKey={apiKey}
+          defaultRowLimit={defaultRowLimit}
+          onDefaultRowLimitChange={onDefaultRowLimitChange}
+          onSaveSafety={onSaveSafety}
           busy={busy}
           onProviderChange={onProviderChange}
           onModelChange={onModelChange}
@@ -473,12 +531,16 @@ function AppHeader({
 
 function SettingsDialog({
   status,
+  contextDocument,
   providerSettings,
   provider,
   model,
   baseUrl,
   apiKey,
+  defaultRowLimit,
   busy,
+  onDefaultRowLimitChange,
+  onSaveSafety,
   onProviderChange,
   onModelChange,
   onBaseUrlChange,
@@ -489,12 +551,16 @@ function SettingsDialog({
   onTestDatabase
 }: {
   status: SetupStatusResponse;
+  contextDocument?: ContextDocument;
   providerSettings?: ModelProviderSettingsResponse;
   provider: "openrouter" | "custom";
   model: string;
   baseUrl: string;
   apiKey: string;
+  defaultRowLimit: string;
   busy: boolean;
+  onDefaultRowLimitChange: (value: string) => void;
+  onSaveSafety: () => void;
   onProviderChange: (value: "openrouter" | "custom") => void;
   onModelChange: (value: string) => void;
   onBaseUrlChange: (value: string) => void;
@@ -512,11 +578,12 @@ function SettingsDialog({
       <DialogContent className="max-h-[90svh] overflow-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Settings</DialogTitle>
-          <DialogDescription>Database status, context rescans, and editable model provider settings.</DialogDescription>
+          <DialogDescription>Database status, export safety, and model provider settings.</DialogDescription>
         </DialogHeader>
         <Tabs defaultValue="database">
           <TabsList>
             <TabsTrigger value="database">Database</TabsTrigger>
+            <TabsTrigger value="safety">Safety</TabsTrigger>
             <TabsTrigger value="provider">Provider</TabsTrigger>
           </TabsList>
           <TabsContent value="database" className="flex flex-col gap-4">
@@ -526,6 +593,15 @@ function SettingsDialog({
               databaseTest={databaseTest}
               onTestDatabase={onTestDatabase}
               onRescanContext={onRescanContext}
+            />
+          </TabsContent>
+          <TabsContent value="safety">
+            <SafetySettingsPanel
+              contextDocument={contextDocument}
+              defaultRowLimit={defaultRowLimit}
+              busy={busy}
+              onDefaultRowLimitChange={onDefaultRowLimitChange}
+              onSave={onSaveSafety}
             />
           </TabsContent>
           <TabsContent value="provider">
@@ -638,7 +714,7 @@ function ConversationPane({
   onSubmit: () => void;
   onSuggestion: (value: string) => void;
 }) {
-  const messages = visibleMessages(session?.messages ?? [], proposal);
+  const messages = conversationMessages(session?.messages ?? [], proposal);
   const empty = !messages.length && !proposal && !planning;
 
   return (
@@ -713,12 +789,11 @@ function ChatBubble({ message }: { message: ChatMessage }) {
   const user = message.role === "user";
   return (
     <Message className={cn(user ? "justify-end" : "justify-start")}>
-      {!user ? <MessageAvatar alt="CSV Chat" fallback="C" /> : null}
       <MessageContent
         markdown={!user}
         className={cn(
           "text-sm",
-          user ? "max-w-[85%] rounded-3xl bg-muted px-5 py-2.5 text-primary sm:max-w-[75%]" : "w-full flex-1 bg-transparent p-0 text-foreground"
+          user ? "max-w-[85%] rounded-3xl bg-muted px-5 py-2.5 text-foreground sm:max-w-[75%]" : "w-full flex-1 bg-transparent p-0 text-foreground"
         )}
       >
         {message.content}
@@ -730,7 +805,6 @@ function ChatBubble({ message }: { message: ChatMessage }) {
 function AssistantStatus({ text }: { text: string }) {
   return (
     <Message className="justify-start">
-      <MessageAvatar alt="CSV Chat" fallback="C" />
       <div className="rounded-lg bg-transparent p-0 text-foreground">
         <InlineStatus text={text} />
       </div>
@@ -767,7 +841,6 @@ function ArtifactPanel({
 }) {
   const approved = session?.approved_intent ?? null;
   const intent = approved ?? proposal?.intent ?? null;
-  const needsClarification = Boolean(proposal && !proposal.intent);
   const hasAdvancedDetails = Boolean(sqlPrep || traces.length);
 
   return (
@@ -780,7 +853,7 @@ function ArtifactPanel({
               <h2 className="truncate font-heading text-sm font-medium">CSV plan</h2>
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              {artifactSubtitle({ planning, preparing, exporting, approved, sqlPrep, exportResult, needsClarification, hasIntent: Boolean(intent) })}
+              {artifactSubtitle({ planning, preparing, exporting, approved, sqlPrep, exportResult, hasIntent: Boolean(intent) })}
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-1">
@@ -791,10 +864,9 @@ function ArtifactPanel({
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-4">
-          {!intent && !proposal && !planning ? <EmptyArtifact /> : null}
+          {!intent && !planning ? <EmptyArtifact /> : null}
           {planning ? <InlineStatus text="Drafting CSV plan" /> : null}
-          {needsClarification ? <Clarification proposal={proposal} /> : null}
-          {intent ? <PlanArtifact intent={intent} message={proposal?.message ?? null} approved={Boolean(approved)} /> : null}
+          {intent ? <PlanArtifact intent={intent} approved={Boolean(approved)} /> : null}
           {preparing ? <SafetyStatus mode="checking" /> : null}
           {sqlPrep?.valid && !exportResult ? <SafetyStatus mode="ready" /> : null}
           {sqlPrep && !sqlPrep.valid ? <SystemMessage variant="error">The CSV could not be prepared. Open Advanced for validation details.</SystemMessage> : null}
@@ -831,25 +903,9 @@ function EmptyArtifact() {
   );
 }
 
-function Clarification({ proposal }: { proposal: CSVIntentProposal | null }) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Clarify request</CardTitle>
-        <CardDescription>Answer in chat to continue.</CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        {proposal?.message ? <p className="text-sm">{proposal.message}</p> : null}
-        {proposal?.questions?.length ? <TextList title="Questions" items={proposal.questions} /> : null}
-      </CardContent>
-    </Card>
-  );
-}
-
-function PlanArtifact({ intent, message, approved }: { intent: CSVIntent; message: string | null; approved: boolean }) {
+function PlanArtifact({ intent, approved }: { intent: CSVIntent; approved: boolean }) {
   return (
     <div className="flex flex-col gap-4">
-      {message ? <SystemMessage>{message}</SystemMessage> : null}
       <section className="flex flex-col gap-2">
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs font-medium text-muted-foreground">{approved ? "Approved CSV plan" : "Draft CSV plan"}</p>
@@ -875,26 +931,23 @@ function PlanArtifact({ intent, message, approved }: { intent: CSVIntent; messag
       {intent.filters.length ? <TextList title="Filters" items={intent.filters} /> : null}
       {intent.derived_fields.length ? <TextList title="Calculated fields" items={intent.derived_fields} /> : null}
       {intent.assumptions.length ? <TextList title="Assumptions" items={intent.assumptions} /> : null}
-      <dl className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">
-        <Line label="Max rows" value={intent.max_row_count} />
-      </dl>
     </div>
   );
 }
 
 function SafetyStatus({ mode }: { mode: "checking" | "ready" }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{mode === "checking" ? "Checking CSV" : "Ready to create"}</CardTitle>
-        <CardDescription>{mode === "checking" ? "The app is validating the export before anything runs." : "Validation passed. The app will create the file with read-only limits."}</CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3 text-sm">
+    <div className="rounded-xl border bg-card p-4 text-card-foreground">
+      <div className="flex flex-col gap-1">
+        <p className="text-sm font-medium">{mode === "checking" ? "Checking CSV" : "Ready to create"}</p>
+        <p className="text-sm text-muted-foreground">{mode === "checking" ? "The app is validating the export before anything runs." : "Validation passed. The app will create the file with read-only limits."}</p>
+      </div>
+      <div className="mt-4 flex flex-col gap-3 text-sm">
         <SafetyLine icon={<LockKeyholeIcon />} text="Read-only database access" done={mode === "ready"} />
         <SafetyLine icon={<ShieldCheckIcon />} text="Approved columns and source hints checked" done={mode === "ready"} />
         <SafetyLine icon={<FileSpreadsheetIcon />} text="Row, size, and spreadsheet-safety limits" done={mode === "ready"} />
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -1141,6 +1194,56 @@ function SetupFallback({
   );
 }
 
+function SafetySettingsPanel({
+  contextDocument,
+  defaultRowLimit,
+  busy,
+  onDefaultRowLimitChange,
+  onSave
+}: {
+  contextDocument?: ContextDocument;
+  defaultRowLimit: string;
+  busy: boolean;
+  onDefaultRowLimitChange: (value: string) => void;
+  onSave: () => void;
+}) {
+  const parsedLimit = Number(defaultRowLimit);
+  const invalid = !Number.isInteger(parsedLimit) || parsedLimit < 1 || parsedLimit > 100000;
+
+  return (
+    <Card aria-label="Export safety settings">
+      <CardHeader>
+        <CardTitle>Export safety</CardTitle>
+        <CardDescription>Limits that keep generated CSVs bounded before anything runs.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <FieldGroup>
+          <Field data-invalid={invalid || undefined}>
+            <FieldLabel htmlFor="default-row-limit">Default row limit</FieldLabel>
+            <Input
+              id="default-row-limit"
+              type="number"
+              min={1}
+              max={100000}
+              step={1}
+              value={defaultRowLimit}
+              onChange={(event) => onDefaultRowLimitChange(event.target.value)}
+              disabled={!contextDocument || busy}
+            />
+            <FieldDescription>Maximum rows a CSV can include by default. Allowed range: 1 to 100000.</FieldDescription>
+          </Field>
+        </FieldGroup>
+      </CardContent>
+      <CardFooter>
+        <Button type="button" onClick={onSave} disabled={busy || !contextDocument || invalid}>
+          {busy ? <Spinner data-icon="inline-start" /> : <CheckIcon data-icon="inline-start" />}
+          Save
+        </Button>
+      </CardFooter>
+    </Card>
+  );
+}
+
 function ProviderForm({
   settings,
   provider,
@@ -1305,18 +1408,10 @@ function ReadinessBadge({ status }: { status: SetupStatusResponse | null }) {
   return <Badge variant={status.ready ? "outline" : "secondary"}>{status.ready ? "ready" : "setup"}</Badge>;
 }
 
-function visibleMessages(messages: ChatMessage[], proposal: CSVIntentProposal | null) {
+function conversationMessages(messages: ChatMessage[], proposal: CSVIntentProposal | null) {
   if (!proposal?.message) return messages;
-  let duplicateIndex = -1;
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const item = messages[index];
-    if (item.role === "assistant" && item.content === proposal.message) {
-      duplicateIndex = index;
-      break;
-    }
-  }
-  if (duplicateIndex === -1) return messages;
-  return messages.filter((_, index) => index !== duplicateIndex);
+  const hasProposalMessage = messages.some((item) => item.role === "assistant" && item.content === proposal.message);
+  return hasProposalMessage ? messages : [...messages, { role: "assistant", content: proposal.message }];
 }
 
 function databaseSourceLabel(source: NonNullable<SetupStatusResponse["context_source"]>) {
@@ -1386,7 +1481,6 @@ function artifactSubtitle({
   approved,
   sqlPrep,
   exportResult,
-  needsClarification,
   hasIntent
 }: {
   planning: boolean;
@@ -1395,7 +1489,6 @@ function artifactSubtitle({
   approved: CSVIntent | null;
   sqlPrep: SQLPreparationResponse | null;
   exportResult: ExportCreateResponse | null;
-  needsClarification: boolean;
   hasIntent: boolean;
 }) {
   if (exportResult) return "Download is ready.";
@@ -1404,7 +1497,6 @@ function artifactSubtitle({
   if (preparing) return "Checking the approved plan.";
   if (approved) return "Approved and ready for validation.";
   if (hasIntent) return "Review before anything runs.";
-  if (needsClarification) return "Answer in chat to continue.";
   if (planning) return "Drafting from your request.";
   return "The current CSV appears here.";
 }

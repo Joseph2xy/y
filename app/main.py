@@ -352,6 +352,7 @@ async def create_session_export_endpoint(
             intent=session.approved_intent,
             sql=request.sql,
             policy=document.policy,
+            schema=document.schema_context,
             query_runner=runner,
         )
         append_debug_trace(

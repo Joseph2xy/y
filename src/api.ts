@@ -4,6 +4,8 @@ import type {
   ChatMessage,
   ExportCreateResponse,
   ExportSession,
+  ContextDocument,
+  ContextUpdate,
   DatabaseConnectionTestResponse,
   ModelProviderSettingsResponse,
   ModelProviderSettingsUpdate,
@@ -57,6 +59,17 @@ export function bootstrapSetup(): Promise<SetupStatusResponse> {
 
 export async function rescanContext(): Promise<void> {
   await request<unknown>("/context/scan", { method: "POST" });
+}
+
+export function getContext(): Promise<ContextDocument> {
+  return request<ContextDocument>("/context");
+}
+
+export function updateContext(update: ContextUpdate): Promise<ContextDocument> {
+  return request<ContextDocument>("/context", {
+    method: "PUT",
+    body: JSON.stringify(update)
+  });
 }
 
 export function testDatabaseConnection(): Promise<DatabaseConnectionTestResponse> {

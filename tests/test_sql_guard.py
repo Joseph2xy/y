@@ -1,4 +1,4 @@
-from app.models import CSVColumnIntent, CSVIntent, ContextPolicy
+from app.models import CSVColumnIntent, CSVIntent, ContextPolicy, SchemaContext, SchemaTable
 from app.sql_guard import SQLPolicy, sql_policy_from_context, validate_sql
 
 
@@ -97,6 +97,101 @@ def test_converts_context_policy_to_sql_policy() -> None:
     assert policy.blocked_columns == {"customers.password_hash"}
     assert policy.blocked_functions == {"custom_blocked_function", "pg_sleep", "set_config"}
     assert policy.max_limit == 250
+
+
+def test_converts_schema_context_to_known_tables() -> None:
+    policy = sql_policy_from_context(
+        ContextPolicy(),
+        SchemaContext(
+            tables=[
+                SchemaTable(
+                    schema_name="app",
+                    table_name="people",
+                    table_type="BASE TABLE",
+                )
+            ]
+        ),
+    )
+
+    assert policy.known_tables == {"people", "app.people"}
+
+
+def test_rejects_unknown_table_when_schema_context_is_available() -> None:
+    policy = sql_policy_from_context(
+        ContextPolicy(),
+        SchemaContext(
+            tables=[
+                SchemaTable(
+                    schema_name="app",
+                    table_name="people",
+                    table_type="BASE TABLE",
+                )
+            ]
+        ),
+    )
+
+    result = validate_sql("select email from public.customers limit 10", policy)
+
+    assert not result.valid
+    assert "SQL references unknown table 'public.customers'." in result.errors
+
+
+def test_rejects_wrong_schema_even_when_table_name_exists() -> None:
+    policy = sql_policy_from_context(
+        ContextPolicy(),
+        SchemaContext(
+            tables=[
+                SchemaTable(
+                    schema_name="app",
+                    table_name="customers",
+                    table_type="BASE TABLE",
+                )
+            ]
+        ),
+    )
+
+    result = validate_sql("select email from public.customers limit 10", policy)
+
+    assert not result.valid
+    assert "SQL references unknown table 'public.customers'." in result.errors
+
+
+def test_allows_known_table_when_schema_context_is_available() -> None:
+    policy = sql_policy_from_context(
+        ContextPolicy(),
+        SchemaContext(
+            tables=[
+                SchemaTable(
+                    schema_name="app",
+                    table_name="people",
+                    table_type="BASE TABLE",
+                )
+            ]
+        ),
+    )
+
+    result = validate_sql("select email from app.people limit 10", policy)
+
+    assert result.valid
+
+
+def test_allows_cte_name_when_schema_context_is_available() -> None:
+    policy = sql_policy_from_context(
+        ContextPolicy(),
+        SchemaContext(
+            tables=[
+                SchemaTable(
+                    schema_name="app",
+                    table_name="people",
+                    table_type="BASE TABLE",
+                )
+            ]
+        ),
+    )
+
+    result = validate_sql("with customers as (select email from app.people limit 10) select email from customers limit 10", policy)
+
+    assert result.valid
 
 
 def test_context_policy_cannot_unblock_default_blocked_functions() -> None:

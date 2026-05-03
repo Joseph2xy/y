@@ -51,6 +51,14 @@ Follow-up narrowing on 2026-05-03 removed the unused public `/sessions/{session_
 
 Intent clarification was tightened on 2026-05-03 without adding backend natural-language filtering. The model-facing intent prompt and `CSVIntentProposal` schema now explicitly require `intent: null` for greetings, capability questions, generic CSV requests, and vague/useful/everything/all-data requests unless the user has provided enough detail for an approvable CSV plan. `tools/model_eval.py` now includes those unclear-message scenarios, and the deterministic mock OpenAI-compatible server returns clarification for them so the browser flow can be checked locally.
 
+The chat/artifact split was tightened after hands-on UI review. Assistant/model responses now stay in the left conversation, including messages that accompany a real CSV plan; the right artifact panel shows only the durable CSV plan state and approval/export controls. Assistant avatars were removed, chat/composer text now uses normal foreground colors, and the compact safety status block avoids clipped headings in the narrow artifact panel.
+
+Export row limits moved out of the CSV plan UI and into Settings -> Safety. The normal plan no longer asks users to approve a technical "Max rows" field. Settings edits `policy.max_row_count` through the existing context API, and intent generation treats that policy value as the default row cap unless the user asks for a smaller limit.
+
+CSV intent guidance was tightened so ID-like fields, including foreign-key IDs such as `account_id`, are excluded by default unless the user explicitly asks for identifiers. This remains model guidance plus user approval rather than hidden app-side proposal rewriting. Intent column labels should be user-facing where possible, such as "Creation date" instead of raw database names like `created_at`, while `source_hint` preserves the database mapping for validation and SQL generation.
+
+SQL validation now checks generated SQL table references against the scanned schema context. Missing-table cases such as SQL against `public.customers` when the scanned database has no such table are rejected before execution and fed into the bounded repair loop instead of surfacing as export-time Postgres errors. CTE names remain allowed.
+
 ## Implemented
 
 Backend:
@@ -59,7 +67,7 @@ Backend:
 - `app/models.py`: Pydantic API/domain/model-output models.
 - `app/context_store.py`: local context, schema, and policy files.
 - `app/schema_scan.py`: Postgres schema scan with table/column metadata, primary keys, foreign-key relationship hints, and conservative representative values for safe-looking filter fields.
-- `app/sql_guard.py`: SQLGlot validation.
+- `app/sql_guard.py`: SQLGlot validation, including read-only shape, limits, blocked objects, approved output/source hints, and scanned-schema table references.
 - `app/db.py`: read-only psycopg execution.
 - `app/csv_writer.py`: CSV writing and formula-like cell escaping.
 - `app/export_service.py`: validation, execution, limits, and CSV output.
@@ -73,7 +81,7 @@ Backend:
 
 Frontend:
 
-- `src/`: Artifact Split React/Vite workspace using Prompt Kit chat primitives for the left-side conversation/composer and shadcn components for the right-side CSV artifact panel, readiness-gated setup fallback, settings dialog, approval/export actions, safety status, and read-only Advanced debug trace dialog.
+- `src/`: Artifact Split React/Vite workspace using Prompt Kit chat primitives for the left-side conversation/composer and shadcn components for the right-side CSV artifact panel, readiness-gated setup fallback, settings dialog, export-safety settings, approval/export actions, safety status, and read-only Advanced debug trace dialog.
 - `src/api-types.ts`: generated OpenAPI TypeScript types.
 - `src/types.ts`: frontend-friendly aliases.
 - `src/components/ui/` and `src/components/prompt-kit/`: reset shadcn/ui defaults plus selected Prompt Kit components for chat input, messages, suggestions, scrolling, notices, markdown, and read-only code rendering.
@@ -88,7 +96,7 @@ Setup/readiness:
 - The frontend shows a compact setup-needed panel only when database configuration, model provider configuration, or generated context is missing.
 - The frontend shows a context-rescan panel when existing context was scanned from a different database than the current `DATABASE_URL`.
 - The setup-needed provider panel can save either OpenRouter settings or a custom OpenAI-compatible base URL.
-- Manual provider settings and database scan controls are no longer part of the normal chat surface.
+- Manual provider settings, export row-limit settings, and database scan controls are no longer part of the normal chat surface.
 
 Tools:
 
@@ -140,13 +148,13 @@ pnpm test
 pnpm build
 ```
 
-Last documented full backend suite: `127 passed` on 2026-05-03 after cleanup, route-test migration to HTTPX `ASGITransport`, and async FastAPI route handlers.
+Last documented full backend suite: `133 passed` on 2026-05-03 after scanned-schema table validation, row-limit settings, and chat/artifact UI refinements.
 
 Last documented onboarding check update: `tests/test_check_setup.py` passed, `bash -n tools/setup_local.sh` passed, and `pnpm check:setup` reported ready on 2026-05-03.
 
-Last documented model eval verification: `.venv/bin/python tools/model_eval.py` passed on 2026-05-03 after source-hint prompt wording updates.
+Last documented model eval verification: `.venv/bin/python tools/model_eval.py` passed on 2026-05-03 after source-hint prompt wording, ID/default-label guidance, and schema-backed SQL validation updates.
 
-Last documented frontend verification: `pnpm test` passed with `10 passed`; `pnpm build` passed on 2026-05-03 after cleanup and API type regeneration.
+Last documented frontend verification: `pnpm test` passed with `10 passed`; `pnpm build` passed on 2026-05-03 after row-limit Settings, chat/artifact message placement, and safety-status UI updates.
 
 Optional local Postgres smoke test:
 
@@ -209,12 +217,14 @@ Ignored generated artifacts such as `.openapi/`, `dist/`, `__pycache__/`, `.pyte
 - Model responses are parsed into Pydantic models before use.
 - CSV intent text-list fields tolerate simple object-shaped model mistakes by coercing them to strings instead of failing the whole plan.
 - CSV intent column names must be unique.
+- CSV intent prompts exclude ID-like fields by default unless the user asks for identifiers, and prefer user-facing CSV labels while preserving `source_hint`.
 - SQL generation and repair require an approved CSV intent.
 - SQL validation happens before export execution.
 - SQL must be one Postgres `SELECT` statement with integer `LIMIT`.
 - `SELECT ... INTO` is rejected.
 - Policy can block schemas, tables, columns, and functions.
 - Default blocked functions include `pg_sleep` and `set_config`.
+- SQL table references are checked against the scanned schema context before execution.
 - Query execution uses read-only transactions and local timeouts.
 - Export enforces row and byte limits.
 - Export columns must match the approved CSV intent.

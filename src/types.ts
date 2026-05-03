@@ -24,6 +24,10 @@ export type CSVIntentProposal = Omit<Schema["CSVIntentProposal"], "intent"> & {
   intent: CSVIntent | null;
 };
 
+export type ContextDocument = Schema["ContextDocument"];
+
+export type ContextUpdate = Schema["ContextUpdate"];
+
 export type SQLValidationAttempt = WithRequired<
   Schema["SQLValidationAttempt"],
   "errors" | "repair_changes"

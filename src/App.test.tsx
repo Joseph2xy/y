@@ -54,6 +54,21 @@ const setupReadyResponse = {
   next_action: null
 };
 
+const contextResponse = {
+  context: "# Local Context\n",
+  schema: { tables: [], relationships: [], source: setupReadyResponse.context_source },
+  policy: {
+    blocked_schemas: [],
+    blocked_tables: [],
+    blocked_columns: [],
+    blocked_functions: ["pg_sleep", "set_config"],
+    max_row_count: 1000,
+    max_export_bytes: 50000000,
+    statement_timeout_ms: 30000,
+    lock_timeout_ms: 5000
+  }
+};
+
 const providerNeededResponse = {
   ready: false,
   database: { configured: true, ready: true, message: null },
@@ -118,6 +133,7 @@ describe("App", () => {
         const url = String(input);
         if (url === "/setup/status") return jsonResponse(setupReadyResponse);
         if (url === "/settings/model-provider") return jsonResponse(providerResponse);
+        if (url === "/context") return jsonResponse(contextResponse);
         if (url === "/sessions") return jsonResponse({ session: sessionResponse });
         if (url === "/sessions/session123") return jsonResponse(sessionResponse);
         return jsonResponse({ detail: "Not found" }, 404);
@@ -175,6 +191,16 @@ describe("App", () => {
       requests.push({ url, method, body: typeof init?.body === "string" ? init.body : undefined });
       if (url === "/setup/status") return jsonResponse(setupReadyResponse);
       if (url === "/settings/model-provider" && method === "GET") return jsonResponse({ ...providerResponse, api_key_configured: true });
+      if (url === "/context" && method === "GET") return jsonResponse(contextResponse);
+      if (url === "/context" && method === "PUT") {
+        return jsonResponse({
+          ...contextResponse,
+          policy: {
+            ...contextResponse.policy,
+            max_row_count: 2500
+          }
+        });
+      }
       if (url === "/settings/database/test") {
         return jsonResponse({
           configured: true,
@@ -212,6 +238,12 @@ describe("App", () => {
     expect(await within(dialog).findByText("Connected to appdb on localhost:5432.")).toBeInTheDocument();
     await user.click(within(dialog).getByRole("button", { name: "Rescan context" }));
 
+    await user.click(within(dialog).getByRole("tab", { name: "Safety" }));
+    expect(within(dialog).getByText("Export safety")).toBeInTheDocument();
+    await user.clear(within(dialog).getByLabelText("Default row limit"));
+    await user.type(within(dialog).getByLabelText("Default row limit"), "2500");
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
     await user.click(within(dialog).getByRole("tab", { name: "Provider" }));
     await user.click(within(dialog).getByText("Custom"));
     await user.clear(within(dialog).getByLabelText("Model"));
@@ -222,6 +254,8 @@ describe("App", () => {
 
     expect(requests.some((request) => request.url === "/context/scan" && request.method === "POST")).toBe(true);
     expect(requests.some((request) => request.url === "/settings/database/test" && request.method === "POST")).toBe(true);
+    const safetyUpdate = requests.find((request) => request.url === "/context" && request.method === "PUT");
+    expect(safetyUpdate?.body).toContain('"max_row_count":2500');
     const providerUpdate = requests.find((request) => request.url === "/settings/model-provider" && request.method === "PUT");
     expect(providerUpdate?.body).toContain('"provider":"custom"');
     expect(providerUpdate?.body).toContain('"api_key":"secret-key"');
@@ -399,7 +433,7 @@ describe("App", () => {
     expect(screen.getByText("3 rows exported.")).toBeInTheDocument();
   });
 
-  it("shows clarification instead of an approval button when the plan is not ready", async () => {
+  it("shows clarification in chat instead of the artifact panel when the plan is not ready", async () => {
     const user = userEvent.setup();
     const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
     let currentSession: Record<string, unknown> = { ...sessionResponse };
@@ -428,8 +462,9 @@ describe("App", () => {
     await user.type(await screen.findByPlaceholderText("Describe the CSV you need"), "Send me useful customer stuff.");
     await user.click(screen.getByRole("button", { name: "Send" }));
 
-    expect(await screen.findByText("Clarify request")).toBeInTheDocument();
-    expect(screen.getAllByText("Which customer fields should the CSV include?").length).toBeGreaterThan(0);
+    expect(await screen.findByText("Which customer fields should the CSV include?")).toBeInTheDocument();
+    expect(screen.queryByText("Clarify request")).not.toBeInTheDocument();
+    expect(screen.getByText("CSV plan will appear here")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Approve CSV plan" })).not.toBeInTheDocument();
   });
 

@@ -269,9 +269,15 @@ export interface components {
         CSVColumnIntent: {
             /** Description */
             description: string;
-            /** Name */
+            /**
+             * Name
+             * @description User-facing CSV column label. Prefer readable labels such as 'Creation date' over raw database names such as 'created_at' when possible.
+             */
             name: string;
-            /** Source Hint */
+            /**
+             * Source Hint
+             * @description Optional database source as table.column when a specific source column is known.
+             */
             source_hint?: string | null;
         };
         /** CSVIntent */
@@ -286,7 +292,8 @@ export interface components {
             filters?: string[];
             /**
              * Max Row Count
-             * @default 1000
+             * @description Maximum rows for this CSV plan. Use the context policy max_row_count as the default unless the user asks for a smaller row limit.
+             * @default 100000
              */
             max_row_count: number;
             /** Row Meaning */
@@ -296,7 +303,7 @@ export interface components {
         };
         /** CSVIntentProposal */
         CSVIntentProposal: {
-            /** @description Set only when the latest user request is clear enough to define an approvable CSV plan. Leave null for greetings, vague requests, exploratory messages, blocked requests, or requests that do not specify what one row represents and at least one requested field, metric, filter, date range, or business condition. Do not infer a default CSV from schema or context. */
+            /** @description Set only when the latest user request is clear enough to define an approvable CSV plan. Leave null for greetings, vague requests, exploratory messages, blocked requests, or requests that do not specify what one row represents and at least one requested field, metric, filter, date range, or business condition. Do not infer a default CSV from schema or context. Exclude ID-like fields by default unless the user explicitly asks for identifiers. */
             intent?: components["schemas"]["CSVIntent"] | null;
             /**
              * Message

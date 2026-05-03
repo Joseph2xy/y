@@ -14,6 +14,8 @@ Resolved V0 product and architecture decisions. Revisit these only with evidence
 
 - **Generated context may include database hints and representative values.** This improves model precision. Explicit policy blocks define exclusions.
 - **Policy stays explicit.** V0 supports blocked schemas, tables, columns, functions, and execution/export limits. No sensitivity classifier or redaction layer.
+- **Default row limits live in Settings.** Keep row limits as export safety configuration, not as normal CSV-plan content the user approves each time.
+- **Validate against scanned schema.** Generated SQL must reference tables from the current scanned schema context before it can execute; missing-table errors should feed repair, not appear after export starts.
 - **No provider-log controls.** The app makes the model-provider boundary clear and supports custom/local providers where practical.
 
 ## Model Providers
@@ -29,6 +31,7 @@ Resolved V0 product and architecture decisions. Revisit these only with evidence
 - **No worker/queue/scheduler.** Revisit only if exports regularly exceed normal request timing, in-flight work must survive restarts, concurrent exports need coordination, or progress/cancellation becomes a real product requirement.
 - **One repo.** Keep frontend and backend together unless packaging, release ownership, or deployment targets make separation useful.
 - **Model-generated SQL plus validation.** Do not add a structured query plan/compiler unless model SQL proves too unreliable or too hard to validate.
+- **Model prose stays in chat.** The right-side artifact is for durable CSV plan state and actions. Assistant messages, including plan-introduction text, stay in the conversation.
 
 Evidence that may justify a query compiler:
 

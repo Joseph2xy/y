@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from app.export_service import ExportError, create_export, export_path
-from app.models import CSVColumnIntent, CSVIntent, ContextPolicy
+from app.models import CSVColumnIntent, CSVIntent, ContextPolicy, SchemaContext, SchemaTable
 
 
 def intent(columns: list[str], max_row_count: int = 100) -> CSVIntent:
@@ -57,6 +57,28 @@ def test_create_export_rejects_sql_with_wrong_output_columns(tmp_path: Path) -> 
             query_runner=lambda sql: [{"email": "a@example.com", "created_at": "2026-01-01"}],
             export_dir=tmp_path,
         )
+
+
+def test_create_export_rejects_unknown_table_from_schema_context(tmp_path: Path) -> None:
+    with pytest.raises(ExportError, match="unknown table 'public.customers'"):
+        create_export(
+            intent=intent(["email"]),
+            sql="select email from public.customers limit 10",
+            policy=ContextPolicy(),
+            schema=SchemaContext(
+                tables=[
+                    SchemaTable(
+                        schema_name="app",
+                        table_name="people",
+                        table_type="BASE TABLE",
+                    )
+                ]
+            ),
+            query_runner=lambda sql: [{"email": "a@example.com"}],
+            export_dir=tmp_path,
+        )
+
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_create_export_rejects_missing_expected_column(tmp_path: Path) -> None:

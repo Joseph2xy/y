@@ -5,7 +5,7 @@ from typing import Any
 from uuid import uuid4
 
 from app.csv_writer import count_csv_bytes, write_csv
-from app.models import CSVIntent, ContextPolicy, ExportCreateResponse
+from app.models import CSVIntent, ContextPolicy, ExportCreateResponse, SchemaContext
 from app.sql_guard import sql_policy_from_context, validate_sql
 
 
@@ -24,11 +24,12 @@ def create_export(
     intent: CSVIntent,
     sql: str,
     policy: ContextPolicy,
+    schema: SchemaContext | None = None,
     query_runner: QueryRunner,
     export_dir: Path = EXPORT_DIR,
 ) -> ExportCreateResponse:
     expected_columns = [column.name for column in intent.columns]
-    sql_policy = sql_policy_from_context(policy)
+    sql_policy = sql_policy_from_context(policy, schema)
     sql_policy = replace(sql_policy, max_limit=min(sql_policy.max_limit, intent.max_row_count))
     sql_result = validate_sql(sql, sql_policy, expected_columns=expected_columns, intent=intent)
     if not sql_result.valid:

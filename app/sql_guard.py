@@ -4,7 +4,7 @@ import sqlglot
 from sqlglot import exp
 from sqlglot.errors import ParseError
 
-from app.models import CSVIntent, ContextPolicy
+from app.models import CSVIntent, ContextPolicy, SchemaContext
 
 
 DEFAULT_BLOCKED_FUNCTIONS = {
@@ -19,6 +19,7 @@ class SQLPolicy:
     blocked_tables: set[str] = field(default_factory=set)
     blocked_columns: set[str] = field(default_factory=set)
     blocked_functions: set[str] = field(default_factory=lambda: set(DEFAULT_BLOCKED_FUNCTIONS))
+    known_tables: set[str] = field(default_factory=set)
     require_limit: bool = True
     max_limit: int = 100_000
 
@@ -29,14 +30,30 @@ class SQLValidationResult:
         self.errors = errors
 
 
-def sql_policy_from_context(policy: ContextPolicy) -> SQLPolicy:
+def sql_policy_from_context(policy: ContextPolicy, schema: SchemaContext | None = None) -> SQLPolicy:
     return SQLPolicy(
         blocked_schemas=set(policy.blocked_schemas),
         blocked_tables=set(policy.blocked_tables),
         blocked_columns=set(policy.blocked_columns),
         blocked_functions=set(policy.blocked_functions) | DEFAULT_BLOCKED_FUNCTIONS,
+        known_tables=_known_tables_from_schema(schema),
         max_limit=policy.max_row_count,
     )
+
+
+def _known_tables_from_schema(schema: SchemaContext | None) -> set[str]:
+    if schema is None:
+        return set()
+
+    known_tables: set[str] = set()
+    for table in schema.tables:
+        schema_name = _normalize_part(table.schema_name)
+        table_name = _normalize_part(table.table_name)
+        if table_name:
+            known_tables.add(table_name)
+        if schema_name and table_name:
+            known_tables.add(f"{schema_name}.{table_name}")
+    return known_tables
 
 
 def validate_sql(
@@ -65,6 +82,7 @@ def validate_sql(
     _check_for_locking_reads(statement, errors)
     _check_limit(statement, policy, errors)
     _check_blocked_tables(statement, policy, errors)
+    _check_known_tables(statement, policy, errors)
     _check_blocked_columns(statement, policy, errors)
     _check_blocked_functions(statement, policy, errors)
     if expected_columns is not None:
@@ -132,6 +150,24 @@ def _check_blocked_tables(statement: exp.Expression, policy: SQLPolicy, errors: 
             errors.append(f"SQL references blocked schema '{schema_name}'.")
         if table_name in blocked_tables or qualified in blocked_tables:
             errors.append(f"SQL references blocked table '{qualified}'.")
+
+
+def _check_known_tables(statement: exp.Expression, policy: SQLPolicy, errors: list[str]) -> None:
+    if not policy.known_tables:
+        return
+
+    cte_names = {_normalize_part(cte.alias_or_name) for cte in statement.find_all(exp.CTE)}
+    for table in statement.find_all(exp.Table):
+        schema_name = _normalize_part(table.db)
+        table_name = _normalize_part(table.name)
+        qualified = f"{schema_name}.{table_name}" if schema_name else table_name
+
+        if table_name in cte_names:
+            continue
+        if schema_name and qualified not in policy.known_tables:
+            errors.append(f"SQL references unknown table '{qualified}'.")
+        elif not schema_name and table_name not in policy.known_tables:
+            errors.append(f"SQL references unknown table '{qualified}'.")
 
 
 def _check_blocked_columns(statement: exp.Expression, policy: SQLPolicy, errors: list[str]) -> None:

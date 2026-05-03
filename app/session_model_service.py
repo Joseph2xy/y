@@ -94,7 +94,7 @@ def prepare_sql(
         _mark_model_failure(session, exc, step="prepare_sql", prompt=prompt)
         raise
 
-    policy = sql_policy_from_context(context.policy)
+    policy = sql_policy_from_context(context.policy, context.schema_context)
     policy = replace(policy, max_limit=min(policy.max_limit, session.approved_intent.max_row_count))
     expected_columns = [column.name for column in session.approved_intent.columns]
     attempts: list[SQLValidationAttempt] = []

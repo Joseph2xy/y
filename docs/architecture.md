@@ -18,7 +18,7 @@ The model helps interpret the request and propose SQL. The application owns cred
 6. Model proposes a user-facing CSV plan.
 7. User approves the CSV plan once.
 8. Model proposes SQL internally.
-9. App validates SQL, including output names against the approved intent.
+9. App validates SQL, including output names, approved source hints, read-only limits, policy blocks, and scanned-schema table references.
 10. App gives validation errors to the model for up to two repair attempts if needed.
 11. App executes validated SQL with read-only limits.
 12. App validates result columns against the approved intent.
@@ -52,6 +52,7 @@ Purpose:
 - run SQL preparation/export actions
 - provide the CSV download
 - hide SQL and validation details behind read-only Advanced UI
+- keep technical safety settings, such as default row limits, in Settings rather than the CSV-plan approval artifact
 
 Stack:
 
@@ -70,6 +71,7 @@ UX constraints:
 - Do not add a dashboard shell or upload panel in V0.
 - Use plain user-facing language: CSV, CSV plan, CSV intent.
 - Keep SQL/table/column jargon in Advanced/debug surfaces.
+- Keep assistant/model prose in chat. The artifact panel shows the durable CSV plan and actions, not duplicate chat responses.
 
 ## Backend
 
@@ -79,7 +81,7 @@ Purpose:
 - scan schema/context
 - manage chat/export sessions
 - call the configured model provider
-- validate SQL
+- validate SQL against safety policy, approved intent, source hints, and scanned schema context
 - execute read-only SQL
 - validate and write CSVs
 - keep enough debug trace information to inspect failures
@@ -130,6 +132,8 @@ For V0, context setup stays file-based. The app scans the database, prepares use
 
 If the configured model provider is external, generated context may leave the machine when sent to the provider. Credentials must never be included in context. V0 does not manage provider-side logging or retention.
 
+The app also uses the scanned schema during SQL validation so generated SQL cannot reference tables outside the known context.
+
 ## SQL Guard
 
 Model-generated SQL is untrusted. Use model-generated SQL plus app validation for V0; do not add a structured query compiler unless evidence shows validation/repair is insufficient.
@@ -142,6 +146,8 @@ Minimum checks:
 - no blocked schemas/tables/columns/functions
 - required integer `LIMIT`
 - selected output fields match the approved CSV intent
+- selected source hints match approved `source_hint` values when present
+- referenced tables are present in the scanned schema context, with CTE names allowed
 - parseable under Postgres dialect
 
 Repair attempts are driven only by server-computed validation errors and are bounded to two attempts in V0.
