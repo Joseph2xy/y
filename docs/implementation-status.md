@@ -35,6 +35,10 @@ Local tester onboarding was simplified on 2026-05-03. The root README now focuse
 
 The frontend was reset from first principles on 2026-05-03. The normal ready state is now a minimal centered chat canvas using shadcn defaults and selected prompt-kit primitives. The old full-width workspace/timeline layout was removed. Setup remains only as a fallback when readiness checks fail. SQL and debug traces are hidden behind a read-only Advanced dialog.
 
+The chat UI was tightened further on 2026-05-03 after reviewing Prompt Kit. Custom chat bubbles, loading/status text, scroll-to-latest behavior, system notices, workflow progress, and Advanced code rendering now use Prompt Kit primitives where they improve the UX. Markdown and Shiki-backed code highlighting are lazy-loaded so the normal chat bundle stays below the Vite warning threshold.
+
+The ready-state screen now uses Prompt Kit's block composition as its base: a full-height conversation shell, centered max-width message rows, Prompt Kit composer, and CSV-specific approval/export surfaces inside the conversation. Generic Prompt Kit sidebar/history/full-chat blocks were not adopted because they imply a broader chatbot product and conflict with the narrow V0 single-session CSV flow.
+
 ## Implemented
 
 Backend:
@@ -57,10 +61,10 @@ Backend:
 
 Frontend:
 
-- `src/`: centered React/Vite chat workspace using prompt-kit composer, prompt suggestions, auto-scrolling chat container, shadcn CSV plan/export cards, readiness-gated setup fallback, and read-only Advanced debug trace dialog.
+- `src/`: full-height Prompt Kit based React/Vite chat workspace using composer, message, suggestions, auto-scrolling chat container, scroll button, status/progress primitives, shadcn CSV plan/export cards, readiness-gated setup fallback, and read-only Advanced debug trace dialog.
 - `src/api-types.ts`: generated OpenAPI TypeScript types.
 - `src/types.ts`: frontend-friendly aliases.
-- `src/components/ui/`: reset shadcn/ui defaults plus selected prompt-kit components for chat input, suggestions, and chat scrolling. Prompt-kit markdown/code rendering is intentionally not installed because the V0 UI does not render markdown.
+- `src/components/ui/` and `src/components/prompt-kit/`: reset shadcn/ui defaults plus selected Prompt Kit components for chat input, messages, suggestions, scrolling, progress, notices, markdown, and read-only code rendering.
 
 Setup/readiness:
 
@@ -130,7 +134,7 @@ Last documented onboarding check update: `tests/test_check_setup.py` passed, `ba
 
 Last documented model eval verification: `.venv/bin/python tools/model_eval.py` passed on 2026-05-02.
 
-Last documented frontend verification: `pnpm test` passed with `7 passed`; `pnpm build` passed on 2026-05-03. Browser screenshots were captured with the local FastAPI backend and Vite frontend at desktop and mobile widths on 2026-05-03.
+Last documented frontend verification: `pnpm test` passed with `7 passed`; `pnpm build` passed on 2026-05-03 after the Prompt Kit component replacements. Browser screenshots were captured with the local FastAPI backend and Vite frontend at desktop and mobile widths on 2026-05-03 before the Prompt Kit replacement pass.
 
 Optional local Postgres smoke test:
 

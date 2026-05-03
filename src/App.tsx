@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowUp, CheckIcon, DownloadIcon, PlusIcon, RefreshCwIcon, SettingsIcon, TerminalIcon } from "lucide-react";
+import { ArrowUp, CheckIcon, CircleCheckIcon, CircleIcon, DownloadIcon, PlusIcon, RefreshCwIcon, SettingsIcon, TerminalIcon } from "lucide-react";
 import { ReactNode, useEffect, useRef, useState } from "react";
 import {
   addMessage,
@@ -15,19 +15,24 @@ import {
   rescanContext,
   updateModelProviderSettings
 } from "./api";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { ChatContainerContent, ChatContainerRoot, ChatContainerScrollAnchor } from "@/components/ui/chat-container";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { PromptInput, PromptInputActions, PromptInputTextarea } from "@/components/ui/prompt-input";
-import { PromptSuggestion } from "@/components/ui/prompt-suggestion";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { ChatContainerContent, ChatContainerRoot, ChatContainerScrollAnchor } from "@/components/prompt-kit/chat-container";
+import { CodeBlock, CodeBlockCode } from "@/components/prompt-kit/code-block";
+import { Message, MessageAvatar, MessageContent } from "@/components/prompt-kit/message";
+import { PromptInput, PromptInputAction, PromptInputActions, PromptInputTextarea } from "@/components/prompt-kit/prompt-input";
+import { PromptSuggestion } from "@/components/prompt-kit/prompt-suggestion";
+import { ScrollButton } from "@/components/prompt-kit/scroll-button";
+import { Steps, StepsContent, StepsItem, StepsTrigger } from "@/components/prompt-kit/steps";
+import { SystemMessage } from "@/components/prompt-kit/system-message";
+import { ThinkingBar } from "@/components/prompt-kit/thinking-bar";
 import { cn } from "@/lib/utils";
 import type {
   ChatMessage,
@@ -290,8 +295,8 @@ export function App() {
   }
 
   return (
-    <main className="flex min-h-svh bg-background px-4 py-4 text-foreground sm:py-8">
-      <section className="mx-auto flex min-h-[calc(100svh-2rem)] w-full max-w-2xl flex-col sm:min-h-[calc(100svh-4rem)]" aria-label="CSV Chat">
+    <main className="relative isolate flex h-svh flex-col overflow-hidden bg-background text-foreground">
+      <section className="flex min-h-0 flex-1 flex-col" aria-label="CSV Chat">
         <AppHeader
           status={setupStatus}
           session={session ?? null}
@@ -299,8 +304,8 @@ export function App() {
           onNewSession={() => startSessionMutation.mutate()}
         />
 
-        <ChatContainerRoot className="min-h-0 flex-1">
-          <ChatContainerContent className="min-h-full gap-4 py-4">
+        <ChatContainerRoot className="relative min-h-0 flex-1 px-4">
+          <ChatContainerContent className="min-h-full gap-6 py-8">
             <Conversation
               session={session ?? null}
               proposal={proposal}
@@ -316,29 +321,37 @@ export function App() {
             />
             <ChatContainerScrollAnchor />
           </ChatContainerContent>
+          <div className="pointer-events-none sticky bottom-3 flex justify-center">
+            <ScrollButton className="pointer-events-auto" />
+          </div>
         </ChatContainerRoot>
 
-        <PromptInput
-          value={message}
-          onValueChange={setMessage}
-          onSubmit={submitCurrentMessage}
-          isLoading={sendMutation.isPending || proposeMutation.isPending}
-          disabled={busy}
-          maxHeight={160}
-          className="shrink-0"
-        >
-          <PromptInputTextarea placeholder="Describe the CSV you need" disabled={busy} />
-          <PromptInputActions className="justify-between">
-            <p className="min-w-0 truncate px-2 text-xs text-muted-foreground">{contextStatusText(setupStatus)}</p>
-            <Button size="icon-sm" type="button" disabled={busy || !message.trim()} aria-label="Send" onClick={submitCurrentMessage}>
-              {sendMutation.isPending || proposeMutation.isPending ? (
-                <Spinner data-icon="inline-start" />
-              ) : (
-                <ArrowUp data-icon="inline-start" />
-              )}
-            </Button>
-          </PromptInputActions>
-        </PromptInput>
+        <div className="shrink-0 px-4 pb-4">
+          <div className="mx-auto w-full max-w-3xl px-0 md:px-6">
+            <PromptInput
+              value={message}
+              onValueChange={setMessage}
+              onSubmit={submitCurrentMessage}
+              isLoading={sendMutation.isPending || proposeMutation.isPending}
+              disabled={busy}
+              maxHeight={160}
+            >
+              <PromptInputTextarea placeholder="Describe the CSV you need" disabled={busy} />
+              <PromptInputActions className="justify-between">
+                <p className="min-w-0 truncate px-2 text-xs text-muted-foreground">{contextStatusText(setupStatus)}</p>
+                <PromptInputAction tooltip="Send">
+                  <Button size="icon-sm" type="button" disabled={busy || !message.trim()} aria-label="Send" onClick={submitCurrentMessage}>
+                    {sendMutation.isPending || proposeMutation.isPending ? (
+                      <Spinner data-icon="inline-start" />
+                    ) : (
+                      <ArrowUp data-icon="inline-start" />
+                    )}
+                  </Button>
+                </PromptInputAction>
+              </PromptInputActions>
+            </PromptInput>
+          </div>
+        </div>
       </section>
     </main>
   );
@@ -356,7 +369,7 @@ function AppHeader({
   onNewSession: () => void;
 }) {
   return (
-    <header className="flex items-center justify-between gap-3">
+    <header className="mx-auto flex w-full max-w-3xl shrink-0 items-center justify-between gap-3 px-4 py-4 md:px-10">
       <div className="min-w-0">
         <h1 className="truncate font-heading text-sm font-medium">CSV Chat</h1>
         <p className="truncate text-xs text-muted-foreground">{session ? statusLabel(session.status) : "Validated CSV exports"}</p>
@@ -406,16 +419,20 @@ function Conversation({
 
   if (empty) {
     return (
-      <>
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-0 md:px-6">
         {notice ? <NoticeBanner notice={notice} /> : null}
         <EmptyChat onSuggestion={onSuggestion} />
-      </>
+      </div>
     );
   }
 
   return (
     <>
-      {notice ? <NoticeBanner notice={notice} /> : null}
+      {notice ? (
+        <div className="mx-auto w-full max-w-3xl px-0 md:px-6">
+          <NoticeBanner notice={notice} />
+        </div>
+      ) : null}
       {messages.map((item, index) => (
         <ChatBubble key={`${item.role}-${index}-${item.content}`} message={item} />
       ))}
@@ -465,22 +482,24 @@ function EmptyChat({ onSuggestion }: { onSuggestion: (value: string) => void }) 
 function ChatBubble({ message }: { message: ChatMessage }) {
   const user = message.role === "user";
   return (
-    <article className={cn("flex", user ? "justify-end" : "justify-start")}>
-      <div
+    <Message className={cn("mx-auto w-full max-w-3xl px-0 md:px-6", user ? "justify-end" : "justify-start")}>
+      {!user ? <MessageAvatar alt="CSV Chat" fallback="C" /> : null}
+      <MessageContent
+        markdown={!user}
         className={cn(
-          "max-w-[85%] whitespace-pre-wrap rounded-lg px-3 py-2 text-sm break-words",
-          user ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"
+          "text-sm",
+          user ? "max-w-[85%] rounded-3xl bg-muted px-5 py-2.5 text-primary sm:max-w-[75%]" : "w-full flex-1 bg-transparent p-0 text-foreground"
         )}
       >
         {message.content}
-      </div>
-    </article>
+      </MessageContent>
+    </Message>
   );
 }
 
 function AssistantBubble({ children }: { children: ReactNode }) {
   return (
-    <article className="flex justify-start">
+    <article className="mx-auto flex w-full max-w-3xl justify-start px-0 md:px-6">
       <div className="w-full">{children}</div>
     </article>
   );
@@ -532,16 +551,23 @@ function CsvWorkCard({
         {needsClarification ? <Clarification proposal={proposal} /> : null}
         {intent ? <PlanDetails intent={intent} message={proposal?.message ?? null} approved={Boolean(approved)} /> : null}
         {preparing ? <InlineStatus text="Checking CSV" /> : null}
-        {sqlPrep && !sqlPrep.valid ? (
-          <Alert variant="destructive">
-            <AlertDescription>The CSV could not be prepared.</AlertDescription>
-          </Alert>
-        ) : null}
+        <CsvSteps
+          proposal={proposal}
+          approved={approved}
+          sqlPrep={sqlPrep}
+          exportResult={exportResult}
+          planning={planning}
+          preparing={preparing}
+          needsClarification={needsClarification}
+        />
+        {sqlPrep && !sqlPrep.valid ? <SystemMessage variant="error">The CSV could not be prepared.</SystemMessage> : null}
         {sqlPrep?.valid && !exportResult ? (
-          <div className="rounded-lg border p-3">
-            <p className="font-medium">Ready to create</p>
-            <p className="text-sm text-muted-foreground">The app checked the CSV and will use read-only limits.</p>
-          </div>
+          <SystemMessage>
+            <div>
+              <p className="font-medium">Ready to create</p>
+              <p className="text-muted-foreground">The app checked the CSV and will use read-only limits.</p>
+            </div>
+          </SystemMessage>
         ) : null}
         {exportResult ? <ExportSummary exportResult={exportResult} /> : null}
       </CardContent>
@@ -574,6 +600,96 @@ function CsvWorkCard({
       ) : null}
     </Card>
   );
+}
+
+function CsvSteps({
+  proposal,
+  approved,
+  sqlPrep,
+  exportResult,
+  planning,
+  preparing,
+  needsClarification
+}: {
+  proposal: CSVIntentProposal | null;
+  approved: CSVIntent | null;
+  sqlPrep: SQLPreparationResponse | null;
+  exportResult: ExportCreateResponse | null;
+  planning: boolean;
+  preparing: boolean;
+  needsClarification: boolean;
+}) {
+  if (!proposal && !approved && !sqlPrep && !exportResult && !planning && !preparing) return null;
+
+  const items = csvStepItems({ proposal, approved, sqlPrep, exportResult, planning, preparing, needsClarification });
+
+  return (
+    <Steps className="rounded-lg border p-3">
+      <StepsTrigger leftIcon={<CircleIcon className="size-4" />}>Progress</StepsTrigger>
+      <StepsContent>
+        {items.map((item) => (
+          <StepsItem key={item.label} className="flex items-start gap-2">
+            {item.done ? <CircleCheckIcon className="mt-0.5 size-4 shrink-0 text-foreground" /> : <CircleIcon className="mt-0.5 size-4 shrink-0" />}
+            <div className="min-w-0">
+              <p className={cn("font-medium", item.active ? "text-foreground" : null)}>{item.label}</p>
+              <p>{item.description}</p>
+            </div>
+          </StepsItem>
+        ))}
+      </StepsContent>
+    </Steps>
+  );
+}
+
+function csvStepItems({
+  proposal,
+  approved,
+  sqlPrep,
+  exportResult,
+  planning,
+  preparing,
+  needsClarification
+}: {
+  proposal: CSVIntentProposal | null;
+  approved: CSVIntent | null;
+  sqlPrep: SQLPreparationResponse | null;
+  exportResult: ExportCreateResponse | null;
+  planning: boolean;
+  preparing: boolean;
+  needsClarification: boolean;
+}) {
+  const hasPlan = Boolean(proposal?.intent || approved);
+  const planDone = hasPlan || Boolean(exportResult);
+  const approvedDone = Boolean(approved || exportResult);
+  const checkedDone = Boolean(sqlPrep?.valid || exportResult);
+  const exportedDone = Boolean(exportResult);
+
+  return [
+    {
+      label: needsClarification ? "Clarify details" : "Draft CSV plan",
+      description: needsClarification ? "Answer the question in chat to continue." : planning ? "Drafting a plan for approval." : planDone ? "Plan is ready." : "Waiting for a request.",
+      done: planDone && !needsClarification,
+      active: planning || needsClarification
+    },
+    {
+      label: "Approve CSV plan",
+      description: approvedDone ? "Approved." : hasPlan ? "Review the plan before anything runs." : "Available after a plan is drafted.",
+      done: approvedDone,
+      active: hasPlan && !approvedDone
+    },
+    {
+      label: "Check export",
+      description: preparing ? "Validating the export against read-only rules." : checkedDone ? "Validation passed." : approvedDone ? "Validation will run next." : "Available after approval.",
+      done: checkedDone,
+      active: preparing
+    },
+    {
+      label: "Create CSV",
+      description: exportedDone ? `Rows exported: ${exportResult?.row_count ?? 0}` : checkedDone ? "Ready to create the download." : "Available after validation.",
+      done: exportedDone,
+      active: checkedDone && !exportedDone
+    }
+  ];
 }
 
 function Clarification({ proposal }: { proposal: CSVIntentProposal | null }) {
@@ -669,7 +785,9 @@ function AdvancedDetails({ sqlPrep, traces }: { sqlPrep: SQLPreparationResponse 
       {sqlPrep ? (
         <div className="flex flex-col gap-2">
           <p className="font-medium">Prepared SQL</p>
-          <pre className="overflow-auto rounded-lg bg-muted p-3 text-xs">{sqlPrep.sql}</pre>
+          <CodeBlock>
+            <CodeBlockCode code={sqlPrep.sql} language="sql" />
+          </CodeBlock>
           {sqlPrep.attempts.map((attempt, index) => (
             <div key={`${attempt.sql}-${index}`} className="rounded-lg border p-3">
               <p className="font-medium">
@@ -689,7 +807,9 @@ function AdvancedDetails({ sqlPrep, traces }: { sqlPrep: SQLPreparationResponse 
               <summary className="cursor-pointer">
                 {trace.step}: {trace.summary}
               </summary>
-              <pre className="mt-2 overflow-auto rounded-lg bg-muted p-3 text-xs">{JSON.stringify(trace.details, null, 2)}</pre>
+              <CodeBlock className="mt-2">
+                <CodeBlockCode code={JSON.stringify(trace.details, null, 2)} language="json" />
+              </CodeBlock>
             </details>
           ))}
         </div>
@@ -747,7 +867,9 @@ function SetupFallback({
         </CardHeader>
         {action === "configure_database" ? (
           <CardContent>
-            <pre className="overflow-auto rounded-lg bg-muted p-3 text-xs">DATABASE_URL=postgresql://readonly:password@localhost:5432/appdb</pre>
+            <CodeBlock>
+              <CodeBlockCode code="DATABASE_URL=postgresql://readonly:password@localhost:5432/appdb" language="shell" />
+            </CodeBlock>
           </CardContent>
         ) : null}
         {action === "connect_database" ? (
@@ -909,20 +1031,11 @@ function CenteredShell({ status, children }: { status: SetupStatusResponse | nul
 }
 
 function NoticeBanner({ notice }: { notice: Exclude<Notice, null> }) {
-  return (
-    <Alert variant={notice.type === "error" ? "destructive" : "default"}>
-      <AlertDescription>{notice.text}</AlertDescription>
-    </Alert>
-  );
+  return <SystemMessage variant={notice.type === "error" ? "error" : "action"}>{notice.text}</SystemMessage>;
 }
 
 function InlineStatus({ text }: { text: string }) {
-  return (
-    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-      <Spinner />
-      <span>{text}</span>
-    </div>
-  );
+  return <ThinkingBar text={text} className="text-sm text-muted-foreground" />;
 }
 
 function TextList({ title, items }: { title: string; items: string[] }) {
