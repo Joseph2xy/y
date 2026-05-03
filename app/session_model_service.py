@@ -7,7 +7,6 @@ from app.context_store import load_context
 from app.models import (
     CSVIntentProposal,
     ChatMessage,
-    ClarificationResponse,
     ExportSession,
     ModelMessage,
     SessionDebugTrace,
@@ -59,69 +58,6 @@ def propose_csv_intent(
     session.status = SessionStatus.AWAITING_APPROVAL if proposal.intent is not None else SessionStatus.DRAFTING_INTENT
     session.last_error = None
     save_session(_validate_session(session))
-    return proposal
-
-
-def ask_clarification(
-    *,
-    session_id: str,
-    model_provider: StructuredModelProvider,
-) -> ClarificationResponse:
-    session = load_session(session_id)
-    context = load_context()
-
-    prompt = build_intent_prompt(context=context, messages=session.messages)
-    try:
-        response = model_provider.generate_json(
-            messages=prompt,
-            response_model=ClarificationResponse,
-        )
-    except Exception as exc:
-        _mark_model_failure(session, exc, step="clarify", prompt=prompt)
-        raise
-    _append_model_trace(session, "clarify", prompt, response)
-
-    session.messages.append(ChatMessage(role="assistant", content=response.message))
-    session.approved_intent = None
-    session.export_id = None
-    session.status = SessionStatus.DRAFTING_INTENT
-    session.last_error = None
-    save_session(_validate_session(session))
-    return response
-
-
-def propose_sql(
-    *,
-    session_id: str,
-    model_provider: StructuredModelProvider,
-) -> SQLProposal:
-    session = load_session(session_id)
-    if session.approved_intent is None:
-        raise SessionModelError("CSV intent must be approved before SQL generation.")
-
-    context = load_context()
-    session.status = SessionStatus.GENERATING_SQL
-    save_session(session)
-
-    prompt: list[ModelMessage] | None = None
-    try:
-        prompt = build_sql_prompt(
-            context=context,
-            messages=session.messages,
-            approved_intent=session.approved_intent,
-        )
-        proposal = model_provider.generate_json(
-            messages=prompt,
-            response_model=SQLProposal,
-        )
-        _append_model_trace(session, "propose_sql", prompt, proposal)
-    except Exception as exc:
-        _mark_model_failure(session, exc, step="propose_sql", prompt=prompt)
-        raise
-
-    session.status = SessionStatus.VALIDATING_SQL
-    session.last_error = None
-    save_session(session)
     return proposal
 
 

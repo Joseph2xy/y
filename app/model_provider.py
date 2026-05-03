@@ -1,6 +1,9 @@
 import json
+import os
 from collections.abc import Callable
 from typing import Any, TypeVar
+
+os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
 
 import litellm
 from pydantic import BaseModel, ValidationError

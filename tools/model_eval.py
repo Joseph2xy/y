@@ -18,7 +18,6 @@ from app.models import (
     CSVIntent,
     CSVIntentProposal,
     ChatMessage,
-    ClarificationResponse,
     ContextPolicy,
     ModelMessage,
     SQLProposal,
@@ -28,7 +27,7 @@ from app.models import (
     SchemaRelationship,
     SchemaTable,
 )
-from app.session_model_service import ask_clarification, prepare_sql, propose_csv_intent
+from app.session_model_service import prepare_sql, propose_csv_intent
 from app.session_store import add_message, approve_intent, create_session
 
 
@@ -131,8 +130,6 @@ class ScenarioProvider:
     def generate_json(self, *, messages: list[ModelMessage], response_model: type[T]) -> T:
         if response_model is CSVIntentProposal:
             return response_model.model_validate(_intent_response(self.scenario))
-        if response_model is ClarificationResponse:
-            return response_model.model_validate(_clarification_response(self.scenario))
         if response_model is SQLProposal:
             self.sql_calls += 1
             sql = _sql_for_intent(self.scenario)
@@ -201,8 +198,9 @@ def _run_plan_scenario(scenario: Scenario) -> None:
 def _run_clarification_scenario(scenario: Scenario) -> None:
     session = create_session()
     add_message(session.id, ChatMessage(role="user", content=scenario.request))
-    response = ask_clarification(session_id=session.id, model_provider=ScenarioProvider(scenario))
+    response = propose_csv_intent(session_id=session.id, model_provider=ScenarioProvider(scenario))
 
+    assert response.intent is None
     text = f"{response.message}\n{' '.join(response.questions)}"
     _assert_terms(scenario.name, text, scenario.expected_terms)
 
@@ -231,6 +229,9 @@ def _assert_terms(name: str, text: str, terms: tuple[str, ...]) -> None:
 
 
 def _intent_response(scenario: Scenario) -> dict[str, object]:
+    if scenario.expected_behavior == "clarify":
+        return _clarification_response(scenario)
+
     if scenario.name == "active-customers":
         intent = _intent(
             "Active customer CSV with current balance and account status.",

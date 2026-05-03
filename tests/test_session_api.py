@@ -1,4 +1,4 @@
-from fastapi.testclient import TestClient
+from tools.api_client import APIClient
 from pydantic import BaseModel
 
 import app.main as main
@@ -38,7 +38,7 @@ def intent_payload() -> dict:
 
 def test_session_lifecycle(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
-    client = TestClient(app)
+    client = APIClient(app)
 
     create_response = client.post("/sessions")
     assert create_response.status_code == 200
@@ -66,7 +66,7 @@ def test_session_lifecycle(tmp_path, monkeypatch) -> None:
 def test_session_export_requires_approved_intent(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("DATABASE_URL", "postgresql://readonly:password@localhost:5432/appdb")
-    client = TestClient(app)
+    client = APIClient(app)
     session_id = client.post("/sessions").json()["session"]["id"]
 
     response = client.post(
@@ -81,7 +81,7 @@ def test_session_export_requires_approved_intent(tmp_path, monkeypatch) -> None:
 def test_session_export_requires_database_url(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("DATABASE_URL", raising=False)
-    client = TestClient(app)
+    client = APIClient(app)
     session_id = client.post("/sessions").json()["session"]["id"]
 
     response = client.post(
@@ -102,7 +102,7 @@ def test_session_export_happy_path_marks_complete_and_escapes_csv(tmp_path, monk
         "read_only_query_runner",
         lambda *args, **kwargs: lambda sql: [{"email": "a@example.com", "note": " =1+1"}],
     )
-    client = TestClient(app)
+    client = APIClient(app)
     session_id = client.post("/sessions").json()["session"]["id"]
     client.post(
         f"/sessions/{session_id}/approve-intent",
@@ -138,7 +138,7 @@ def test_session_export_invalid_sql_marks_failed_and_writes_no_export(tmp_path, 
     monkeypatch.setenv("DATABASE_URL", "postgresql://readonly:password@localhost:5432/appdb")
     ensure_context_files()
     monkeypatch.setattr(main, "read_only_query_runner", lambda *args, **kwargs: lambda sql: [])
-    client = TestClient(app)
+    client = APIClient(app)
     session_id = client.post("/sessions").json()["session"]["id"]
     client.post(f"/sessions/{session_id}/approve-intent", json={"intent": intent_payload()})
 
@@ -167,7 +167,7 @@ def test_session_export_unexpected_error_marks_failed(tmp_path, monkeypatch) -> 
         return run
 
     monkeypatch.setattr(main, "read_only_query_runner", broken_runner)
-    client = TestClient(app, raise_server_exceptions=False)
+    client = APIClient(app, raise_server_exceptions=False)
     session_id = client.post("/sessions").json()["session"]["id"]
     client.post(f"/sessions/{session_id}/approve-intent", json={"intent": intent_payload()})
 
@@ -184,7 +184,7 @@ def test_session_export_unexpected_error_marks_failed(tmp_path, monkeypatch) -> 
 
 def test_get_missing_session_returns_404(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
-    client = TestClient(app)
+    client = APIClient(app)
 
     response = client.get("/sessions/missing")
 
@@ -208,11 +208,17 @@ class QueueProvider:
 
 
 def override_provider(response: BaseModel):
-    app.dependency_overrides[get_model_provider] = lambda: FakeProvider(response)
+    async def provider() -> FakeProvider:
+        return FakeProvider(response)
+
+    app.dependency_overrides[get_model_provider] = provider
 
 
 def override_queue_provider(responses: list[BaseModel]):
-    app.dependency_overrides[get_model_provider] = lambda: QueueProvider(responses)
+    async def provider() -> QueueProvider:
+        return QueueProvider(responses)
+
+    app.dependency_overrides[get_model_provider] = provider
 
 
 def clear_overrides() -> None:
@@ -223,7 +229,7 @@ def test_propose_intent_endpoint_uses_model_provider(tmp_path, monkeypatch) -> N
     monkeypatch.chdir(tmp_path)
     ensure_context_files()
     override_provider(CSVIntentProposal(message="Here is the CSV plan.", intent=intent_payload()))
-    client = TestClient(app)
+    client = APIClient(app)
     session_id = client.post("/sessions").json()["session"]["id"]
     client.post(
         f"/sessions/{session_id}/messages",
@@ -251,7 +257,7 @@ def test_propose_intent_endpoint_can_return_clarification(tmp_path, monkeypatch)
             questions=["Which customer fields should the CSV include?"],
         )
     )
-    client = TestClient(app)
+    client = APIClient(app)
     session_id = client.post("/sessions").json()["session"]["id"]
     client.post(
         f"/sessions/{session_id}/messages",
@@ -274,7 +280,7 @@ def test_propose_intent_endpoint_can_return_clarification(tmp_path, monkeypatch)
 def test_public_clarify_endpoint_is_not_available(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     ensure_context_files()
-    client = TestClient(app)
+    client = APIClient(app)
     session_id = client.post("/sessions").json()["session"]["id"]
 
     response = client.post(f"/sessions/{session_id}/clarify")
@@ -285,7 +291,7 @@ def test_public_clarify_endpoint_is_not_available(tmp_path, monkeypatch) -> None
 def test_public_propose_sql_endpoint_is_not_available(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     ensure_context_files()
-    client = TestClient(app)
+    client = APIClient(app)
     session_id = client.post("/sessions").json()["session"]["id"]
 
     response = client.post(f"/sessions/{session_id}/propose-sql")
@@ -297,7 +303,7 @@ def test_prepare_sql_endpoint_requires_approved_intent(tmp_path, monkeypatch) ->
     monkeypatch.chdir(tmp_path)
     ensure_context_files()
     override_provider(SQLProposal(sql="select email from customers limit 10"))
-    client = TestClient(app)
+    client = APIClient(app)
     session_id = client.post("/sessions").json()["session"]["id"]
 
     try:
@@ -309,24 +315,6 @@ def test_prepare_sql_endpoint_requires_approved_intent(tmp_path, monkeypatch) ->
     assert response.json()["detail"] == "CSV intent must be approved before SQL generation."
 
 
-def test_public_repair_sql_endpoint_is_not_available(tmp_path, monkeypatch) -> None:
-    monkeypatch.chdir(tmp_path)
-    ensure_context_files()
-    client = TestClient(app)
-    session_id = client.post("/sessions").json()["session"]["id"]
-    client.post(f"/sessions/{session_id}/approve-intent", json={"intent": intent_payload()})
-
-    response = client.post(
-        f"/sessions/{session_id}/repair-sql",
-        json={
-            "sql": "select email from customers limit 100",
-            "validation_errors": ["SQL LIMIT must be between 1 and 10."],
-        },
-    )
-
-    assert response.status_code == 404
-
-
 def test_prepare_sql_endpoint_repairs_and_returns_validation_trace(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     ensure_context_files()
@@ -336,7 +324,7 @@ def test_prepare_sql_endpoint_repairs_and_returns_validation_trace(tmp_path, mon
             SQLRepairProposal(sql="select email from customers limit 10", changes=["Added a limit."]),
         ]
     )
-    client = TestClient(app)
+    client = APIClient(app)
     session_id = client.post("/sessions").json()["session"]["id"]
     client.post(f"/sessions/{session_id}/approve-intent", json={"intent": intent_payload()})
 
@@ -363,7 +351,7 @@ def test_prepare_sql_endpoint_rejects_wrong_output_columns(tmp_path, monkeypatch
             SQLRepairProposal(sql="select email, created_at from customers limit 10"),
         ]
     )
-    client = TestClient(app)
+    client = APIClient(app)
     session_id = client.post("/sessions").json()["session"]["id"]
     client.post(f"/sessions/{session_id}/approve-intent", json={"intent": intent_payload()})
 
@@ -382,7 +370,7 @@ def test_prepare_sql_endpoint_requires_model_configuration(tmp_path, monkeypatch
     monkeypatch.chdir(tmp_path)
     clear_provider_env(monkeypatch)
     ensure_context_files()
-    client = TestClient(app)
+    client = APIClient(app)
     session_id = client.post("/sessions").json()["session"]["id"]
 
     client.post(f"/sessions/{session_id}/approve-intent", json={"intent": intent_payload()})

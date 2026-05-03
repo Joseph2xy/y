@@ -1,4 +1,4 @@
-from fastapi.testclient import TestClient
+from tools.api_client import APIClient
 
 import app.main as main
 from app.context_store import ensure_context_files
@@ -40,7 +40,7 @@ def test_setup_status_reports_missing_database_first(tmp_path, monkeypatch) -> N
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("DATABASE_URL", raising=False)
     clear_provider_env(monkeypatch)
-    client = TestClient(app)
+    client = APIClient(app)
 
     response = client.get("/setup/status")
 
@@ -57,7 +57,7 @@ def test_setup_status_reports_missing_provider_after_database(tmp_path, monkeypa
     monkeypatch.setattr(main, "test_database_connection", lambda database_url: None)
     monkeypatch.setenv("MODEL_NAME", "openrouter/openai/gpt-4o-mini")
     monkeypatch.setenv("MODEL_API_KEY", "sk-or-ignored")
-    client = TestClient(app)
+    client = APIClient(app)
 
     response = client.get("/setup/status")
 
@@ -74,7 +74,7 @@ def test_setup_status_reports_context_needed_after_config(tmp_path, monkeypatch)
     monkeypatch.setenv("DATABASE_URL", "postgresql://readonly:password@localhost:5432/appdb")
     monkeypatch.setattr(main, "test_database_connection", lambda database_url: None)
     save_test_provider()
-    client = TestClient(app)
+    client = APIClient(app)
 
     response = client.get("/setup/status")
 
@@ -92,7 +92,7 @@ def test_setup_status_ready_when_context_exists(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(main, "test_database_connection", lambda database_url: None)
     save_test_provider()
     ensure_context_files(schema=SchemaContext(source=database_source_from_url(database_url)))
-    client = TestClient(app)
+    client = APIClient(app)
 
     response = client.get("/setup/status")
 
@@ -111,7 +111,7 @@ def test_setup_status_reports_context_stale_when_database_changes(tmp_path, monk
     monkeypatch.setenv("DATABASE_URL", new_url)
     monkeypatch.setattr(main, "test_database_connection", lambda database_url: None)
     save_test_provider()
-    client = TestClient(app)
+    client = APIClient(app)
 
     response = client.get("/setup/status")
 
@@ -133,7 +133,7 @@ def test_setup_bootstrap_does_not_rescan_stale_configured_context(tmp_path, monk
     monkeypatch.setattr(main, "test_database_connection", lambda database_url: None)
     save_test_provider()
     monkeypatch.setattr(main, "scan_context", lambda: (_ for _ in ()).throw(AssertionError("unexpected rescan")))
-    client = TestClient(app)
+    client = APIClient(app)
 
     response = client.post("/setup/bootstrap")
 
@@ -150,7 +150,7 @@ def test_setup_bootstrap_scans_database_when_context_is_missing(tmp_path, monkey
     monkeypatch.setattr(main, "test_database_connection", lambda database_url: None)
     monkeypatch.setattr(main, "scan_postgres_schema", lambda database_url, policy=None: SchemaContext())
     save_test_provider()
-    client = TestClient(app)
+    client = APIClient(app)
 
     response = client.post("/setup/bootstrap")
 
@@ -163,7 +163,7 @@ def test_setup_bootstrap_scans_database_when_context_is_missing(tmp_path, monkey
 def test_setup_bootstrap_requires_ready_config(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("DATABASE_URL", raising=False)
-    client = TestClient(app)
+    client = APIClient(app)
 
     response = client.post("/setup/bootstrap")
 
@@ -179,7 +179,7 @@ def test_setup_status_reports_database_connection_failure(tmp_path, monkeypatch)
         raise RuntimeError("connection refused")
 
     monkeypatch.setattr(main, "test_database_connection", fail_connection)
-    client = TestClient(app)
+    client = APIClient(app)
 
     response = client.get("/setup/status")
 
@@ -195,7 +195,7 @@ def test_database_settings_test_reports_success(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("DATABASE_URL", "postgresql://readonly:password@localhost:5432/appdb")
     monkeypatch.setattr(main, "test_database_connection", lambda database_url: None)
-    client = TestClient(app)
+    client = APIClient(app)
 
     response = client.post("/settings/database/test")
 
@@ -210,7 +210,7 @@ def test_database_settings_test_reports_success(tmp_path, monkeypatch) -> None:
 def test_database_settings_test_reports_missing_database_url(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("DATABASE_URL", raising=False)
-    client = TestClient(app)
+    client = APIClient(app)
 
     response = client.post("/settings/database/test")
 
@@ -232,7 +232,7 @@ def test_database_settings_test_reports_connection_failure(tmp_path, monkeypatch
         raise RuntimeError("connection refused")
 
     monkeypatch.setattr(main, "test_database_connection", fail_connection)
-    client = TestClient(app)
+    client = APIClient(app)
 
     response = client.post("/settings/database/test")
 

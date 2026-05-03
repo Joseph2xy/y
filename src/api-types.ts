@@ -261,23 +261,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/sql/validate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Validate Sql Endpoint */
-        post: operations["validate_sql_endpoint_sql_validate_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -503,18 +486,6 @@ export interface components {
             repair_changes?: string[];
             /** Sql */
             sql: string;
-            /** Valid */
-            valid: boolean;
-        };
-        /** SQLValidationRequest */
-        SQLValidationRequest: {
-            /** Sql */
-            sql: string;
-        };
-        /** SQLValidationResponse */
-        SQLValidationResponse: {
-            /** Errors */
-            errors?: string[];
             /** Valid */
             valid: boolean;
         };
@@ -1096,39 +1067,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SetupStatusResponse"];
-                };
-            };
-        };
-    };
-    validate_sql_endpoint_sql_validate_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SQLValidationRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SQLValidationResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -11,7 +11,6 @@ from typing import Any, TypeVar
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import psycopg
-from fastapi.testclient import TestClient
 from psycopg import sql
 from psycopg.conninfo import conninfo_to_dict, make_conninfo
 from pydantic import BaseModel
@@ -19,6 +18,7 @@ from pydantic import BaseModel
 import app.main as main
 from app.main import app, get_model_provider
 from app.models import ModelMessage
+from tools.api_client import APIClient
 from tools.mock_openai_server import INTENT_RESPONSE, SQL_RESPONSE
 
 
@@ -158,7 +158,7 @@ def provision_demo_database(
 
 
 def run_api_flow() -> None:
-    client = TestClient(app)
+    client = APIClient(app)
 
     scan = _ok(client.post("/context/scan"))
     assert scan["table_count"] == 2

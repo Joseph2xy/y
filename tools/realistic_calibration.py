@@ -4,28 +4,18 @@ import argparse
 import os
 import sys
 import tempfile
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import psycopg
-from fastapi.testclient import TestClient
-from psycopg import sql
-from psycopg.conninfo import conninfo_to_dict, make_conninfo
 
 from app.context_store import ensure_context_files
 from app.main import app
 from app.models import ContextPolicy
-
-
-@dataclass(frozen=True)
-class Scenario:
-    name: str
-    request: str
-    expected_column_groups: tuple[tuple[str, ...], ...]
-    expect_clarification: bool = False
+from tools.api_client import APIClient
+from tools.calibration import Scenario, ok, provision_database, run_scenario, schema_has_column
 
 
 SCENARIOS = [
@@ -95,6 +85,7 @@ def main() -> None:
         readonly_user=args.readonly_user,
         readonly_password=args.readonly_password,
         readonly_host=args.readonly_host,
+        seed_schema=seed_schema,
     )
 
     previous_database_url = os.environ.get("DATABASE_URL")
@@ -105,15 +96,21 @@ def main() -> None:
         try:
             ensure_context_files()
             policy = ContextPolicy(blocked_columns=["support_tickets.private_notes"])
-            client = TestClient(app)
-            context = _ok(client.put("/context", json={"context": _business_context(), "policy": policy.model_dump()}))
-            scan = _ok(client.post("/context/scan"))
+            client = APIClient(app)
+            ok(client.put("/context", json={"context": _business_context(), "policy": policy.model_dump()}))
+            scan = ok(client.post("/context/scan"))
             print(f"Setup: scanned {scan['table_count']} tables and {scan['column_count']} columns.")
-            if _schema_has_column(scan, "private_notes"):
+            if schema_has_column(scan, "private_notes"):
                 print("Warning: blocked private_notes appeared in context output.")
 
             for scenario in SCENARIOS:
-                run_scenario(client, scenario)
+                try:
+                    run_scenario(client, scenario)
+                except Exception as exc:
+                    print(f"\nScenario: {scenario.name}")
+                    print(f"Request: {scenario.request}")
+                    print("Result: error")
+                    print(f"Error: {exc}")
         finally:
             os.chdir(cwd)
             if previous_database_url is None:
@@ -134,92 +131,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--readonly-password", default="readonly")
     parser.add_argument("--readonly-host", default="127.0.0.1")
     return parser.parse_args()
-
-
-def run_scenario(client: TestClient, scenario: Scenario) -> None:
-    session = _ok(client.post("/sessions"))["session"]
-    session_id = session["id"]
-    _ok(
-        client.post(
-            f"/sessions/{session_id}/messages",
-            json={"message": {"role": "user", "content": scenario.request}},
-        )
-    )
-
-    proposal = _ok(client.post(f"/sessions/{session_id}/propose-intent"))
-    intent = proposal.get("intent")
-    questions = proposal.get("questions") or []
-
-    print(f"\nScenario: {scenario.name}")
-    print(f"Request: {scenario.request}")
-    if intent is None:
-        print("Result: clarification")
-        print(f"Questions: {questions}")
-        return
-
-    columns = [column["name"] for column in intent["columns"]]
-    print("Result: plan")
-    print(f"Planned columns: {columns}")
-    print(f"Filters: {intent.get('filters', [])}")
-
-    if scenario.expect_clarification:
-        print("Not approved: expected clarification, but model proposed a plan.")
-        return
-
-    missing = [group for group in scenario.expected_column_groups if not any(column in columns for column in group)]
-    if missing:
-        print(f"Not approved: expected column groups missing: {missing}")
-        return
-
-    _ok(client.post(f"/sessions/{session_id}/approve-intent", json={"intent": intent}))
-    prepared = _ok(client.post(f"/sessions/{session_id}/prepare-sql"))
-    print(f"SQL valid: {prepared['valid']}")
-    print(f"Validation attempts: {len(prepared.get('attempts', []))}")
-    if not prepared["valid"]:
-        print(f"Validation errors: {prepared.get('errors', [])}")
-        return
-
-    export = _ok(client.post(f"/sessions/{session_id}/export", json={"sql": prepared["sql"]}))
-    print(f"Export: {export['row_count']} rows, columns {export['columns']}")
-
-    final_session = _ok(client.get(f"/sessions/{session_id}"))
-    trace_steps = [trace["step"] for trace in final_session.get("debug_traces", [])]
-    print(f"Trace steps: {trace_steps}")
-
-
-def provision_database(
-    *,
-    admin_url: str,
-    database: str,
-    readonly_user: str,
-    readonly_password: str,
-    readonly_host: str,
-) -> str:
-    with psycopg.connect(admin_url, autocommit=True) as conn:
-        conn.execute("select pg_terminate_backend(pid) from pg_stat_activity where datname = %s", (database,))
-        conn.execute(sql.SQL("drop database if exists {}").format(sql.Identifier(database)))
-        conn.execute(sql.SQL("drop role if exists {}").format(sql.Identifier(readonly_user)))
-        conn.execute(
-            sql.SQL("create role {} login password {}").format(
-                sql.Identifier(readonly_user),
-                sql.Literal(readonly_password),
-            )
-        )
-        conn.execute(sql.SQL("create database {}").format(sql.Identifier(database)))
-        conn.execute(
-            sql.SQL("grant connect on database {} to {}").format(
-                sql.Identifier(database),
-                sql.Identifier(readonly_user),
-            )
-        )
-
-    admin_database_url = _url_for_database(admin_url, database)
-    with psycopg.connect(admin_database_url, autocommit=True) as conn:
-        seed_schema(conn)
-        conn.execute(sql.SQL("grant usage on schema public to {}").format(sql.Identifier(readonly_user)))
-        conn.execute(sql.SQL("grant select on all tables in schema public to {}").format(sql.Identifier(readonly_user)))
-
-    return _url_for_database(admin_url, database, user=readonly_user, password=readonly_password, host=readonly_host)
 
 
 def seed_schema(conn: psycopg.Connection[Any]) -> None:
@@ -355,38 +266,6 @@ Retail CSV calibration schema.
 - Customer region comes from customers.region. Shipping region comes from orders.shipping_region.
 - Do not export private support ticket notes.
 """
-
-
-def _ok(response: Any) -> dict[str, Any]:
-    if response.status_code != 200:
-        raise RuntimeError(f"{response.request.method} {response.request.url.path} failed: {response.status_code} {response.text}")
-    return response.json()
-
-
-def _schema_has_column(scan: dict[str, Any], column_name: str) -> bool:
-    for table in scan.get("schema", {}).get("tables", []):
-        if any(column.get("name") == column_name for column in table.get("columns", [])):
-            return True
-    return False
-
-
-def _url_for_database(
-    url: str,
-    database: str,
-    *,
-    user: str | None = None,
-    password: str | None = None,
-    host: str | None = None,
-) -> str:
-    values = conninfo_to_dict(url)
-    values["dbname"] = database
-    if user is not None:
-        values["user"] = user
-    if password is not None:
-        values["password"] = password
-    if host is not None:
-        values["host"] = host
-    return make_conninfo(**values)
 
 
 if __name__ == "__main__":

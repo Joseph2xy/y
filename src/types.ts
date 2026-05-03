@@ -5,8 +5,6 @@ type WithRequired<T, K extends keyof T> = T & Required<Pick<T, K>>;
 
 export type ChatMessage = Schema["ChatMessage"];
 
-export type CSVColumnIntent = Schema["CSVColumnIntent"];
-
 export type CSVIntent = WithRequired<
   Schema["CSVIntent"],
   "filters" | "derived_fields" | "assumptions"
@@ -21,26 +19,6 @@ export type ExportSession = Omit<
 };
 
 export type SessionDebugTrace = Schema["SessionDebugTrace"];
-
-export type ContextPolicy = WithRequired<
-  Schema["ContextPolicy"],
-  "blocked_schemas" | "blocked_tables" | "blocked_columns" | "blocked_functions"
->;
-
-export type SchemaColumn = Schema["SchemaColumn"];
-
-export type SchemaTable = Omit<WithRequired<Schema["SchemaTable"], "columns">, "columns"> & {
-  columns: SchemaColumn[];
-};
-
-export type SchemaContext = Omit<WithRequired<Schema["SchemaContext"], "tables">, "tables"> & {
-  tables: SchemaTable[];
-};
-
-export type ContextDocument = Omit<Schema["ContextDocument"], "policy" | "schema"> & {
-  policy: ContextPolicy;
-  schema: SchemaContext;
-};
 
 export type CSVIntentProposal = Omit<Schema["CSVIntentProposal"], "intent"> & {
   intent: CSVIntent | null;

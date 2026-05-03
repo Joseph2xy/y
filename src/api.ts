@@ -7,7 +7,6 @@ import type {
   DatabaseConnectionTestResponse,
   ModelProviderSettingsResponse,
   ModelProviderSettingsUpdate,
-  ContextDocument,
   SetupStatusResponse,
   SQLPreparationResponse
 } from "./types";
@@ -56,8 +55,8 @@ export function bootstrapSetup(): Promise<SetupStatusResponse> {
   return request<SetupStatusResponse>("/setup/bootstrap", { method: "POST" });
 }
 
-export function rescanContext(): Promise<ContextDocument> {
-  return request<ContextDocument>("/context/scan", { method: "POST" });
+export async function rescanContext(): Promise<void> {
+  await request<unknown>("/context/scan", { method: "POST" });
 }
 
 export function testDatabaseConnection(): Promise<DatabaseConnectionTestResponse> {

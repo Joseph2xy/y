@@ -7,16 +7,13 @@ from app.models import (
     CSVIntent,
     CSVIntentProposal,
     ChatMessage,
-    ClarificationResponse,
     SQLProposal,
     SQLRepairProposal,
 )
 from app.session_model_service import (
     SessionModelError,
-    ask_clarification,
     prepare_sql,
     propose_csv_intent,
-    propose_sql,
 )
 from app.session_store import add_message, approve_intent, create_session, load_session
 
@@ -188,71 +185,6 @@ def test_model_schema_failure_gets_plain_user_message(tmp_path, monkeypatch) -> 
         "Try again, or switch to a different provider/model if it keeps happening."
     )
     assert updated.debug_traces[0].details["error"] == "Model response did not match schema: message field required"
-
-
-def test_ask_clarification_keeps_session_in_drafting_state(tmp_path, monkeypatch) -> None:
-    monkeypatch.chdir(tmp_path)
-    ensure_context_files()
-    session = create_session()
-    provider = FakeProvider(
-        ClarificationResponse(
-            message="Which date range should the CSV cover?",
-            questions=["Which date range should the CSV cover?"],
-        )
-    )
-
-    response = ask_clarification(session_id=session.id, model_provider=provider)
-
-    updated = load_session(session.id)
-    assert response.questions == ["Which date range should the CSV cover?"]
-    assert updated.status == "drafting_intent"
-    assert updated.messages[-1].role == "assistant"
-
-
-def test_ask_clarification_clears_stale_approval(tmp_path, monkeypatch) -> None:
-    monkeypatch.chdir(tmp_path)
-    ensure_context_files()
-    session = create_session()
-    approve_intent(session.id, intent())
-    provider = FakeProvider(
-        ClarificationResponse(
-            message="Which date range should the CSV cover?",
-            questions=["Which date range should the CSV cover?"],
-        )
-    )
-
-    ask_clarification(session_id=session.id, model_provider=provider)
-
-    updated = load_session(session.id)
-    assert updated.status == "drafting_intent"
-    assert updated.approved_intent is None
-
-
-def test_propose_sql_requires_approved_intent(tmp_path, monkeypatch) -> None:
-    monkeypatch.chdir(tmp_path)
-    ensure_context_files()
-    session = create_session()
-    provider = FakeProvider(SQLProposal(sql="select email from customers limit 10"))
-
-    with pytest.raises(SessionModelError, match="approved"):
-        propose_sql(session_id=session.id, model_provider=provider)
-
-
-def test_propose_sql_uses_approved_intent_and_sets_validating_state(tmp_path, monkeypatch) -> None:
-    monkeypatch.chdir(tmp_path)
-    ensure_context_files()
-    session = create_session()
-    approve_intent(session.id, intent())
-    provider = FakeProvider(SQLProposal(sql="select email from customers limit 10"))
-
-    proposal = propose_sql(session_id=session.id, model_provider=provider)
-
-    updated = load_session(session.id)
-    prompt_text = "\n".join(message.content for message in provider.calls[0]["messages"])
-    assert proposal.sql == "select email from customers limit 10"
-    assert updated.status == "validating_sql"
-    assert "Approved CSV intent" in prompt_text
-    assert "Customer emails" in prompt_text
 
 
 def test_prepare_sql_returns_valid_first_proposal(tmp_path, monkeypatch) -> None:

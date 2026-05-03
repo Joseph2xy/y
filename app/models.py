@@ -80,15 +80,6 @@ class ContextScanResponse(ContextDocument):
     column_count: int
 
 
-class SQLValidationRequest(BaseModel):
-    sql: str = Field(min_length=1)
-
-
-class SQLValidationResponse(BaseModel):
-    valid: bool
-    errors: list[str] = Field(default_factory=list)
-
-
 class ExportCreateResponse(BaseModel):
     export_id: str
     row_count: int
@@ -231,11 +222,6 @@ class DatabaseConnectionTestResponse(BaseModel):
 class ModelMessage(BaseModel):
     role: str = Field(pattern="^(system|user|assistant)$")
     content: str = Field(min_length=1)
-
-
-class ClarificationResponse(BaseModel):
-    message: str = Field(min_length=1)
-    questions: list[str] = Field(default_factory=list)
 
 
 class CSVIntentProposal(BaseModel):

@@ -1,4 +1,4 @@
-from fastapi.testclient import TestClient
+from tools.api_client import APIClient
 
 import app.main as main
 from app.main import app
@@ -7,7 +7,7 @@ from app.models import SchemaContext
 
 def test_get_context_returns_404_before_files_exist(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
-    client = TestClient(app)
+    client = APIClient(app)
 
     response = client.get("/context")
 
@@ -16,7 +16,7 @@ def test_get_context_returns_404_before_files_exist(tmp_path, monkeypatch) -> No
 
 def test_put_context_creates_and_returns_document(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
-    client = TestClient(app)
+    client = APIClient(app)
 
     response = client.put(
         "/context",
@@ -45,7 +45,7 @@ def test_put_context_creates_and_returns_document(tmp_path, monkeypatch) -> None
 def test_scan_context_requires_database_url(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("DATABASE_URL", raising=False)
-    client = TestClient(app)
+    client = APIClient(app)
 
     response = client.post("/context/scan")
 
@@ -62,7 +62,7 @@ def test_scan_context_recovers_malformed_policy_file(tmp_path, monkeypatch) -> N
     (context_dir / "schema.json").write_text("{bad json", encoding="utf-8")
     (context_dir / "policy.json").write_text("{bad json", encoding="utf-8")
     monkeypatch.setattr(main, "scan_postgres_schema", lambda database_url, policy=None: SchemaContext())
-    client = TestClient(app)
+    client = APIClient(app)
 
     response = client.post("/context/scan")
 

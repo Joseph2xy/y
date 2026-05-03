@@ -1,4 +1,4 @@
-from fastapi.testclient import TestClient
+from tools.api_client import APIClient
 
 from app.main import app
 from app.models import ModelProviderSettingsUpdate
@@ -94,7 +94,7 @@ def test_model_config_requires_saved_api_key(tmp_path, monkeypatch) -> None:
 
 def test_model_provider_settings_api_round_trip(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
-    client = TestClient(app)
+    client = APIClient(app)
 
     default_response = client.get("/settings/model-provider")
     assert default_response.status_code == 200

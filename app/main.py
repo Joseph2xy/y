@@ -2,7 +2,7 @@ import os
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import Response
 
 from app.context_store import ContextStoreError, load_context, save_scanned_schema, update_context
 from app.database_identity import database_source_from_url, database_source_label, database_sources_match
@@ -28,8 +28,6 @@ from app.models import (
     SetupCheck,
     SetupStatusResponse,
     SQLPreparationResponse,
-    SQLValidationRequest,
-    SQLValidationResponse,
 )
 from app.provider_settings import (
     ProviderSettingsError,
@@ -56,7 +54,6 @@ from app.session_store import (
     mark_session_exporting,
     mark_session_failed,
 )
-from app.sql_guard import sql_policy_from_context, validate_sql
 
 load_dotenv()
 
@@ -67,7 +64,7 @@ app = FastAPI(
 )
 
 
-def get_model_provider() -> StructuredModelProvider:
+async def get_model_provider() -> StructuredModelProvider:
     try:
         return LiteLLMModelProvider(model_config_from_settings())
     except (ProviderSettingsError, ModelProviderError, ValueError) as exc:
@@ -151,17 +148,17 @@ def setup_status() -> SetupStatusResponse:
 
 
 @app.get("/health", response_model=HealthResponse)
-def health() -> HealthResponse:
+async def health() -> HealthResponse:
     return HealthResponse(status="ok")
 
 
 @app.get("/setup/status", response_model=SetupStatusResponse)
-def get_setup_status_endpoint() -> SetupStatusResponse:
+async def get_setup_status_endpoint() -> SetupStatusResponse:
     return setup_status()
 
 
 @app.post("/setup/bootstrap", response_model=SetupStatusResponse)
-def bootstrap_setup_endpoint() -> SetupStatusResponse:
+async def bootstrap_setup_endpoint() -> SetupStatusResponse:
     status = setup_status()
     if not status.database.ready:
         raise HTTPException(status_code=400, detail=status.database.message)
@@ -172,12 +169,12 @@ def bootstrap_setup_endpoint() -> SetupStatusResponse:
     if status.context.configured:
         return status
 
-    scan_context()
+    await scan_context()
     return setup_status()
 
 
 @app.get("/settings/model-provider", response_model=ModelProviderSettingsResponse)
-def get_model_provider_settings_endpoint() -> ModelProviderSettingsResponse:
+async def get_model_provider_settings_endpoint() -> ModelProviderSettingsResponse:
     try:
         return provider_settings_response(load_provider_settings())
     except ProviderSettingsError as exc:
@@ -185,7 +182,7 @@ def get_model_provider_settings_endpoint() -> ModelProviderSettingsResponse:
 
 
 @app.put("/settings/model-provider", response_model=ModelProviderSettingsResponse)
-def put_model_provider_settings_endpoint(
+async def put_model_provider_settings_endpoint(
     update: ModelProviderSettingsUpdate,
 ) -> ModelProviderSettingsResponse:
     try:
@@ -195,7 +192,7 @@ def put_model_provider_settings_endpoint(
 
 
 @app.post("/settings/database/test", response_model=DatabaseConnectionTestResponse)
-def test_database_settings_endpoint() -> DatabaseConnectionTestResponse:
+async def test_database_settings_endpoint() -> DatabaseConnectionTestResponse:
     database_url = configured_database_url()
     if not database_url:
         return DatabaseConnectionTestResponse(
@@ -229,7 +226,7 @@ def test_database_settings_endpoint() -> DatabaseConnectionTestResponse:
 
 
 @app.post("/context/scan", response_model=ContextScanResponse)
-def scan_context() -> ContextScanResponse:
+async def scan_context() -> ContextScanResponse:
     database_url = configured_database_url()
     if not database_url:
         raise HTTPException(status_code=400, detail="DATABASE_URL is not configured.")
@@ -252,7 +249,7 @@ def scan_context() -> ContextScanResponse:
 
 
 @app.get("/context", response_model=ContextDocument)
-def get_context() -> ContextDocument:
+async def get_context() -> ContextDocument:
     try:
         return load_context()
     except ContextStoreError as exc:
@@ -260,31 +257,20 @@ def get_context() -> ContextDocument:
 
 
 @app.put("/context", response_model=ContextDocument)
-def put_context(update: ContextUpdate) -> ContextDocument:
+async def put_context(update: ContextUpdate) -> ContextDocument:
     try:
         return update_context(update)
     except ContextStoreError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@app.post("/sql/validate", response_model=SQLValidationResponse)
-def validate_sql_endpoint(request: SQLValidationRequest) -> SQLValidationResponse:
-    try:
-        document = load_context()
-    except ContextStoreError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-
-    result = validate_sql(request.sql, sql_policy_from_context(document.policy))
-    return SQLValidationResponse(valid=result.valid, errors=result.errors)
-
-
 @app.post("/sessions", response_model=SessionCreateResponse)
-def create_session_endpoint() -> SessionCreateResponse:
+async def create_session_endpoint() -> SessionCreateResponse:
     return SessionCreateResponse(session=create_session())
 
 
 @app.post("/sessions/{session_id}/messages", response_model=ExportSession)
-def add_session_message_endpoint(session_id: str, request: SessionMessageRequest) -> ExportSession:
+async def add_session_message_endpoint(session_id: str, request: SessionMessageRequest) -> ExportSession:
     try:
         return add_message(session_id, request.message)
     except SessionStoreError as exc:
@@ -292,7 +278,7 @@ def add_session_message_endpoint(session_id: str, request: SessionMessageRequest
 
 
 @app.post("/sessions/{session_id}/approve-intent", response_model=ExportSession)
-def approve_session_intent_endpoint(
+async def approve_session_intent_endpoint(
     session_id: str,
     request: SessionIntentApprovalRequest,
 ) -> ExportSession:
@@ -303,7 +289,7 @@ def approve_session_intent_endpoint(
 
 
 @app.post("/sessions/{session_id}/propose-intent", response_model=CSVIntentProposal)
-def propose_session_intent_endpoint(
+async def propose_session_intent_endpoint(
     session_id: str,
     model_provider: StructuredModelProvider = Depends(get_model_provider),
 ) -> CSVIntentProposal:
@@ -316,7 +302,7 @@ def propose_session_intent_endpoint(
 
 
 @app.post("/sessions/{session_id}/prepare-sql", response_model=SQLPreparationResponse)
-def prepare_session_sql_endpoint(
+async def prepare_session_sql_endpoint(
     session_id: str,
     model_provider: StructuredModelProvider = Depends(get_model_provider),
 ) -> SQLPreparationResponse:
@@ -329,7 +315,7 @@ def prepare_session_sql_endpoint(
 
 
 @app.post("/sessions/{session_id}/export", response_model=ExportCreateResponse)
-def create_session_export_endpoint(
+async def create_session_export_endpoint(
     session_id: str,
     request: SessionExportRequest,
 ) -> ExportCreateResponse:
@@ -410,7 +396,7 @@ def create_session_export_endpoint(
 
 
 @app.get("/sessions/{session_id}", response_model=ExportSession)
-def get_session_endpoint(session_id: str) -> ExportSession:
+async def get_session_endpoint(session_id: str) -> ExportSession:
     try:
         return load_session(session_id)
     except SessionStoreError as exc:
@@ -419,10 +405,10 @@ def get_session_endpoint(session_id: str) -> ExportSession:
 
 @app.get(
     "/exports/{export_id}/download",
-    response_class=FileResponse,
+    response_class=Response,
     responses={200: {"content": {"text/csv": {}}}},
 )
-def download_export(export_id: str) -> FileResponse:
+async def download_export(export_id: str) -> Response:
     try:
         path = export_path(export_id)
     except ExportError as exc:
@@ -431,4 +417,8 @@ def download_export(export_id: str) -> FileResponse:
     if not path.exists():
         raise HTTPException(status_code=404, detail="Export not found.")
 
-    return FileResponse(path, media_type="text/csv", filename=f"{export_id}.csv")
+    return Response(
+        content=path.read_bytes(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{export_id}.csv"'},
+    )

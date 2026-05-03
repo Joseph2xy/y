@@ -1,4 +1,4 @@
-from fastapi.testclient import TestClient
+from tools.api_client import APIClient
 
 from app.context_store import ensure_context_files
 from app.main import app
@@ -7,7 +7,7 @@ from app.main import app
 def test_standalone_export_endpoint_is_not_available(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     ensure_context_files(tmp_path / "data" / "context")
-    client = TestClient(app)
+    client = APIClient(app)
 
     response = client.post(
         "/exports",
@@ -27,7 +27,7 @@ def test_standalone_export_endpoint_is_not_available(tmp_path, monkeypatch) -> N
 
 def test_download_export_returns_404_for_missing_file(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
-    client = TestClient(app)
+    client = APIClient(app)
 
     response = client.get("/exports/missing/download")
 
@@ -36,7 +36,7 @@ def test_download_export_returns_404_for_missing_file(tmp_path, monkeypatch) -> 
 
 def test_download_export_rejects_invalid_id(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
-    client = TestClient(app)
+    client = APIClient(app)
 
     response = client.get("/exports/..%2Fsecret/download")
 
@@ -45,7 +45,7 @@ def test_download_export_rejects_invalid_id(tmp_path, monkeypatch) -> None:
 
 def test_download_export_rejects_dot_in_id(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
-    client = TestClient(app)
+    client = APIClient(app)
 
     response = client.get("/exports/abc.def/download")
 
@@ -58,7 +58,7 @@ def test_download_export_returns_csv_file(tmp_path, monkeypatch) -> None:
     export_dir = tmp_path / "data" / "exports"
     export_dir.mkdir(parents=True)
     (export_dir / "abc123.csv").write_text("email\na@example.com\n", encoding="utf-8")
-    client = TestClient(app)
+    client = APIClient(app)
 
     response = client.get("/exports/abc123/download")
 
