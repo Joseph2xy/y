@@ -33,6 +33,8 @@ Repo hygiene cleanup on 2026-05-02 removed ignored build/cache/runtime artifacts
 
 Local tester onboarding was simplified on 2026-05-03. The root README now focuses on first-run/everyday local use, `tools/setup_local.sh` creates the venv, installs dependencies, and copies `.env.example` without overwriting existing secrets, and detailed reference material moved to `docs/local-user-guide.md`, `docs/troubleshooting.md`, and `docs/development.md`. Windows guidance is WSL-first for now; native Windows PowerShell setup is explicitly not first-class yet. Context lifecycle is now explicit: first-run setup creates context only when missing; schema context stores sanitized database source metadata and scan time; setup status warns when current `DATABASE_URL` differs from the context source; users can rescan from the setup screen or `pnpm rescan:context`.
 
+The frontend was reset from first principles on 2026-05-03. The normal ready state is now a minimal centered chat canvas using shadcn defaults and selected prompt-kit primitives. The old full-width workspace/timeline layout was removed. Setup remains only as a fallback when readiness checks fail. SQL and debug traces are hidden behind a read-only Advanced dialog.
+
 ## Implemented
 
 Backend:
@@ -55,10 +57,10 @@ Backend:
 
 Frontend:
 
-- `src/`: compact React/Vite chat-first workflow with readiness-gated setup fallback and read-only Advanced debug trace inspection.
+- `src/`: centered React/Vite chat workspace using prompt-kit composer, prompt suggestions, auto-scrolling chat container, shadcn CSV plan/export cards, readiness-gated setup fallback, and read-only Advanced debug trace dialog.
 - `src/api-types.ts`: generated OpenAPI TypeScript types.
 - `src/types.ts`: frontend-friendly aliases.
-- `src/components/ui/`: official shadcn/ui primitives.
+- `src/components/ui/`: reset shadcn/ui defaults plus selected prompt-kit components for chat input, suggestions, and chat scrolling. Prompt-kit markdown/code rendering is intentionally not installed because the V0 UI does not render markdown.
 
 Setup/readiness:
 
@@ -128,7 +130,7 @@ Last documented onboarding check update: `tests/test_check_setup.py` passed, `ba
 
 Last documented model eval verification: `.venv/bin/python tools/model_eval.py` passed on 2026-05-02.
 
-Last documented frontend verification: `pnpm test` passed with `7 passed`; `pnpm build` passed on 2026-05-03.
+Last documented frontend verification: `pnpm test` passed with `7 passed`; `pnpm build` passed on 2026-05-03. Browser screenshots were captured with the local FastAPI backend and Vite frontend at desktop and mobile widths on 2026-05-03.
 
 Optional local Postgres smoke test:
 

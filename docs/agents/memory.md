@@ -37,10 +37,12 @@ Update this file at the end of each section of work.
 - Added context freshness tracking. Schema context now stores sanitized database source metadata and scan time; setup status warns when the current `DATABASE_URL` differs from the context source; `pnpm check:setup` prints current/scanned database labels; and the setup UI shows a rescan panel with a button when context is stale.
 - Reworked the main chat UX so sending a request automatically asks for a CSV plan, approving the plan automatically prepares/validates the export, and the normal path shows one next action instead of separate propose/prepare/run pipeline controls. Added friendlier provider quota and malformed-model-output error messages while keeping raw details in Advanced traces.
 - Split setup diagnostics for missing database configuration vs configured-but-unreachable database. `setup_status` now returns `connect_database` when `DATABASE_URL` exists but the connection fails; `pnpm check:setup`, the setup UI, troubleshooting docs, and focused tests now point users toward starting Postgres or fixing host/port/credentials.
+- Reworked the frontend into a prompt-kit/shadcn chat workspace. The normal screen now uses an auto-scrolling conversation area, prompt suggestions, a prompt-kit composer, assistant-side CSV plan/export cards, and read-only Advanced details. Verified desktop/mobile browser screenshots, fixed mobile horizontal overflow, and avoided pulling prompt-kit markdown/Shiki payload because this V0 chat does not render markdown.
+- Reset the frontend UX from first principles. Reinstalled/reset shadcn defaults, kept only useful prompt-kit primitives, replaced `src/App.tsx` with one centered chat canvas, moved SQL/debug details into an Advanced dialog, kept setup as fallback-only, removed unused markdown/message UI and dependencies, updated frontend tests, and verified `pnpm test`, `pnpm build`, plus desktop/mobile browser screenshots.
 
 ## Next Step
 
-- Ask a tester to follow the README from a fresh Linux/WSL clone and record any setup friction. Re-test the redesigned chat flow with a stable provider/model because the current real-provider browser pass showed a useful clarification on the first request, then a malformed structured response after the clarification answer. Also re-run the remaining finance calibration scenarios after provider quota resets or with a paid/non-free provider: overdue-invoices SQL/export and vague-finance clarification.
+- Ask a tester to follow the README from a fresh Linux/WSL clone and record any setup friction. Re-test the reset centered chat flow end-to-end with a stable provider/model. Also re-run the remaining finance calibration scenarios after provider quota resets or with a paid/non-free provider: overdue-invoices SQL/export and vague-finance clarification.
 
 ## Next Session Prompt
 
@@ -49,7 +51,7 @@ Use this prompt to continue:
 ```text
 Read AGENTS.md and docs/implementation-status.md first. Continue from the current V0 CSV Chat state.
 
-Goal for this session: test the documented local onboarding path from a fresh Linux/WSL clone if possible, record any setup friction, and re-test the redesigned chat flow with a stable provider/model. Also re-run the remaining finance calibration scenarios after provider quota resets or with a paid/non-free provider: overdue-invoices SQL/export and vague-finance clarification.
+Goal for this session: test the documented local onboarding path from a fresh Linux/WSL clone if possible, record any setup friction, and re-test the reset centered chat flow with a stable provider/model. Also re-run the remaining finance calibration scenarios after provider quota resets or with a paid/non-free provider: overdue-invoices SQL/export and vague-finance clarification.
 
 Start by checking git status and setup readiness. Do not print secrets, database credentials, or final CSV contents. Use the configured .env provider/database if available.
 
