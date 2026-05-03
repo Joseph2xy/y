@@ -423,6 +423,5 @@ def test_model_endpoint_requires_model_configuration(tmp_path, monkeypatch) -> N
 
     assert response.status_code == 400
     assert response.json()["detail"] == (
-        "Model provider is not configured. Add an OpenRouter API key in provider settings, "
-        "or set MODEL_NAME and MODEL_API_KEY."
+        "Model provider is not configured. Open Settings and add an OpenRouter or custom provider API key."
     )

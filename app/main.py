@@ -15,6 +15,7 @@ from app.models import (
     ContextDocument,
     ContextScanResponse,
     ContextUpdate,
+    DatabaseConnectionTestResponse,
     ExportSession,
     ExportCreateResponse,
     HealthResponse,
@@ -35,7 +36,7 @@ from app.models import (
 from app.provider_settings import (
     ProviderSettingsError,
     load_provider_settings,
-    model_config_from_settings_or_env,
+    model_config_from_settings,
     provider_settings_response,
     save_provider_settings,
 )
@@ -72,7 +73,7 @@ app = FastAPI(
 
 def get_model_provider() -> StructuredModelProvider:
     try:
-        return LiteLLMModelProvider(model_config_from_settings_or_env(os.environ))
+        return LiteLLMModelProvider(model_config_from_settings())
     except (ProviderSettingsError, ModelProviderError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -106,7 +107,7 @@ def setup_status() -> SetupStatusResponse:
             database = SetupCheck(configured=True, ready=True)
 
     try:
-        model_config_from_settings_or_env(os.environ)
+        model_config_from_settings()
     except ProviderSettingsError as exc:
         provider = SetupCheck(configured=False, ready=False, message=str(exc))
     except (ModelProviderError, ValueError) as exc:
@@ -195,6 +196,40 @@ def put_model_provider_settings_endpoint(
         return provider_settings_response(save_provider_settings(update))
     except ProviderSettingsError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/settings/database/test", response_model=DatabaseConnectionTestResponse)
+def test_database_settings_endpoint() -> DatabaseConnectionTestResponse:
+    database_url = configured_database_url()
+    if not database_url:
+        return DatabaseConnectionTestResponse(
+            configured=False,
+            ok=False,
+            message="DATABASE_URL is not configured.",
+        )
+
+    try:
+        current_database = database_source_from_url(database_url)
+    except Exception:
+        current_database = None
+
+    try:
+        test_database_connection(database_url)
+    except Exception as exc:
+        return DatabaseConnectionTestResponse(
+            configured=True,
+            ok=False,
+            message=f"Database connection failed: {exc}",
+            current_database=current_database,
+        )
+
+    label = database_source_label(current_database) if current_database else "configured database"
+    return DatabaseConnectionTestResponse(
+        configured=True,
+        ok=True,
+        message=f"Connected to {label}.",
+        current_database=current_database,
+    )
 
 
 @app.post("/context/scan", response_model=ContextScanResponse)

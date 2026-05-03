@@ -64,4 +64,6 @@ export type ModelProviderSettingsResponse = Schema["ModelProviderSettingsRespons
 
 export type ModelProviderSettingsUpdate = Schema["ModelProviderSettingsUpdate"];
 
+export type DatabaseConnectionTestResponse = Schema["DatabaseConnectionTestResponse"];
+
 export type SetupStatusResponse = Schema["SetupStatusResponse"];

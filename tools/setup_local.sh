@@ -54,7 +54,7 @@ fi
 
 info ""
 info "Next steps:"
-info "1. Edit .env with a read-only DATABASE_URL and model provider key."
-info "2. Run: pnpm check:setup"
-info "3. Run: pnpm dev:app"
+info "1. Edit .env with a read-only DATABASE_URL."
+info "2. Run: pnpm dev:app and open Settings to add a model provider."
+info "3. Run: pnpm check:setup"
 info "4. Open: http://127.0.0.1:5173"

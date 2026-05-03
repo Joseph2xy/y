@@ -1,6 +1,7 @@
 from app.context_store import ensure_context_files
 from app.database_identity import database_source_from_url
-from app.models import SchemaContext
+from app.models import ModelProviderSettingsUpdate, SchemaContext
+from app.provider_settings import save_provider_settings
 import app.main as main
 from tools import check_setup
 
@@ -23,6 +24,16 @@ def clear_provider_env(monkeypatch) -> None:
         monkeypatch.delenv(name, raising=False)
 
 
+def save_test_provider() -> None:
+    save_provider_settings(
+        ModelProviderSettingsUpdate(
+            provider="openrouter",
+            model="openrouter/openai/gpt-4o-mini",
+            api_key="sk-or-test",
+        )
+    )
+
+
 def test_check_setup_returns_nonzero_when_setup_is_incomplete(tmp_path, monkeypatch, capsys) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("DATABASE_URL", raising=False)
@@ -40,8 +51,7 @@ def test_check_setup_returns_zero_when_setup_is_ready(tmp_path, monkeypatch, cap
     monkeypatch.chdir(tmp_path)
     database_url = "postgresql://readonly:password@localhost:5432/appdb"
     monkeypatch.setenv("DATABASE_URL", database_url)
-    monkeypatch.setenv("MODEL_NAME", "openrouter/openai/gpt-4o-mini")
-    monkeypatch.setenv("MODEL_API_KEY", "sk-or-test")
+    save_test_provider()
     monkeypatch.setattr(main, "test_database_connection", lambda database_url: None)
     ensure_context_files(schema=SchemaContext(source=database_source_from_url(database_url)))
 

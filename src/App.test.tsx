@@ -37,6 +37,20 @@ const setupReadyResponse = {
   database: { configured: true, ready: true, message: null },
   model_provider: { configured: true, ready: true, message: null },
   context: { configured: true, ready: true, message: null },
+  current_database: {
+    host: "localhost",
+    port: "5432",
+    database: "appdb",
+    scanned_at: "2026-05-03T00:00:00Z",
+    fingerprint: "appdb"
+  },
+  context_source: {
+    host: "localhost",
+    port: "5432",
+    database: "appdb",
+    scanned_at: "2026-05-03T00:00:00Z",
+    fingerprint: "appdb"
+  },
   next_action: null
 };
 
@@ -161,6 +175,14 @@ describe("App", () => {
       requests.push({ url, method, body: typeof init?.body === "string" ? init.body : undefined });
       if (url === "/setup/status") return jsonResponse(setupReadyResponse);
       if (url === "/settings/model-provider" && method === "GET") return jsonResponse({ ...providerResponse, api_key_configured: true });
+      if (url === "/settings/database/test") {
+        return jsonResponse({
+          configured: true,
+          ok: true,
+          message: "Connected to appdb on localhost:5432.",
+          current_database: setupReadyResponse.current_database
+        });
+      }
       if (url === "/settings/model-provider" && method === "PUT") {
         return jsonResponse({
           provider: "custom",
@@ -186,6 +208,8 @@ describe("App", () => {
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("Database connection")).toBeInTheDocument();
     expect(within(dialog).getByText(/DATABASE_URL=postgresql/)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Test connection" }));
+    expect(await within(dialog).findByText("Connected to appdb on localhost:5432.")).toBeInTheDocument();
     await user.click(within(dialog).getByRole("button", { name: "Rescan context" }));
 
     await user.click(within(dialog).getByRole("tab", { name: "Provider" }));
@@ -197,6 +221,7 @@ describe("App", () => {
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
 
     expect(requests.some((request) => request.url === "/context/scan" && request.method === "POST")).toBe(true);
+    expect(requests.some((request) => request.url === "/settings/database/test" && request.method === "POST")).toBe(true);
     const providerUpdate = requests.find((request) => request.url === "/settings/model-provider" && request.method === "PUT");
     expect(providerUpdate?.body).toContain('"provider":"custom"');
     expect(providerUpdate?.body).toContain('"api_key":"secret-key"');

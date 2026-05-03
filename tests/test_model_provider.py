@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.model_provider import LiteLLMModelProvider, ModelProviderError, model_config_from_env
+from app.model_provider import LiteLLMModelProvider, ModelProviderError
 from app.models import ModelConfig, ModelMessage, SQLProposal
 
 
@@ -73,8 +73,3 @@ def test_model_provider_rejects_schema_mismatch() -> None:
             messages=[ModelMessage(role="user", content="Generate SQL.")],
             response_model=SQLProposal,
         )
-
-
-def test_model_config_from_env_rejects_invalid_temperature() -> None:
-    with pytest.raises(ModelProviderError, match="MODEL_TEMPERATURE must be a valid number"):
-        model_config_from_env({"MODEL_NAME": "openai/gpt-4.1-mini", "MODEL_TEMPERATURE": "warm"})

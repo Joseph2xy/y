@@ -27,14 +27,10 @@ Install dependencies and create `.env` if it does not exist:
 ./tools/setup_local.sh
 ```
 
-Edit `.env` with your database and model provider settings:
+Edit `.env` with your database connection:
 
 ```text
 DATABASE_URL=postgresql://readonly:password@localhost:5432/appdb
-WORKER_LLM_PROVIDER=openrouter
-WORKER_OPENROUTER_MODEL=openrouter/openai/gpt-4o-mini
-OPENROUTER_API_KEY=your-api-key
-MODEL_TEMPERATURE=0
 ```
 
 Check whether the app is ready:
@@ -67,6 +63,8 @@ pnpm dev:app
 ```
 
 If setup is not ready, `pnpm check:setup` prints the next required action.
+
+The Settings tab keeps the V0 split clear: database credentials stay in the backend `.env` file, while model provider details are edited in the app and saved locally by the backend. If no provider is saved, setup reports a model provider problem instead of falling back to `.env`.
 
 ## Database Changes
 

@@ -26,6 +26,7 @@ import {
   prepareSql,
   proposeIntent,
   rescanContext,
+  testDatabaseConnection,
   updateModelProviderSettings
 } from "./api";
 import { Badge } from "@/components/ui/badge";
@@ -52,6 +53,7 @@ import type {
   CSVIntent,
   CSVIntentProposal,
   ChatMessage,
+  DatabaseConnectionTestResponse,
   ExportCreateResponse,
   ExportSession,
   ModelProviderSettingsResponse,
@@ -84,6 +86,7 @@ export function App() {
   const [providerModel, setProviderModel] = useState("openrouter/openai/gpt-4o-mini");
   const [providerBaseUrl, setProviderBaseUrl] = useState("");
   const [providerApiKey, setProviderApiKey] = useState("");
+  const [databaseTest, setDatabaseTest] = useState<DatabaseConnectionTestResponse | null>(null);
   const pendingSessionRef = useRef<Promise<ExportSession> | null>(null);
 
   const setupQuery = useQuery({
@@ -133,6 +136,15 @@ export function App() {
     mutationFn: rescanContext,
     onSuccess: () => {
       setNotice({ type: "info", text: "Database context was rescanned." });
+      void queryClient.invalidateQueries({ queryKey: ["setup-status"] });
+    },
+    onError: showError
+  });
+
+  const databaseTestMutation = useMutation({
+    mutationFn: testDatabaseConnection,
+    onSuccess: (result) => {
+      setDatabaseTest(result);
       void queryClient.invalidateQueries({ queryKey: ["setup-status"] });
     },
     onError: showError
@@ -257,6 +269,7 @@ export function App() {
     startSessionMutation.isPending ||
     bootstrapMutation.isPending ||
     rescanContextMutation.isPending ||
+    databaseTestMutation.isPending ||
     providerMutation.isPending ||
     sendMutation.isPending ||
     proposeMutation.isPending ||
@@ -346,6 +359,8 @@ export function App() {
         onApiKeyChange={setProviderApiKey}
         onSaveProvider={() => providerMutation.mutate()}
         onRescanContext={() => rescanContextMutation.mutate()}
+        databaseTest={databaseTest}
+        onTestDatabase={() => databaseTestMutation.mutate()}
       />
       <section className="mx-auto grid min-h-0 w-full max-w-7xl flex-1 grid-cols-1 gap-4 px-4 pb-4 lg:grid-cols-[minmax(0,1fr)_minmax(360px,440px)] lg:px-6" aria-label="CSV Chat">
         <ConversationPane
@@ -395,7 +410,9 @@ function AppHeader({
   onBaseUrlChange,
   onApiKeyChange,
   onSaveProvider,
-  onRescanContext
+  onRescanContext,
+  databaseTest,
+  onTestDatabase
 }: {
   status: SetupStatusResponse;
   session: ExportSession | null;
@@ -414,6 +431,8 @@ function AppHeader({
   onApiKeyChange: (value: string) => void;
   onSaveProvider: () => void;
   onRescanContext: () => void;
+  databaseTest: DatabaseConnectionTestResponse | null;
+  onTestDatabase: () => void;
 }) {
   return (
     <header className="mx-auto flex w-full max-w-7xl shrink-0 items-center justify-between gap-3 px-4 py-4 lg:px-6">
@@ -437,6 +456,8 @@ function AppHeader({
           onApiKeyChange={onApiKeyChange}
           onSaveProvider={onSaveProvider}
           onRescanContext={onRescanContext}
+          databaseTest={databaseTest}
+          onTestDatabase={onTestDatabase}
         />
         <ThemeToggle theme={theme} onToggle={onToggleTheme} />
         {session ? (
@@ -462,7 +483,9 @@ function SettingsDialog({
   onBaseUrlChange,
   onApiKeyChange,
   onSaveProvider,
-  onRescanContext
+  onRescanContext,
+  databaseTest,
+  onTestDatabase
 }: {
   status: SetupStatusResponse;
   providerSettings?: ModelProviderSettingsResponse;
@@ -477,6 +500,8 @@ function SettingsDialog({
   onApiKeyChange: (value: string) => void;
   onSaveProvider: () => void;
   onRescanContext: () => void;
+  databaseTest: DatabaseConnectionTestResponse | null;
+  onTestDatabase: () => void;
 }) {
   return (
     <Dialog>
@@ -486,7 +511,7 @@ function SettingsDialog({
       <DialogContent className="max-h-[90svh] overflow-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Settings</DialogTitle>
-          <DialogDescription>Database context and model provider setup for this local app.</DialogDescription>
+          <DialogDescription>Database status, context rescans, and editable model provider settings.</DialogDescription>
         </DialogHeader>
         <Tabs defaultValue="database">
           <TabsList>
@@ -494,7 +519,13 @@ function SettingsDialog({
             <TabsTrigger value="provider">Provider</TabsTrigger>
           </TabsList>
           <TabsContent value="database" className="flex flex-col gap-4">
-            <DatabaseSettingsPanel status={status} busy={busy} onRescanContext={onRescanContext} />
+            <DatabaseSettingsPanel
+              status={status}
+              busy={busy}
+              databaseTest={databaseTest}
+              onTestDatabase={onTestDatabase}
+              onRescanContext={onRescanContext}
+            />
           </TabsContent>
           <TabsContent value="provider">
             <ProviderForm
@@ -520,10 +551,14 @@ function SettingsDialog({
 function DatabaseSettingsPanel({
   status,
   busy,
+  databaseTest,
+  onTestDatabase,
   onRescanContext
 }: {
   status: SetupStatusResponse;
   busy: boolean;
+  databaseTest: DatabaseConnectionTestResponse | null;
+  onTestDatabase: () => void;
   onRescanContext: () => void;
 }) {
   return (
@@ -531,17 +566,26 @@ function DatabaseSettingsPanel({
       <Card>
         <CardHeader>
           <CardTitle>Database connection</CardTitle>
-          <CardDescription>{status.database.ready ? "Connected through the backend environment." : status.database.message ?? "Database setup needs attention."}</CardDescription>
+          <CardDescription>{status.database.ready ? "Configured by the local backend `.env` file." : status.database.message ?? "Database setup needs attention."}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           <ContextSourceDetails status={status} />
           <div className="flex flex-col gap-2">
-            <p className="text-sm text-muted-foreground">To change the database, update the backend `.env` value and restart or refresh the backend.</p>
+            <p className="text-sm text-muted-foreground">Database credentials are not edited in the browser for V0. To change the database, update `.env`, restart or refresh the backend, then rescan context.</p>
             <CodeBlock>
               <CodeBlockCode code="DATABASE_URL=postgresql://readonly:password@localhost:5432/appdb" language="shell" />
             </CodeBlock>
           </div>
+          {databaseTest ? (
+            <SystemMessage variant={databaseTest.ok ? "action" : "error"}>{databaseTest.message}</SystemMessage>
+          ) : null}
         </CardContent>
+        <CardFooter>
+          <Button type="button" variant="outline" onClick={onTestDatabase} disabled={busy}>
+            {busy ? <Spinner data-icon="inline-start" /> : <CheckIcon data-icon="inline-start" />}
+            Test connection
+          </Button>
+        </CardFooter>
       </Card>
 
       <Card>
@@ -550,7 +594,7 @@ function DatabaseSettingsPanel({
           <CardDescription>{status.context.ready ? "Database context is ready for CSV requests." : status.context.message ?? "Context needs to be prepared."}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
-          <p className="text-sm text-muted-foreground">Rescan after changing the database or after schema changes. Local context notes and policy stay file-based for V0.</p>
+          <p className="text-sm text-muted-foreground">Rescan after changing `.env` or after schema changes. Local context notes and policy stay file-based for V0.</p>
           <Button type="button" variant="outline" onClick={onRescanContext} disabled={busy || !status.database.ready}>
             {busy ? <Spinner data-icon="inline-start" /> : <RefreshCwIcon data-icon="inline-start" />}
             Rescan context
@@ -1121,7 +1165,7 @@ function ProviderForm({
     <Card aria-label="Provider settings">
       <CardHeader>
         <CardTitle>Model provider</CardTitle>
-        <CardDescription>{settings?.api_key_configured ? "API key saved locally." : "Add provider details."}</CardDescription>
+        <CardDescription>{settings?.api_key_configured ? "Editable here. API key saved locally by the backend." : "Add provider details. These settings can be edited here."}</CardDescription>
       </CardHeader>
       <CardContent>
         <FieldGroup>

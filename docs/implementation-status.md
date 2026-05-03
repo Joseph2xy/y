@@ -43,7 +43,7 @@ The frontend was then reworked into an Artifact Split layout on 2026-05-03. Chat
 
 The shadcn preset was switched on 2026-05-03 from `b2fA` to `b1Ymqvgiu`: Nova style, neutral base, blue theme/chart tokens, lucide icons, Inter font, inherited heading font, default radius, and subtle default menus. Existing shadcn UI components were reinstalled through the CLI with `init --preset b1Ymqvgiu --force --reinstall`.
 
-The ready-state header now includes a shadcn settings dialog. It keeps setup/change controls out of the normal CSV flow while making database/context status, context rescans, and model-provider changes available from chat. Database credentials still come from the backend environment in V0; the dialog shows the current context source and points users to update `.env` and rescan rather than editing `DATABASE_URL` in the browser.
+The ready-state header now includes a shadcn settings dialog. It keeps setup/change controls out of the normal CSV flow while making database/context status, a database connection test, context rescans, and model-provider changes available from chat. Database credentials still come from the backend `.env` file in V0; the dialog explicitly says database credentials are not browser-editable, shows the current context source, and points users to update `.env` and rescan. Model provider settings remain editable in Settings and are saved locally by the backend.
 
 ## Implemented
 
@@ -62,7 +62,7 @@ Backend:
 - `app/prompt_builder.py`: prompts for intent, SQL, and repair.
 - `app/session_model_service.py`: approval-gated model orchestration.
 - `app/provider_settings.py`: local provider settings with OpenRouter defaults.
-- `.env` loading at API startup for local database/model configuration.
+- `.env` loading at API startup for local database configuration.
 - Session debug traces: persisted prompt, model output, SQL validation, repair, and export execution traces in session JSON for read-only Advanced inspection.
 
 Frontend:
@@ -106,6 +106,7 @@ POST /setup/bootstrap
 POST /context/scan
 GET  /context
 PUT  /context
+POST /settings/database/test
 GET  /settings/model-provider
 PUT  /settings/model-provider
 POST /sql/validate
@@ -165,7 +166,7 @@ Optional real-provider realistic calibration:
 
 Local setup can use a root `.env` file copied from `.env.example`. The real `.env` file is ignored by git.
 
-Provider settings can also be stored locally under `data/settings/model_provider.json`, which is ignored by git. API responses report only `api_key_configured`, never the saved key.
+Provider settings are stored locally under `data/settings/model_provider.json`, which is ignored by git. API responses report only `api_key_configured`, never the saved key. The app does not fall back to model provider values in `.env`.
 
 Defaults:
 
@@ -173,14 +174,9 @@ Defaults:
 - model: `openrouter/openai/gpt-4o-mini`
 - temperature: `0`
 
-Environment fallback:
+Environment:
 
 - `DATABASE_URL`
-- `MODEL_NAME` or `LITELLM_MODEL`
-- `MODEL_API_KEY` or `LITELLM_API_KEY`
-- `WORKER_LLM_PROVIDER=openrouter`, `WORKER_OPENROUTER_MODEL`, and `OPENROUTER_API_KEY`
-- `MODEL_BASE_URL` or `LITELLM_API_BASE` for custom OpenAI-compatible endpoints
-- `MODEL_TEMPERATURE`
 
 ## Local Generated Data
 

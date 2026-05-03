@@ -5,13 +5,15 @@ from app.models import ModelProviderSettingsUpdate
 from app.provider_settings import (
     ProviderSettingsError,
     load_provider_settings,
-    model_config_from_settings_or_env,
+    model_config_from_settings,
     provider_settings_response,
     save_provider_settings,
 )
 
 
-def test_default_provider_settings_are_openrouter() -> None:
+def test_default_provider_settings_are_openrouter(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+
     response = provider_settings_response(load_provider_settings())
 
     assert response.provider == "openrouter"
@@ -62,7 +64,7 @@ def test_save_provider_settings_requires_new_key_when_provider_identity_changes(
         raise AssertionError("Expected provider change without a new key to fail.")
 
 
-def test_model_config_prefers_saved_provider_settings(tmp_path, monkeypatch) -> None:
+def test_model_config_uses_saved_provider_settings(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     save_provider_settings(
         ModelProviderSettingsUpdate(
@@ -72,86 +74,22 @@ def test_model_config_prefers_saved_provider_settings(tmp_path, monkeypatch) -> 
         )
     )
 
-    config = model_config_from_settings_or_env({"MODEL_NAME": "openai/ignored", "MODEL_API_KEY": "ignored"})
+    config = model_config_from_settings()
 
     assert config.model == "openrouter/openai/gpt-4o-mini"
     assert config.api_key == "sk-or-test"
     assert config.base_url is None
 
 
-def test_model_config_falls_back_to_env_when_settings_key_is_missing(tmp_path, monkeypatch) -> None:
-    monkeypatch.chdir(tmp_path)
-
-    config = model_config_from_settings_or_env(
-        {
-            "MODEL_NAME": "openrouter/openai/gpt-4o-mini",
-            "MODEL_API_KEY": "env-key",
-        }
-    )
-
-    assert config.model == "openrouter/openai/gpt-4o-mini"
-    assert config.api_key == "env-key"
-    assert config.base_url is None
-
-
-def test_model_config_supports_worker_openrouter_env(tmp_path, monkeypatch) -> None:
-    monkeypatch.chdir(tmp_path)
-
-    config = model_config_from_settings_or_env(
-        {
-            "WORKER_LLM_PROVIDER": "openrouter",
-            "WORKER_OPENROUTER_MODEL": "nvidia/nemotron-3-super-120b-a12b:free",
-            "OPENROUTER_API_KEY": "env-key",
-        }
-    )
-
-    assert config.model == "openrouter/nvidia/nemotron-3-super-120b-a12b:free"
-    assert config.api_key == "env-key"
-    assert config.base_url is None
-
-
-def test_model_config_supports_env_base_url_for_custom_endpoints(tmp_path, monkeypatch) -> None:
-    monkeypatch.chdir(tmp_path)
-
-    config = model_config_from_settings_or_env(
-        {
-            "MODEL_NAME": "openai/local-model",
-            "MODEL_API_KEY": "env-key",
-            "MODEL_BASE_URL": "http://127.0.0.1:4010/v1",
-        }
-    )
-
-    assert config.model == "openai/local-model"
-    assert config.api_key == "env-key"
-    assert config.base_url == "http://127.0.0.1:4010/v1"
-
-
-def test_model_config_requires_env_api_key_when_falling_back_to_env(tmp_path, monkeypatch) -> None:
+def test_model_config_requires_saved_api_key(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
 
     try:
-        model_config_from_settings_or_env({"MODEL_NAME": "openrouter/openai/gpt-4o-mini"})
+        model_config_from_settings()
     except ProviderSettingsError as exc:
-        assert "MODEL_API_KEY" in str(exc)
+        assert "Open Settings" in str(exc)
     else:
-        raise AssertionError("Expected missing env API key to fail.")
-
-
-def test_model_config_ignores_placeholder_env_api_keys(tmp_path, monkeypatch) -> None:
-    monkeypatch.chdir(tmp_path)
-
-    try:
-        model_config_from_settings_or_env(
-            {
-                "WORKER_LLM_PROVIDER": "openrouter",
-                "WORKER_OPENROUTER_MODEL": "nvidia/nemotron-3-super-120b-a12b:free",
-                "OPENROUTER_API_KEY": "api_key_here",
-            }
-        )
-    except ProviderSettingsError as exc:
-        assert "MODEL_API_KEY" in str(exc)
-    else:
-        raise AssertionError("Expected placeholder env API key to fail.")
+        raise AssertionError("Expected missing saved API key to fail.")
 
 
 def test_model_provider_settings_api_round_trip(tmp_path, monkeypatch) -> None:

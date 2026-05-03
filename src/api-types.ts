@@ -226,6 +226,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/settings/database/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Test Database Settings Endpoint */
+        post: operations["test_database_settings_endpoint_settings_database_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/settings/model-provider": {
         parameters: {
             query?: never;
@@ -404,6 +421,16 @@ export interface components {
             /** Context */
             context: string;
             policy: components["schemas"]["ContextPolicy"];
+        };
+        /** DatabaseConnectionTestResponse */
+        DatabaseConnectionTestResponse: {
+            /** Configured */
+            configured: boolean;
+            current_database?: components["schemas"]["DatabaseSource"] | null;
+            /** Message */
+            message: string;
+            /** Ok */
+            ok: boolean;
         };
         /** DatabaseSource */
         DatabaseSource: {
@@ -1066,6 +1093,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_database_settings_endpoint_settings_database_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatabaseConnectionTestResponse"];
                 };
             };
         };

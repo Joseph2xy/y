@@ -4,6 +4,7 @@ import type {
   ChatMessage,
   ExportCreateResponse,
   ExportSession,
+  DatabaseConnectionTestResponse,
   ModelProviderSettingsResponse,
   ModelProviderSettingsUpdate,
   ContextDocument,
@@ -57,6 +58,10 @@ export function bootstrapSetup(): Promise<SetupStatusResponse> {
 
 export function rescanContext(): Promise<ContextDocument> {
   return request<ContextDocument>("/context/scan", { method: "POST" });
+}
+
+export function testDatabaseConnection(): Promise<DatabaseConnectionTestResponse> {
+  return request<DatabaseConnectionTestResponse>("/settings/database/test", { method: "POST" });
 }
 
 export async function createSession(): Promise<ExportSession> {

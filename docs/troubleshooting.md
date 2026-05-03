@@ -26,23 +26,15 @@ Use a read-only database user. Do not use an admin account.
 
 ## Model Provider Is Not Configured
 
-For OpenRouter, set:
+Run `pnpm dev:app`, open Settings, and save either OpenRouter or custom OpenAI-compatible provider settings.
+
+Provider settings are stored locally under:
 
 ```text
-WORKER_LLM_PROVIDER=openrouter
-WORKER_OPENROUTER_MODEL=openrouter/openai/gpt-4o-mini
-OPENROUTER_API_KEY=your-api-key
-MODEL_TEMPERATURE=0
+data/settings/model_provider.json
 ```
 
-For a custom OpenAI-compatible endpoint, set:
-
-```text
-MODEL_NAME=openai/gpt-4.1-mini
-MODEL_API_KEY=your-api-key
-MODEL_BASE_URL=http://127.0.0.1:4010/v1
-MODEL_TEMPERATURE=0
-```
+The app does not fall back to model provider values in `.env`. If this file is missing or has no saved API key, setup reports that the model provider is not configured.
 
 ## Context Is Not Ready
 

@@ -64,27 +64,6 @@ class LiteLLMModelProvider:
             raise ModelProviderError(f"Model call failed: {exc}") from exc
 
 
-def model_config_from_env(environ: dict[str, str]) -> ModelConfig:
-    model = environ.get("MODEL_NAME") or environ.get("LITELLM_MODEL")
-    if not model:
-        raise ModelProviderError("MODEL_NAME or LITELLM_MODEL is not configured.")
-
-    temperature_value = environ.get("MODEL_TEMPERATURE", "0")
-    try:
-        temperature = float(temperature_value)
-    except ValueError as exc:
-        raise ModelProviderError(
-            f"MODEL_TEMPERATURE must be a valid number, got {temperature_value!r}."
-        ) from exc
-
-    return ModelConfig(
-        model=model,
-        api_key=environ.get("MODEL_API_KEY") or environ.get("LITELLM_API_KEY"),
-        base_url=environ.get("MODEL_BASE_URL") or environ.get("LITELLM_API_BASE"),
-        temperature=temperature,
-    )
-
-
 def _supports_json_mode(model: str) -> bool:
     try:
         supported_params = litellm.get_supported_openai_params(model=model) or []

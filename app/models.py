@@ -214,6 +214,13 @@ class SetupStatusResponse(BaseModel):
     next_action: str | None = None
 
 
+class DatabaseConnectionTestResponse(BaseModel):
+    configured: bool
+    ok: bool
+    message: str
+    current_database: DatabaseSource | None = None
+
+
 class ModelMessage(BaseModel):
     role: str = Field(pattern="^(system|user|assistant)$")
     content: str = Field(min_length=1)

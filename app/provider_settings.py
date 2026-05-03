@@ -1,5 +1,4 @@
 import json
-import os
 from pathlib import Path
 
 from pydantic import ValidationError
@@ -62,10 +61,7 @@ def provider_settings_response(settings: ModelProviderSettings) -> ModelProvider
     )
 
 
-def model_config_from_settings_or_env(
-    environ: dict[str, str] = os.environ,
-    path: Path = MODEL_PROVIDER_PATH,
-) -> ModelConfig:
+def model_config_from_settings(path: Path = MODEL_PROVIDER_PATH) -> ModelConfig:
     settings = load_provider_settings(path)
     if settings.api_key:
         return ModelConfig(
@@ -75,37 +71,8 @@ def model_config_from_settings_or_env(
             temperature=settings.temperature,
         )
 
-    worker_provider = (environ.get("WORKER_LLM_PROVIDER") or "").strip().lower()
-    model = (
-        environ.get("MODEL_NAME")
-        or environ.get("LITELLM_MODEL")
-        or _openrouter_model_from_worker_env(environ, worker_provider)
-    )
-    if not model:
-        raise ProviderSettingsError(
-            "Model provider is not configured. Add an OpenRouter API key in provider settings, "
-            "or set MODEL_NAME and MODEL_API_KEY."
-        )
-
-    try:
-        temperature = float(environ.get("MODEL_TEMPERATURE", "0"))
-    except ValueError as exc:
-        raise ProviderSettingsError(
-            f"MODEL_TEMPERATURE must be a valid number, got {environ.get('MODEL_TEMPERATURE')!r}."
-        ) from exc
-
-    api_key = _api_key_from_env(environ)
-    if not api_key:
-        raise ProviderSettingsError(
-            "Model provider is not configured. Add an OpenRouter API key in provider settings, "
-            "or set MODEL_NAME and MODEL_API_KEY."
-        )
-
-    return ModelConfig(
-        model=model,
-        api_key=api_key,
-        base_url=environ.get("MODEL_BASE_URL") or environ.get("LITELLM_API_BASE"),
-        temperature=temperature,
+    raise ProviderSettingsError(
+        "Model provider is not configured. Open Settings and add an OpenRouter or custom provider API key."
     )
 
 
@@ -114,26 +81,6 @@ def _clean_optional(value: str | None) -> str | None:
         return None
     cleaned = value.strip()
     return cleaned or None
-
-
-def _openrouter_model_from_worker_env(environ: dict[str, str], worker_provider: str) -> str | None:
-    if worker_provider != "openrouter":
-        return None
-
-    model = _clean_optional(environ.get("WORKER_OPENROUTER_MODEL"))
-    if model is None:
-        return None
-    if model.startswith("openrouter/"):
-        return model
-    return f"openrouter/{model}"
-
-
-def _api_key_from_env(environ: dict[str, str]) -> str | None:
-    for name in ("MODEL_API_KEY", "LITELLM_API_KEY", "OPENROUTER_API_KEY"):
-        value = _clean_optional(environ.get(name))
-        if value and value not in {"your-api-key", "api_key_here"}:
-            return value
-    return None
 
 
 def _can_preserve_api_key(

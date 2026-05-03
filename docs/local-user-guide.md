@@ -33,13 +33,10 @@ Edit `.env`:
 
 ```text
 DATABASE_URL=postgresql://readonly:password@localhost:5432/appdb
-WORKER_LLM_PROVIDER=openrouter
-WORKER_OPENROUTER_MODEL=openrouter/openai/gpt-4o-mini
-OPENROUTER_API_KEY=your-api-key
-MODEL_TEMPERATURE=0
 ```
 
 Use a read-only Postgres user. Do not use an admin database account.
+Model provider settings are added from the app Settings tab and saved locally by the backend.
 
 ## Check Setup
 
@@ -132,7 +129,16 @@ pnpm dev:app
 
 The setup screen will regenerate context from the new database.
 
-To change the provider, either edit `.env` or use the setup screen when provider setup is incomplete. Provider settings saved through the app live at:
+## Settings
+
+The app Settings tab is split by responsibility:
+
+- Database shows connection/context status, lets you test the current connection, and lets you rescan context. `DATABASE_URL` stays in the backend `.env` file for V0.
+- Model Provider can save OpenRouter or custom OpenAI-compatible provider settings locally.
+
+To change the database, edit `DATABASE_URL` in `.env`, restart or refresh the backend, then rescan context.
+
+To change the provider, use Settings. Provider settings saved through the app live at:
 
 ```text
 data/settings/model_provider.json
