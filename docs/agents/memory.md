@@ -53,10 +53,11 @@ Update this file at the end of each section of work.
 - Continued cleanup by removing stale service-level clarification/SQL proposal helpers, the unused standalone `/sql/validate` API, unused Prompt Kit/shadcn component files, and frontend aliases whose responses were discarded. Clarification evals now exercise `propose_csv_intent(intent=None)`, SQL validation remains covered through the approval-gated `prepare_sql` and export paths, and `shadcn` is now classified as a dev dependency because it is used by build-time CSS/tooling rather than runtime app code.
 - Replaced FastAPI `TestClient` usage in tests and calibration/smoke tools with a shared HTTPX `ASGITransport` helper after the sync TestClient/threadpool path hung under the local Python 3.14 environment. API route handlers and the model-provider dependency are now async, and CSV downloads return a direct `Response` with CSV bytes instead of `FileResponse` streaming.
 - Extracted the duplicated real-provider calibration harness into `tools/calibration.py`; retail/support and finance calibration files now keep only their distinct scenarios, business context, and schema seed data.
+- Tightened unclear-message handling at the model/provider boundary without adding backend natural-language filtering. The intent prompt and `CSVIntentProposal` schema now require `intent: null` for greetings, capability questions, generic CSV requests, and vague/useful/everything/all-data requests unless the user has enough detail for an approvable CSV plan. Added deterministic eval cases and updated the mock OpenAI-compatible server so browser verification covers `hello` -> clarification while clear requests still produce approvable plans.
 
 ## Next Step
 
-- Ask a tester to follow the README from a fresh Linux/WSL clone and record any setup friction. Re-test the Artifact Split chat flow end-to-end with a stable real provider/model, including settings dialog provider changes, context rescan/recovery, approve -> prepare -> retry-if-needed -> create -> download. Also re-run the remaining finance calibration scenarios after provider quota resets or with a paid/non-free provider: overdue-invoices SQL/export and vague-finance clarification.
+- Re-test unclear-message behavior against a stable real provider/model in several repeated runs, then continue the broader Artifact Split end-to-end flow: settings dialog provider changes, context rescan/recovery, approve -> prepare -> retry-if-needed -> create -> download. Also ask a tester to follow the README from a fresh Linux/WSL clone and record setup friction, and re-run the remaining finance calibration scenarios after provider quota resets or with a paid/non-free provider: overdue-invoices SQL/export and vague-finance clarification.
 
 ## Next Session Prompt
 
@@ -65,7 +66,7 @@ Use this prompt to continue:
 ```text
 Read AGENTS.md and docs/implementation-status.md first. Continue from the current V0 CSV Chat state.
 
-Goal for this session: test the documented local onboarding path from a fresh Linux/WSL clone if possible, record any setup friction, and re-test the Artifact Split chat flow with a stable provider/model. Also re-run the remaining finance calibration scenarios after provider quota resets or with a paid/non-free provider: overdue-invoices SQL/export and vague-finance clarification.
+Goal for this session: re-test unclear-message behavior against a stable real provider/model in repeated runs, test the documented local onboarding path from a fresh Linux/WSL clone if possible, record any setup friction, and re-test the Artifact Split chat flow with a stable provider/model. Also re-run the remaining finance calibration scenarios after provider quota resets or with a paid/non-free provider: overdue-invoices SQL/export and vague-finance clarification.
 
 Start by checking git status and setup readiness. Do not print secrets, database credentials, or final CSV contents. Use the configured .env provider/database if available.
 

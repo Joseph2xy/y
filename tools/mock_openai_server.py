@@ -24,6 +24,12 @@ INTENT_RESPONSE = {
     },
 }
 
+CLARIFICATION_RESPONSE = {
+    "message": "I can help create a CSV export from the database. What CSV do you want to create?",
+    "intent": None,
+    "questions": ["What should one row represent?", "Which fields or values should be included?"],
+}
+
 SQL_RESPONSE = {
     "sql": (
         "select c.email as email, c.full_name as full_name, a.name as account_name, "
@@ -99,7 +105,21 @@ def _choose_response(request: dict[str, Any]) -> dict[str, Any]:
         return REPAIR_RESPONSE
     if "SQLProposal" in prompt or "Propose one Postgres SELECT" in prompt:
         return SQL_RESPONSE
+    if _contains_unclear_user_request(prompt):
+        return CLARIFICATION_RESPONSE
     return INTENT_RESPONSE
+
+
+def _contains_unclear_user_request(prompt: str) -> bool:
+    normalized = prompt.lower()
+    return any(
+        marker in normalized
+        for marker in (
+            '"content": "hello"',
+            '"content": "what can you do?"',
+            '"content": "make me a csv"',
+        )
+    )
 
 
 def main() -> None:

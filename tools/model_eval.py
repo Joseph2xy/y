@@ -91,10 +91,40 @@ PLAN_SCENARIOS = [
 
 CLARIFICATION_SCENARIOS = [
     Scenario(
+        name="greeting",
+        request="hello",
+        expected_behavior="clarify",
+        expected_terms=("what csv",),
+    ),
+    Scenario(
+        name="capability-question",
+        request="what can you do?",
+        expected_behavior="clarify",
+        expected_terms=("what csv",),
+    ),
+    Scenario(
+        name="underspecified-csv",
+        request="make me a csv",
+        expected_behavior="clarify",
+        expected_terms=("what csv",),
+    ),
+    Scenario(
         name="vague-useful-stuff",
         request="Send me the useful customer stuff.",
         expected_behavior="clarify",
         expected_terms=("which customer fields",),
+    ),
+    Scenario(
+        name="generic-customer-data",
+        request="Export customer data.",
+        expected_behavior="clarify",
+        expected_terms=("which customer fields",),
+    ),
+    Scenario(
+        name="all-customer-data",
+        request="Export all customer data.",
+        expected_behavior="clarify",
+        expected_terms=("narrow",),
     ),
     Scenario(
         name="everything",
@@ -285,7 +315,10 @@ def _clarification_response(scenario: Scenario) -> dict[str, object]:
     if scenario.name == "blocked-sensitive-fields":
         message = "I cannot include blocked private notes or password fields. Which safe customer fields should the CSV include?"
         questions = ["Which non-sensitive customer fields should be included?"]
-    elif scenario.name == "everything":
+    elif scenario.name in {"greeting", "capability-question", "underspecified-csv"}:
+        message = "I can help create a CSV export from the database. What CSV do you want to create?"
+        questions = ["What should one row represent?", "Which fields or values should be included?"]
+    elif scenario.name in {"everything", "all-customer-data"}:
         message = "Please narrow the CSV to one kind of row and the fields you need."
         questions = ["What should one row represent?", "Which fields should be included?"]
     elif scenario.name == "gibberish":

@@ -64,6 +64,12 @@ def test_build_intent_prompt_includes_context_schema_policy_and_messages() -> No
     assert "customers.password_hash" in content
     assert "I need customer emails." in content
     assert "CSV intent" in content
+    assert "what one CSV row represents" in content
+    assert "Do not infer a default CSV from schema or context" in content
+    assert "asks what you can do" in content
+    assert "intent must be null" in content
+    assert "asks for a CSV without saying what should be in it" in content
+    assert "useful/everything/all data" in content
 
 
 def test_build_sql_prompt_includes_approved_intent_and_sql_requirements() -> None:
@@ -88,6 +94,19 @@ def test_response_format_for_includes_model_schema() -> None:
     assert "Return JSON matching this schema" in format_prompt
     assert "sql" in format_prompt
     assert "notes" in format_prompt
+
+
+def test_response_format_for_csv_intent_proposal_reinforces_clarification_boundary() -> None:
+    from app.models import CSVIntentProposal
+
+    format_prompt = response_format_for(CSVIntentProposal)
+
+    assert "clear enough to define an approvable CSV plan" in format_prompt
+    assert "Do not infer a default CSV from schema or context" in format_prompt
+    assert "greetings" in format_prompt
+    assert "exploratory messages" in format_prompt
+    assert "what one row represents" in format_prompt
+    assert "business condition" in format_prompt
 
 
 def test_build_prompt_serializes_schema_source_metadata() -> None:

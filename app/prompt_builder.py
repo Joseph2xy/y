@@ -28,9 +28,14 @@ def build_intent_prompt(
             content=(
                 "Conversation so far:\n"
                 f"{_dump([message.model_dump() for message in messages])}\n\n"
-                "Decide whether to ask a concise clarification question or propose a CSV intent. "
-                "If the request is clear enough to define the CSV, return a CSV intent. "
-                "If the request is too vague, blocked, or missing required choices, leave intent null and return concise questions. "
+                "Decide whether to ask concise clarification questions or propose a CSV intent.\n\n"
+                "Return intent only when the latest user request is clear enough to define an approvable CSV plan. "
+                "Clear enough means the user has specified both what one CSV row represents and at least one "
+                "requested field, value, metric, filter, date range, or business condition.\n\n"
+                "Leave intent null and return concise questions for greetings, vague requests, exploratory messages, "
+                "blocked requests, or missing required choices. Do not infer a default CSV from schema or context when "
+                "the user has not provided enough CSV details. If the user only says hello, asks what you can do, asks "
+                "for a CSV without saying what should be in it, or asks for useful/everything/all data, intent must be null.\n\n"
                 "If proposing a CSV intent, use only user-facing CSV language."
             ),
         ),

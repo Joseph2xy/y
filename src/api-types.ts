@@ -296,10 +296,17 @@ export interface components {
         };
         /** CSVIntentProposal */
         CSVIntentProposal: {
+            /** @description Set only when the latest user request is clear enough to define an approvable CSV plan. Leave null for greetings, vague requests, exploratory messages, blocked requests, or requests that do not specify what one row represents and at least one requested field, metric, filter, date range, or business condition. Do not infer a default CSV from schema or context. */
             intent?: components["schemas"]["CSVIntent"] | null;
-            /** Message */
+            /**
+             * Message
+             * @description Plain-language response to the user. If intent is null, this must be a clarification message.
+             */
             message: string;
-            /** Questions */
+            /**
+             * Questions
+             * @description Concise clarification questions to ask when intent is null.
+             */
             questions?: string[];
         };
         /** ChatMessage */

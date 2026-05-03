@@ -49,6 +49,8 @@ Review hardening on 2026-05-03 fixed context recovery and validation gaps. Conte
 
 Follow-up narrowing on 2026-05-03 removed the unused public `/sessions/{session_id}/clarify`, `/sessions/{session_id}/propose-sql`, and `/sql/validate` endpoints from the HTTP/OpenAPI surface. Clarification happens through `/sessions/{session_id}/propose-intent` with `intent: null`, and SQL generation, validation, and repair stay on the approval-gated `/sessions/{session_id}/prepare-sql` path. SQL prompts now explicitly tell the model to satisfy any approved `source_hint` by selecting that `table.column` and aliasing it to the approved CSV column name.
 
+Intent clarification was tightened on 2026-05-03 without adding backend natural-language filtering. The model-facing intent prompt and `CSVIntentProposal` schema now explicitly require `intent: null` for greetings, capability questions, generic CSV requests, and vague/useful/everything/all-data requests unless the user has provided enough detail for an approvable CSV plan. `tools/model_eval.py` now includes those unclear-message scenarios, and the deterministic mock OpenAI-compatible server returns clarification for them so the browser flow can be checked locally.
+
 ## Implemented
 
 Backend:

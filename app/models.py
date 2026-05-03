@@ -225,9 +225,25 @@ class ModelMessage(BaseModel):
 
 
 class CSVIntentProposal(BaseModel):
-    message: str = Field(min_length=1)
-    intent: CSVIntent | None = None
-    questions: list[str] = Field(default_factory=list)
+    message: str = Field(
+        min_length=1,
+        description=(
+            "Plain-language response to the user. If intent is null, this must be a clarification message."
+        ),
+    )
+    intent: CSVIntent | None = Field(
+        default=None,
+        description=(
+            "Set only when the latest user request is clear enough to define an approvable CSV plan. "
+            "Leave null for greetings, vague requests, exploratory messages, blocked requests, or requests that "
+            "do not specify what one row represents and at least one requested field, metric, filter, date range, "
+            "or business condition. Do not infer a default CSV from schema or context."
+        ),
+    )
+    questions: list[str] = Field(
+        default_factory=list,
+        description="Concise clarification questions to ask when intent is null.",
+    )
 
 
 class SQLProposal(BaseModel):
