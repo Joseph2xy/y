@@ -11,7 +11,6 @@ from app.export_service import ExportError, create_export, export_path
 from app.model_provider import LiteLLMModelProvider, ModelProviderError
 from app.models import (
     CSVIntentProposal,
-    ClarificationResponse,
     ContextDocument,
     ContextScanResponse,
     ContextUpdate,
@@ -28,7 +27,6 @@ from app.models import (
     SessionMessageRequest,
     SetupCheck,
     SetupStatusResponse,
-    SQLProposal,
     SQLPreparationResponse,
     SQLValidationRequest,
     SQLValidationResponse,
@@ -44,10 +42,8 @@ from app.schema_scan import scan_postgres_schema
 from app.session_model_service import (
     SessionModelError,
     StructuredModelProvider,
-    ask_clarification,
     prepare_sql,
     propose_csv_intent,
-    propose_sql,
 )
 from app.session_store import (
     SessionStoreError,
@@ -306,19 +302,6 @@ def approve_session_intent_endpoint(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
-@app.post("/sessions/{session_id}/clarify", response_model=ClarificationResponse)
-def clarify_session_endpoint(
-    session_id: str,
-    model_provider: StructuredModelProvider = Depends(get_model_provider),
-) -> ClarificationResponse:
-    try:
-        return ask_clarification(session_id=session_id, model_provider=model_provider)
-    except (SessionStoreError, ContextStoreError) as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except (SessionModelError, ModelProviderError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
 @app.post("/sessions/{session_id}/propose-intent", response_model=CSVIntentProposal)
 def propose_session_intent_endpoint(
     session_id: str,
@@ -326,19 +309,6 @@ def propose_session_intent_endpoint(
 ) -> CSVIntentProposal:
     try:
         return propose_csv_intent(session_id=session_id, model_provider=model_provider)
-    except (SessionStoreError, ContextStoreError) as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except (SessionModelError, ModelProviderError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-@app.post("/sessions/{session_id}/propose-sql", response_model=SQLProposal)
-def propose_session_sql_endpoint(
-    session_id: str,
-    model_provider: StructuredModelProvider = Depends(get_model_provider),
-) -> SQLProposal:
-    try:
-        return propose_sql(session_id=session_id, model_provider=model_provider)
     except (SessionStoreError, ContextStoreError) as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except (SessionModelError, ModelProviderError) as exc:

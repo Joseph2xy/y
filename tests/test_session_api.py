@@ -4,7 +4,7 @@ from pydantic import BaseModel
 import app.main as main
 from app.context_store import ensure_context_files
 from app.main import app
-from app.models import CSVIntentProposal, ClarificationResponse, SQLProposal, SQLRepairProposal
+from app.models import CSVIntentProposal, SQLProposal, SQLRepairProposal
 from app.main import get_model_provider
 from app.session_store import load_session
 
@@ -271,42 +271,26 @@ def test_propose_intent_endpoint_can_return_clarification(tmp_path, monkeypatch)
     assert session["messages"][-1]["content"] == "Which customer fields should the CSV include?"
 
 
-def test_clarify_endpoint_uses_model_provider(tmp_path, monkeypatch) -> None:
+def test_public_clarify_endpoint_is_not_available(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     ensure_context_files()
-    override_provider(
-        ClarificationResponse(
-            message="Which date range should the CSV cover?",
-            questions=["Which date range should the CSV cover?"],
-        )
-    )
     client = TestClient(app)
     session_id = client.post("/sessions").json()["session"]["id"]
 
-    try:
-        response = client.post(f"/sessions/{session_id}/clarify")
-    finally:
-        clear_overrides()
+    response = client.post(f"/sessions/{session_id}/clarify")
 
-    assert response.status_code == 200
-    assert response.json()["questions"] == ["Which date range should the CSV cover?"]
-    assert client.get(f"/sessions/{session_id}").json()["status"] == "drafting_intent"
+    assert response.status_code == 404
 
 
-def test_propose_sql_endpoint_requires_approved_intent(tmp_path, monkeypatch) -> None:
+def test_public_propose_sql_endpoint_is_not_available(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     ensure_context_files()
-    override_provider(SQLProposal(sql="select email from customers limit 10"))
     client = TestClient(app)
     session_id = client.post("/sessions").json()["session"]["id"]
 
-    try:
-        response = client.post(f"/sessions/{session_id}/propose-sql")
-    finally:
-        clear_overrides()
+    response = client.post(f"/sessions/{session_id}/propose-sql")
 
-    assert response.status_code == 400
-    assert response.json()["detail"] == "CSV intent must be approved before SQL generation."
+    assert response.status_code == 404
 
 
 def test_prepare_sql_endpoint_requires_approved_intent(tmp_path, monkeypatch) -> None:
@@ -323,24 +307,6 @@ def test_prepare_sql_endpoint_requires_approved_intent(tmp_path, monkeypatch) ->
 
     assert response.status_code == 400
     assert response.json()["detail"] == "CSV intent must be approved before SQL generation."
-
-
-def test_propose_sql_endpoint_returns_sql_after_approval(tmp_path, monkeypatch) -> None:
-    monkeypatch.chdir(tmp_path)
-    ensure_context_files()
-    override_provider(SQLProposal(sql="select email from customers limit 10", notes=["Ready to validate."]))
-    client = TestClient(app)
-    session_id = client.post("/sessions").json()["session"]["id"]
-    client.post(f"/sessions/{session_id}/approve-intent", json={"intent": intent_payload()})
-
-    try:
-        response = client.post(f"/sessions/{session_id}/propose-sql")
-    finally:
-        clear_overrides()
-
-    assert response.status_code == 200
-    assert response.json()["sql"] == "select email from customers limit 10"
-    assert client.get(f"/sessions/{session_id}").json()["status"] == "validating_sql"
 
 
 def test_public_repair_sql_endpoint_is_not_available(tmp_path, monkeypatch) -> None:
@@ -412,14 +378,15 @@ def test_prepare_sql_endpoint_rejects_wrong_output_columns(tmp_path, monkeypatch
     assert body["errors"] == ["SQL output columns must exactly match the approved CSV columns: email."]
 
 
-def test_model_endpoint_requires_model_configuration(tmp_path, monkeypatch) -> None:
+def test_prepare_sql_endpoint_requires_model_configuration(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     clear_provider_env(monkeypatch)
     ensure_context_files()
     client = TestClient(app)
     session_id = client.post("/sessions").json()["session"]["id"]
 
-    response = client.post(f"/sessions/{session_id}/clarify")
+    client.post(f"/sessions/{session_id}/approve-intent", json={"intent": intent_payload()})
+    response = client.post(f"/sessions/{session_id}/prepare-sql")
 
     assert response.status_code == 400
     assert response.json()["detail"] == (

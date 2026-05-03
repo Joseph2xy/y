@@ -386,6 +386,7 @@ export function App() {
           exporting={exportMutation.isPending}
           busy={busy}
           onApprove={(intent) => approveMutation.mutate(intent)}
+          onPrepare={() => prepareMutation.mutate(sessionId ?? undefined)}
           onExport={() => exportMutation.mutate()}
         />
       </section>
@@ -748,6 +749,7 @@ function ArtifactPanel({
   exporting,
   busy,
   onApprove,
+  onPrepare,
   onExport
 }: {
   session: ExportSession | null;
@@ -760,6 +762,7 @@ function ArtifactPanel({
   exporting: boolean;
   busy: boolean;
   onApprove: (intent: CSVIntent) => void;
+  onPrepare: () => void;
   onExport: () => void;
 }) {
   const approved = session?.approved_intent ?? null;
@@ -806,6 +809,7 @@ function ArtifactPanel({
           exportResult={exportResult}
           busy={busy}
           onApprove={onApprove}
+          onPrepare={onPrepare}
           onExport={onExport}
         />
       </div>
@@ -887,7 +891,7 @@ function SafetyStatus({ mode }: { mode: "checking" | "ready" }) {
       </CardHeader>
       <CardContent className="flex flex-col gap-3 text-sm">
         <SafetyLine icon={<LockKeyholeIcon />} text="Read-only database access" done={mode === "ready"} />
-        <SafetyLine icon={<ShieldCheckIcon />} text="CSV matches approved plan" done={mode === "ready"} />
+        <SafetyLine icon={<ShieldCheckIcon />} text="Approved columns and source hints checked" done={mode === "ready"} />
         <SafetyLine icon={<FileSpreadsheetIcon />} text="Row, size, and spreadsheet-safety limits" done={mode === "ready"} />
       </CardContent>
     </Card>
@@ -927,6 +931,7 @@ function ArtifactActions({
   exportResult,
   busy,
   onApprove,
+  onPrepare,
   onExport
 }: {
   intent: CSVIntent | null;
@@ -935,6 +940,7 @@ function ArtifactActions({
   exportResult: ExportCreateResponse | null;
   busy: boolean;
   onApprove: (intent: CSVIntent) => void;
+  onPrepare: () => void;
   onExport: () => void;
 }) {
   if (!intent && !exportResult) return null;
@@ -951,6 +957,12 @@ function ArtifactActions({
         <Button type="button" className="w-full" onClick={onExport} disabled={busy}>
           {busy ? <Spinner data-icon="inline-start" /> : <CheckIcon data-icon="inline-start" />}
           Create CSV
+        </Button>
+      ) : null}
+      {approved && sqlPrep && !sqlPrep.valid && !exportResult ? (
+        <Button type="button" className="w-full" onClick={onPrepare} disabled={busy}>
+          {busy ? <Spinner data-icon="inline-start" /> : <RefreshCwIcon data-icon="inline-start" />}
+          Try again
         </Button>
       ) : null}
       {exportResult ? (

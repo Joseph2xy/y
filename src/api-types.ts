@@ -124,23 +124,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/sessions/{session_id}/clarify": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Clarify Session Endpoint */
-        post: operations["clarify_session_endpoint_sessions__session_id__clarify_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/sessions/{session_id}/export": {
         parameters: {
             query?: never;
@@ -203,23 +186,6 @@ export interface paths {
         put?: never;
         /** Propose Session Intent Endpoint */
         post: operations["propose_session_intent_endpoint_sessions__session_id__propose_intent_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/sessions/{session_id}/propose-sql": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Propose Session Sql Endpoint */
-        post: operations["propose_session_sql_endpoint_sessions__session_id__propose_sql_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -359,13 +325,6 @@ export interface components {
             content: string;
             /** Role */
             role: string;
-        };
-        /** ClarificationResponse */
-        ClarificationResponse: {
-            /** Message */
-            message: string;
-            /** Questions */
-            questions?: string[];
         };
         /** ContextDocument */
         ContextDocument: {
@@ -535,13 +494,6 @@ export interface components {
             sql: string;
             /** Valid */
             valid: boolean;
-        };
-        /** SQLProposal */
-        SQLProposal: {
-            /** Notes */
-            notes?: string[];
-            /** Sql */
-            sql: string;
         };
         /** SQLValidationAttempt */
         SQLValidationAttempt: {
@@ -903,37 +855,6 @@ export interface operations {
             };
         };
     };
-    clarify_session_endpoint_sessions__session_id__clarify_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                session_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ClarificationResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     create_session_export_endpoint_sessions__session_id__export_post: {
         parameters: {
             query?: never;
@@ -1053,37 +974,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CSVIntentProposal"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    propose_session_sql_endpoint_sessions__session_id__propose_sql_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                session_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SQLProposal"];
                 };
             };
             /** @description Validation Error */

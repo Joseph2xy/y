@@ -1,4 +1,4 @@
-from app.models import ContextPolicy
+from app.models import CSVColumnIntent, CSVIntent, ContextPolicy
 from app.sql_guard import SQLPolicy, sql_policy_from_context, validate_sql
 
 
@@ -163,6 +163,51 @@ def test_allows_aliases_that_match_approved_intent_columns() -> None:
     result = validate_sql(
         "select lower(email) as email from customers limit 10",
         expected_columns=["email"],
+    )
+
+    assert result.valid
+
+
+def test_validates_intent_source_hints_against_selected_columns() -> None:
+    intent = CSVIntent(
+        summary="Customer emails",
+        row_meaning="One row per customer",
+        columns=[
+            CSVColumnIntent(
+                name="email",
+                description="Customer email",
+                source_hint="customers.email",
+            )
+        ],
+    )
+
+    result = validate_sql(
+        "select status as email from customers limit 10",
+        expected_columns=["email"],
+        intent=intent,
+    )
+
+    assert not result.valid
+    assert result.errors == ["SQL must select from approved source hint 'customers.email'."]
+
+
+def test_allows_intent_source_hints_selected_with_matching_alias() -> None:
+    intent = CSVIntent(
+        summary="Customer emails",
+        row_meaning="One row per customer",
+        columns=[
+            CSVColumnIntent(
+                name="email",
+                description="Customer email",
+                source_hint="customers.email",
+            )
+        ],
+    )
+
+    result = validate_sql(
+        "select customers.email as email from customers limit 10",
+        expected_columns=["email"],
+        intent=intent,
     )
 
     assert result.valid

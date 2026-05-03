@@ -30,7 +30,7 @@ def create_export(
     expected_columns = [column.name for column in intent.columns]
     sql_policy = sql_policy_from_context(policy)
     sql_policy = replace(sql_policy, max_limit=min(sql_policy.max_limit, intent.max_row_count))
-    sql_result = validate_sql(sql, sql_policy, expected_columns=expected_columns)
+    sql_result = validate_sql(sql, sql_policy, expected_columns=expected_columns, intent=intent)
     if not sql_result.valid:
         raise ExportError("SQL validation failed: " + "; ".join(sql_result.errors))
 

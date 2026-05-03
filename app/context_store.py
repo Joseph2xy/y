@@ -86,15 +86,17 @@ def ensure_context_files(
     schema_path = context_dir / "schema.json"
     policy_path = context_dir / "policy.json"
 
+    previous_schema = _load_schema_or_none(schema_path)
+
     if not context_path.exists():
         context_path.write_text(default_context_markdown(schema), encoding="utf-8")
 
-    if not policy_path.exists():
+    if not policy_path.exists() or (schema is not None and _load_policy_or_none(policy_path) is None):
         _write_json(policy_path, ContextPolicy().model_dump())
 
     if schema is not None:
         _write_json(schema_path, schema.model_dump(mode="json"))
-        if _context_is_unmodified_default(context_path):
+        if _context_is_replaceable(context_path, previous_schema):
             context_path.write_text(default_context_markdown(schema), encoding="utf-8")
     elif not schema_path.exists():
         _write_json(schema_path, SchemaContext().model_dump())
@@ -155,6 +157,32 @@ def _context_is_unmodified_default(path: Path) -> bool:
     if not path.exists():
         return True
     return path.read_text(encoding="utf-8") == _empty_context_markdown()
+
+
+def _context_is_replaceable(path: Path, previous_schema: SchemaContext | None) -> bool:
+    if _context_is_unmodified_default(path):
+        return True
+    if previous_schema is None:
+        return False
+    return path.read_text(encoding="utf-8") == default_context_markdown(previous_schema)
+
+
+def _load_schema_or_none(path: Path) -> SchemaContext | None:
+    if not path.exists():
+        return None
+    try:
+        return SchemaContext.model_validate(_read_json(path))
+    except (json.JSONDecodeError, ValidationError):
+        return None
+
+
+def _load_policy_or_none(path: Path) -> ContextPolicy | None:
+    if not path.exists():
+        return None
+    try:
+        return ContextPolicy.model_validate(_read_json(path))
+    except (json.JSONDecodeError, ValidationError):
+        return None
 
 
 def _common_filter_columns(table: SchemaTable) -> list[str]:

@@ -15,6 +15,11 @@ def intent(columns: list[str], max_row_count: int = 100) -> CSVIntent:
     )
 
 
+def test_intent_rejects_duplicate_column_names() -> None:
+    with pytest.raises(ValueError, match="CSV column names must be unique"):
+        intent(["email", "Email"])
+
+
 def test_create_export_writes_csv(tmp_path: Path) -> None:
     response = create_export(
         intent=intent(["email", "note"]),

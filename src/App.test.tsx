@@ -283,6 +283,69 @@ describe("App", () => {
     expect(within(dialog).getByText(/validate_sql: SQL validation attempt 1 passed./)).toBeInTheDocument();
   });
 
+  it("allows retrying SQL preparation after validation fails", async () => {
+    const user = userEvent.setup();
+    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+    let currentSession: Record<string, unknown> = { ...sessionResponse };
+    let prepareCalls = 0;
+
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/setup/status") return jsonResponse(setupReadyResponse);
+      if (url === "/sessions") return jsonResponse({ session: currentSession });
+      if (url === "/sessions/session123") return jsonResponse(currentSession);
+      if (url === "/sessions/session123/messages") {
+        currentSession = { ...currentSession, messages: [{ role: "user", content: "Export customer emails" }] };
+        return jsonResponse(currentSession);
+      }
+      if (url === "/sessions/session123/propose-intent") {
+        return jsonResponse({ message: "Here is the CSV plan.", intent: approvedIntent, questions: [] });
+      }
+      if (url === "/sessions/session123/approve-intent") {
+        currentSession = { ...currentSession, status: "generating_sql", approved_intent: approvedIntent };
+        return jsonResponse(currentSession);
+      }
+      if (url === "/sessions/session123/prepare-sql") {
+        prepareCalls += 1;
+        if (prepareCalls === 1) {
+          return jsonResponse({
+            sql: "select created_at as email from customers limit 10",
+            valid: false,
+            errors: ["SQL must select from approved source hint 'customers.email'."],
+            attempts: [
+              {
+                sql: "select created_at as email from customers limit 10",
+                valid: false,
+                errors: ["SQL must select from approved source hint 'customers.email'."],
+                repair_changes: []
+              }
+            ]
+          });
+        }
+        return jsonResponse({
+          sql: "select email from customers limit 10",
+          valid: true,
+          errors: [],
+          attempts: [{ sql: "select email from customers limit 10", valid: true, errors: [], repair_changes: [] }]
+        });
+      }
+      return jsonResponse({ detail: "Not found" }, 404);
+    });
+
+    renderApp();
+
+    await user.type(await screen.findByPlaceholderText("Describe the CSV you need"), "Export customer emails");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    await user.click(await screen.findByRole("button", { name: "Approve CSV plan" }));
+
+    expect(await screen.findByRole("button", { name: "Try again" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+
+    expect(await screen.findByText("Ready to create")).toBeInTheDocument();
+    expect(prepareCalls).toBe(2);
+  });
+
   it("creates a CSV after validation", async () => {
     const user = userEvent.setup();
     const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;

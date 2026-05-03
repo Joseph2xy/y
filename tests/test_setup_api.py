@@ -143,6 +143,23 @@ def test_setup_bootstrap_does_not_rescan_stale_configured_context(tmp_path, monk
     assert body["next_action"] == "rescan_context"
 
 
+def test_setup_bootstrap_scans_database_when_context_is_missing(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    database_url = "postgresql://readonly:password@localhost:5432/appdb"
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    monkeypatch.setattr(main, "test_database_connection", lambda database_url: None)
+    monkeypatch.setattr(main, "scan_postgres_schema", lambda database_url, policy=None: SchemaContext())
+    save_test_provider()
+    client = TestClient(app)
+
+    response = client.post("/setup/bootstrap")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ready"] is True
+    assert body["context_source"]["database"] == "appdb"
+
+
 def test_setup_bootstrap_requires_ready_config(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("DATABASE_URL", raising=False)

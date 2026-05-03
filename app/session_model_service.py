@@ -166,7 +166,12 @@ def prepare_sql(
     repair_changes: list[str] = []
 
     for attempt_number in range(max_repair_attempts + 1):
-        result = validate_sql(current_sql, policy, expected_columns=expected_columns)
+        result = validate_sql(
+            current_sql,
+            policy,
+            expected_columns=expected_columns,
+            intent=session.approved_intent,
+        )
         _append_validation_trace(
             session,
             attempt_number=attempt_number + 1,

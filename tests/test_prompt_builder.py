@@ -41,7 +41,13 @@ def intent() -> CSVIntent:
     return CSVIntent(
         summary="Customer emails",
         row_meaning="One row per customer",
-        columns=[CSVColumnIntent(name="email", description="Email address")],
+        columns=[
+            CSVColumnIntent(
+                name="email",
+                description="Email address",
+                source_hint="customers.email",
+            )
+        ],
         max_row_count=100,
     )
 
@@ -72,6 +78,8 @@ def test_build_sql_prompt_includes_approved_intent_and_sql_requirements() -> Non
     assert "Customer emails" in content
     assert "integer LIMIT" in content
     assert "names exactly matching" in content
+    assert "source_hint" in content
+    assert "table.column" in content
 
 
 def test_response_format_for_includes_model_schema() -> None:

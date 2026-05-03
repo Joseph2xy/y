@@ -4,7 +4,7 @@ import sqlglot
 from sqlglot import exp
 from sqlglot.errors import ParseError
 
-from app.models import ContextPolicy
+from app.models import CSVIntent, ContextPolicy
 
 
 DEFAULT_BLOCKED_FUNCTIONS = {
@@ -43,6 +43,7 @@ def validate_sql(
     sql: str,
     policy: SQLPolicy | None = None,
     expected_columns: list[str] | None = None,
+    intent: CSVIntent | None = None,
 ) -> SQLValidationResult:
     policy = policy or SQLPolicy()
     errors: list[str] = []
@@ -68,6 +69,8 @@ def validate_sql(
     _check_blocked_functions(statement, policy, errors)
     if expected_columns is not None:
         _check_output_columns(statement, expected_columns, errors)
+    if intent is not None:
+        _check_intent_source_hints(statement, intent, errors)
 
     return SQLValidationResult(not errors, errors)
 
@@ -186,6 +189,55 @@ def _function_name(function: exp.Func) -> str:
     if isinstance(function, exp.Anonymous):
         return _normalize_part(str(function.this))
     return _normalize_part(function.sql_name())
+
+
+def _check_intent_source_hints(
+    statement: exp.Expression,
+    intent: CSVIntent,
+    errors: list[str],
+) -> None:
+    required_hints = [_normalize_source_hint(column.source_hint) for column in intent.columns if column.source_hint]
+    if not required_hints:
+        return
+
+    selected_sources = _selected_source_names(statement)
+    for source_hint in required_hints:
+        if source_hint not in selected_sources:
+            errors.append(f"SQL must select from approved source hint '{source_hint}'.")
+
+
+def _selected_source_names(statement: exp.Expression) -> set[str]:
+    sources: set[str] = set()
+    if not isinstance(statement, exp.Select):
+        return sources
+
+    for expression in statement.expressions:
+        if isinstance(expression, exp.Alias):
+            expression = expression.this
+        if isinstance(expression, exp.Column):
+            column_name = _normalize_part(expression.name)
+            table_name = _normalize_part(expression.table)
+            if column_name:
+                sources.add(column_name)
+            if table_name and column_name:
+                sources.add(f"{table_name}.{column_name}")
+        for column in expression.find_all(exp.Column):
+            column_name = _normalize_part(column.name)
+            table_name = _normalize_part(column.table)
+            if column_name:
+                sources.add(column_name)
+            if table_name and column_name:
+                sources.add(f"{table_name}.{column_name}")
+    return sources
+
+
+def _normalize_source_hint(source_hint: str | None) -> str:
+    if source_hint is None:
+        return ""
+    parts = [_normalize_part(part) for part in source_hint.split(".") if _normalize_part(part)]
+    if len(parts) >= 2:
+        return ".".join(parts[-2:])
+    return parts[0] if parts else ""
 
 
 def _column_matches_schema_qualified_block(column: exp.Column, blocked_columns: set[str]) -> bool:

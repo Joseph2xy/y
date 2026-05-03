@@ -54,7 +54,8 @@ def build_sql_prompt(
                 "Approved CSV intent:\n"
                 f"{_dump(approved_intent.model_dump())}\n\n"
                 "Propose one Postgres SELECT statement for the approved CSV intent. "
-                "The SQL must include an integer LIMIT and must return columns with names exactly matching the CSV intent."
+                "The SQL must include an integer LIMIT and must return columns with names exactly matching the CSV intent. "
+                "When a CSV column includes a source_hint, select from that hinted table.column and alias it to the approved CSV column name."
             ),
         ),
     ]
@@ -80,7 +81,8 @@ def build_sql_repair_prompt(
                 "Validation errors:\n"
                 f"{_dump(validation_errors)}\n\n"
                 "Return repaired SQL only for the same approved CSV intent. "
-                "Do not broaden the data requested."
+                "Do not broaden the data requested. "
+                "When a CSV column includes a source_hint, select from that hinted table.column and alias it to the approved CSV column name."
             ),
         ),
     ]

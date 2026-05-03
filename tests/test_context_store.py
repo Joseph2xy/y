@@ -123,6 +123,48 @@ def test_save_schema_generates_rich_context_when_default_is_unmodified(tmp_path)
     assert "public.orders (customer_id) connects to public.customers (id)" in document.context
 
 
+def test_save_schema_refreshes_previous_generated_context(tmp_path) -> None:
+    first_schema = SchemaContext(
+        tables=[
+            SchemaTable(
+                schema_name="public",
+                table_name="customers",
+                table_type="BASE TABLE",
+                columns=[
+                    SchemaColumn(name="email", data_type="text", is_nullable=False, ordinal_position=1),
+                ],
+            )
+        ]
+    )
+    ensure_context_files(tmp_path, schema=first_schema)
+
+    second_schema = SchemaContext(
+        tables=[
+            SchemaTable(
+                schema_name="public",
+                table_name="orders",
+                table_type="BASE TABLE",
+                columns=[
+                    SchemaColumn(name="total", data_type="numeric", is_nullable=False, ordinal_position=1),
+                ],
+            )
+        ]
+    )
+    document = ensure_context_files(tmp_path, schema=second_schema)
+
+    assert "### public.orders" in document.context
+    assert "### public.customers" not in document.context
+
+
+def test_save_schema_recovers_malformed_policy_json(tmp_path) -> None:
+    ensure_context_files(tmp_path)
+    (tmp_path / "policy.json").write_text("{bad json", encoding="utf-8")
+
+    document = ensure_context_files(tmp_path, schema=SchemaContext())
+
+    assert document.policy.max_row_count == 100_000
+
+
 def test_generated_context_does_not_treat_many_sample_values_as_common_filter(tmp_path) -> None:
     schema = SchemaContext(
         tables=[

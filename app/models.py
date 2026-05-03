@@ -4,7 +4,7 @@ from enum import StrEnum
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class HealthResponse(BaseModel):
@@ -134,6 +134,13 @@ class CSVIntent(BaseModel):
         if not isinstance(value, list):
             return value
         return [_coerce_text_list_item(item) for item in value]
+
+    @model_validator(mode="after")
+    def require_unique_column_names(self) -> "CSVIntent":
+        normalized_names = [column.name.strip().lower() for column in self.columns]
+        if len(normalized_names) != len(set(normalized_names)):
+            raise ValueError("CSV column names must be unique.")
+        return self
 
 
 class SessionStatus(StrEnum):
