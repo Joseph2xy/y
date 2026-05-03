@@ -150,6 +150,46 @@ def test_propose_csv_intent_marks_session_failed_when_model_generation_fails(tmp
     assert "prompt" in updated.debug_traces[0].details
 
 
+def test_model_rate_limit_failure_gets_plain_user_message(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    ensure_context_files()
+    session = create_session()
+
+    with pytest.raises(RuntimeError, match="RateLimitError"):
+        propose_csv_intent(
+            session_id=session.id,
+            model_provider=RaisingProvider(RuntimeError("litellm.RateLimitError: 429 daily quota exceeded")),
+        )
+
+    updated = load_session(session.id)
+    assert updated.status == "failed"
+    assert updated.last_error == (
+        "Model provider could not respond because the provider reported a quota, credit, or rate-limit problem. "
+        "Check your provider account or switch to a provider/model with available usage, then try again."
+    )
+    assert updated.debug_traces[0].details["error"] == "litellm.RateLimitError: 429 daily quota exceeded"
+
+
+def test_model_schema_failure_gets_plain_user_message(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    ensure_context_files()
+    session = create_session()
+
+    with pytest.raises(RuntimeError, match="did not match schema"):
+        propose_csv_intent(
+            session_id=session.id,
+            model_provider=RaisingProvider(RuntimeError("Model response did not match schema: message field required")),
+        )
+
+    updated = load_session(session.id)
+    assert updated.status == "failed"
+    assert updated.last_error == (
+        "Model provider returned a response the app could not use. "
+        "Try again, or switch to a different provider/model if it keeps happening."
+    )
+    assert updated.debug_traces[0].details["error"] == "Model response did not match schema: message field required"
+
+
 def test_ask_clarification_keeps_session_in_drafting_state(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     ensure_context_files()

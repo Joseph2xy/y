@@ -252,8 +252,24 @@ def _mark_model_failure(
         )
     )
     session.status = SessionStatus.FAILED
-    session.last_error = f"Model provider failed: {exc}"
+    session.last_error = _user_facing_model_error(exc)
     save_session(session)
+
+
+def _user_facing_model_error(exc: Exception) -> str:
+    raw_message = str(exc)
+    normalized = raw_message.lower()
+    if any(token in normalized for token in ("rate limit", "ratelimit", "quota", "insufficient credits", "429")):
+        return (
+            "Model provider could not respond because the provider reported a quota, credit, or rate-limit problem. "
+            "Check your provider account or switch to a provider/model with available usage, then try again."
+        )
+    if "invalid json" in normalized or "did not match schema" in normalized:
+        return (
+            "Model provider returned a response the app could not use. "
+            "Try again, or switch to a different provider/model if it keeps happening."
+        )
+    return f"Model provider failed: {raw_message}"
 
 
 def _append_model_trace(

@@ -3,14 +3,12 @@ import {
   ArrowUp,
   Check,
   ChevronDown,
-  CircleCheck,
   Download,
   Loader2,
   Play,
   Plus,
   RefreshCw,
   Settings,
-  Sparkles,
   Terminal
 } from "lucide-react";
 import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
@@ -143,13 +141,14 @@ export function App() {
       setSqlPrep(null);
       setExportResult(null);
       queryClient.setQueryData(["session", session.id], session);
+      proposeMutation.mutate(session.id);
     },
     onError: showError
   });
 
   const proposeMutation = useMutation({
-    mutationFn: async () => {
-      const session = await ensureSession();
+    mutationFn: async (targetSessionId?: string) => {
+      const session = targetSessionId ? await getSession(targetSessionId) : await ensureSession();
       return { sessionId: session.id, proposal: await proposeIntent(session.id) };
     },
     onSuccess: ({ sessionId: nextSessionId, proposal: nextProposal }) => {
@@ -157,7 +156,7 @@ export function App() {
       setProposal(nextProposal);
       setSqlPrep(null);
       setExportResult(null);
-      setNotice(nextProposal.intent ? null : { type: "info", text: nextProposal.message });
+      setNotice(null);
       void queryClient.invalidateQueries({ queryKey: ["session", nextSessionId] });
     },
     onError: showError
@@ -172,27 +171,29 @@ export function App() {
       queryClient.setQueryData(["session", session.id], session);
       setSqlPrep(null);
       setExportResult(null);
-      setNotice({ type: "info", text: "CSV plan approved. You can prepare the export now." });
+      setNotice(null);
+      prepareMutation.mutate(session.id);
     },
     onError: showError
   });
 
   const prepareMutation = useMutation({
-    mutationFn: async () => {
-      if (!sessionId) throw new Error("Start a session first.");
-      return prepareSql(sessionId);
+    mutationFn: async (targetSessionId?: string) => {
+      const activeSessionId = targetSessionId ?? sessionId;
+      if (!activeSessionId) throw new Error("Start a session first.");
+      return { sessionId: activeSessionId, response: await prepareSql(activeSessionId) };
     },
-    onSuccess: (response) => {
+    onSuccess: ({ sessionId: preparedSessionId, response }) => {
       setSqlPrep(response);
       setNotice(
         response.valid
-          ? { type: "info", text: "CSV checks passed. Export is ready to run." }
+          ? null
           : {
               type: "error",
               text: "The CSV could not be prepared after repair attempts."
             }
       );
-      void queryClient.invalidateQueries({ queryKey: ["session", sessionId] });
+      void queryClient.invalidateQueries({ queryKey: ["session", preparedSessionId] });
     },
     onError: showError
   });
@@ -225,7 +226,7 @@ export function App() {
   }
 
   function showError(error: Error) {
-    setNotice({ type: "error", text: error.message });
+    setNotice({ type: "error", text: friendlyErrorMessage(error.message) });
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -246,10 +247,19 @@ export function App() {
     exportMutation.isPending;
 
   const session = sessionQuery.data;
-  const hasMessages = Boolean(session?.messages.length);
-  const hasWorkflow = Boolean(proposal || session?.approved_intent || sqlPrep || exportResult || advancedOpen);
+  const hasWorkflow = Boolean(
+    proposal ||
+      session?.approved_intent ||
+      sqlPrep ||
+      exportResult ||
+      session?.debug_traces.length ||
+      advancedOpen ||
+      proposeMutation.isPending ||
+      prepareMutation.isPending
+  );
   const providerSettings = providerQuery.data;
   const setupStatus = setupQuery.data;
+  const workflowNotice = notice ?? (session?.last_error ? { type: "error" as const, text: session.last_error } : null);
 
   useEffect(() => {
     if (setupStatus?.next_action === "setup_context" && !bootstrapMutation.isPending) {
@@ -314,15 +324,8 @@ export function App() {
           </div>
         </header>
 
-        <WorkflowSteps
-          hasPlan={Boolean(proposal || session?.approved_intent)}
-          approved={Boolean(session?.approved_intent)}
-          prepared={Boolean(sqlPrep?.valid)}
-          exported={Boolean(exportResult)}
-        />
-
         <section className="flex flex-col gap-4" aria-label="Messages">
-          {notice ? <NoticeBanner notice={notice} /> : null}
+          {workflowNotice ? <NoticeBanner notice={workflowNotice} /> : null}
           {session?.messages.length ? (
             <div className="flex max-h-[28svh] flex-col gap-3 overflow-auto pr-1">
               {session.messages.map((item, index) => (
@@ -357,12 +360,6 @@ export function App() {
           </div>
           <div className="flex flex-wrap justify-between gap-2">
             <span className="text-xs text-muted-foreground">{contextStatusText(setupStatus)}</span>
-            {hasMessages ? (
-              <Button variant="outline" size="sm" type="button" onClick={() => proposeMutation.mutate()} disabled={busy || !sessionId}>
-                {proposeMutation.isPending ? <Loader2 data-icon="inline-start" className="animate-spin" aria-hidden="true" /> : <Sparkles data-icon="inline-start" aria-hidden="true" />}
-                Propose CSV plan
-              </Button>
-            ) : null}
           </div>
         </form>
 
@@ -375,10 +372,10 @@ export function App() {
               exportResult={exportResult}
               traces={session?.debug_traces ?? []}
               busy={busy}
-              canPrepare={Boolean(session?.approved_intent)}
+              planning={proposeMutation.isPending}
+              preparing={prepareMutation.isPending}
               advancedOpen={advancedOpen}
               onApprove={(intent) => approveMutation.mutate(intent)}
-              onPrepare={() => prepareMutation.mutate()}
               onExport={() => exportMutation.mutate()}
               onAdvancedOpenChange={setAdvancedOpen}
             />
@@ -692,6 +689,20 @@ function NoticeBanner({ notice }: { notice: Exclude<Notice, null> }) {
   );
 }
 
+function friendlyErrorMessage(message: string) {
+  const normalized = message.toLowerCase();
+  if (["rate limit", "ratelimit", "quota", "insufficient credits", "429"].some((token) => normalized.includes(token))) {
+    return (
+      "Model provider could not respond because the provider reported a quota, credit, or rate-limit problem. " +
+      "Check your provider account or switch to a provider/model with available usage, then try again."
+    );
+  }
+  if (normalized.includes("invalid json") || normalized.includes("did not match schema")) {
+    return "Model provider returned a response the app could not use. Try again, or switch to a different provider/model if it keeps happening.";
+  }
+  return message;
+}
+
 function MessageEvent({ role, content }: { role: string; content: string }) {
   const own = role === "user";
   return (
@@ -716,10 +727,10 @@ function WorkflowPanel({
   exportResult,
   traces,
   busy,
-  canPrepare,
+  planning,
+  preparing,
   advancedOpen,
   onApprove,
-  onPrepare,
   onExport,
   onAdvancedOpenChange
 }: {
@@ -729,17 +740,26 @@ function WorkflowPanel({
   exportResult: ExportCreateResponse | null;
   traces: SessionDebugTrace[];
   busy: boolean;
-  canPrepare: boolean;
+  planning: boolean;
+  preparing: boolean;
   advancedOpen: boolean;
   onApprove: (intent: CSVIntent) => void;
-  onPrepare: () => void;
   onExport: () => void;
   onAdvancedOpenChange: (open: boolean) => void;
 }) {
   return (
-    <div className="flex flex-col gap-6">
-      <PlanPanel proposal={proposal} approved={approved} busy={busy} onApprove={onApprove} />
-      <ExportPanel canPrepare={canPrepare} sqlPrep={sqlPrep} exportResult={exportResult} busy={busy} onPrepare={onPrepare} onExport={onExport} />
+    <div className="flex flex-col gap-5">
+      <AssistantWorkPanel
+        proposal={proposal}
+        approved={approved}
+        sqlPrep={sqlPrep}
+        exportResult={exportResult}
+        busy={busy}
+        planning={planning}
+        preparing={preparing}
+        onApprove={onApprove}
+        onExport={onExport}
+      />
       <Collapsible open={advancedOpen} onOpenChange={onAdvancedOpenChange} className="flex flex-col gap-3">
         <CollapsibleTrigger
           render={
@@ -758,56 +778,58 @@ function WorkflowPanel({
   );
 }
 
-function WorkflowSteps({ hasPlan, approved, prepared, exported }: { hasPlan: boolean; approved: boolean; prepared: boolean; exported: boolean }) {
-  const steps = [
-    { label: "Describe CSV", description: "Tell the app what you need", done: hasPlan || approved || prepared || exported },
-    { label: "Approve plan", description: "Review the CSV plan", done: approved || prepared || exported },
-    { label: "Export CSV", description: "Validate and download", done: prepared || exported }
-  ];
-
-  return (
-    <ol className="grid gap-5 md:grid-cols-3">
-      {steps.map((step, index) => (
-        <li key={step.label} className="flex min-w-0 items-start gap-2.5">
-          <span
-            className={cn(
-              "flex size-8 shrink-0 items-center justify-center rounded-full border text-sm font-medium",
-              step.done ? "border-foreground bg-foreground text-background" : "border-border bg-muted text-muted-foreground"
-            )}
-          >
-            {step.done ? <CircleCheck aria-hidden="true" /> : index + 1}
-          </span>
-          <span className="min-w-0">
-            <span className="block text-sm leading-tight font-semibold">{step.label}</span>
-            <span className="block text-xs leading-snug text-muted-foreground">{step.description}</span>
-          </span>
-        </li>
-      ))}
-    </ol>
-  );
-}
-
-function PlanPanel({
+function AssistantWorkPanel({
   proposal,
   approved,
+  sqlPrep,
+  exportResult,
   busy,
-  onApprove
+  planning,
+  preparing,
+  onApprove,
+  onExport
 }: {
   proposal: CSVIntentProposal | null;
   approved: CSVIntent | null;
+  sqlPrep: SQLPreparationResponse | null;
+  exportResult: ExportCreateResponse | null;
   busy: boolean;
+  planning: boolean;
+  preparing: boolean;
   onApprove: (intent: CSVIntent) => void;
+  onExport: () => void;
 }) {
   const intent = approved ?? proposal?.intent ?? null;
+  const needsClarification = proposal && !proposal.intent;
   return (
-    <section className="flex flex-col gap-3">
+    <section className="flex flex-col gap-4 rounded-md border bg-card p-4 text-sm" aria-label="CSV progress">
       <div className="flex items-center justify-between gap-3">
-        <h3 className="text-sm font-medium">CSV plan</h3>
-        {approved ? <Badge variant="outline">approved</Badge> : null}
+        <div>
+          <h2 className="text-sm font-medium">CSV Chat</h2>
+          <p className="text-xs text-muted-foreground">{progressText({ approved, sqlPrep, exportResult, planning, preparing })}</p>
+        </div>
+        {approved ? <Badge variant="outline">plan approved</Badge> : null}
       </div>
+
+      {planning ? <InlineProgress text="Working out the CSV plan..." /> : null}
+
+      {needsClarification ? (
+        <div className="flex flex-col gap-2">
+          <p>{proposal.message}</p>
+          {proposal.questions?.length ? (
+            <ul className="list-disc space-y-1 pl-4 text-muted-foreground">
+              {proposal.questions.map((question) => (
+                <li key={question}>{question}</li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+
       {intent ? (
-        <div className="flex flex-col gap-3 text-sm">
-          <div className="rounded-md border p-3">
+        <div className="flex flex-col gap-3">
+          <div>
+            <p className="text-xs font-medium text-muted-foreground">{approved ? "Approved CSV plan" : "I can create this CSV"}</p>
             <p className="font-medium">{intent.summary}</p>
             <p className="mt-1 text-muted-foreground">{intent.row_meaning}</p>
           </div>
@@ -824,62 +846,33 @@ function PlanPanel({
           </div>
           <Line label="Max rows" value={intent.max_row_count} />
           {!approved ? (
-            <Button size="sm" onClick={() => onApprove(intent)} disabled={busy}>
+            <Button className="w-fit" onClick={() => onApprove(intent)} disabled={busy}>
               <Check data-icon="inline-start" aria-hidden="true" />
-              Approve plan
+              Approve CSV plan
             </Button>
           ) : null}
         </div>
-      ) : (
-        <div className="rounded-md border p-3 text-sm text-muted-foreground">
-          {proposal ? (
-            <div className="flex flex-col gap-2">
-              <p>{proposal.message}</p>
-              {proposal.questions?.length ? (
-                <ul className="list-disc space-y-1 pl-4">
-                  {proposal.questions.map((question) => (
-                    <li key={question}>{question}</li>
-                  ))}
-                </ul>
-              ) : null}
-            </div>
-          ) : (
-            <p>After you send a message, ask the app to propose a CSV plan.</p>
-          )}
-        </div>
-      )}
-    </section>
-  );
-}
+      ) : null}
 
-function ExportPanel({
-  canPrepare,
-  sqlPrep,
-  exportResult,
-  busy,
-  onPrepare,
-  onExport
-}: {
-  canPrepare: boolean;
-  sqlPrep: SQLPreparationResponse | null;
-  exportResult: ExportCreateResponse | null;
-  busy: boolean;
-  onPrepare: () => void;
-  onExport: () => void;
-}) {
-  return (
-    <section className="flex flex-col gap-3">
-      <h3 className="text-sm font-medium">Export</h3>
-      <div className="flex flex-wrap gap-2">
-        <Button variant="outline" onClick={onPrepare} disabled={busy || !canPrepare}>
-          <Terminal data-icon="inline-start" aria-hidden="true" />
-          Prepare export
-        </Button>
-        <Button variant={sqlPrep?.valid ? "default" : "secondary"} onClick={onExport} disabled={busy || !sqlPrep?.valid}>
-          <Play data-icon="inline-start" aria-hidden="true" />
-          Run export
-        </Button>
-      </div>
+      {preparing ? <InlineProgress text="Checking that the CSV can be created safely..." /> : null}
+
+      {sqlPrep && !sqlPrep.valid ? (
+        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-destructive">
+          The CSV could not be prepared. Open Advanced for validation details.
+        </div>
+      ) : null}
+
+      {sqlPrep?.valid && !exportResult ? (
+        <div className="flex flex-col gap-2 rounded-md border p-3">
+          <p className="font-medium">The CSV is ready to create.</p>
+          <p className="text-muted-foreground">The app checked it and will run the export with read-only limits.</p>
+          <Button className="w-fit" onClick={onExport} disabled={busy}>
+            <Play data-icon="inline-start" aria-hidden="true" />
+            Create CSV
+          </Button>
+        </div>
+      ) : null}
+
       {exportResult ? (
         <a className={cn(buttonVariants({ variant: "secondary" }), "w-full")} href={exportResult.download_url}>
           <Download data-icon="inline-start" aria-hidden="true" />
@@ -888,6 +881,36 @@ function ExportPanel({
       ) : null}
     </section>
   );
+}
+
+function InlineProgress({ text }: { text: string }) {
+  return (
+    <div className="flex items-center gap-2 text-muted-foreground">
+      <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+      <span>{text}</span>
+    </div>
+  );
+}
+
+function progressText({
+  approved,
+  sqlPrep,
+  exportResult,
+  planning,
+  preparing
+}: {
+  approved: CSVIntent | null;
+  sqlPrep: SQLPreparationResponse | null;
+  exportResult: ExportCreateResponse | null;
+  planning: boolean;
+  preparing: boolean;
+}) {
+  if (exportResult) return "CSV ready";
+  if (sqlPrep?.valid) return "Ready to create";
+  if (preparing) return "Checking safely";
+  if (approved) return "Plan approved";
+  if (planning) return "Planning";
+  return "Review the next step";
 }
 
 function Advanced({ sqlPrep, traces }: { sqlPrep: SQLPreparationResponse | null; traces: SessionDebugTrace[] }) {

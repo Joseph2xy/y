@@ -35,10 +35,11 @@ Update this file at the end of each section of work.
 - Simplified local tester onboarding. The root README now focuses on first-run and everyday use; added `tools/setup_local.sh` for Linux/WSL setup without overwriting `.env`; improved `.env.example`; added `docs/local-user-guide.md`, `docs/troubleshooting.md`, and `docs/development.md`; and made `pnpm check:setup` print concrete next actions. Windows support is WSL-first for now. Verified the focused check setup tests, `bash -n tools/setup_local.sh`, and `pnpm check:setup`.
 - Made context lifecycle explicit for testers. First-run setup creates context only when files are missing; changing `DATABASE_URL` later requires `pnpm rescan:context` or deleting context files for a fresh regenerate. Added `tools/rescan_context.py`, the `pnpm rescan:context` script, docs, and focused test coverage.
 - Added context freshness tracking. Schema context now stores sanitized database source metadata and scan time; setup status warns when the current `DATABASE_URL` differs from the context source; `pnpm check:setup` prints current/scanned database labels; and the setup UI shows a rescan panel with a button when context is stale.
+- Reworked the main chat UX so sending a request automatically asks for a CSV plan, approving the plan automatically prepares/validates the export, and the normal path shows one next action instead of separate propose/prepare/run pipeline controls. Added friendlier provider quota and malformed-model-output error messages while keeping raw details in Advanced traces.
 
 ## Next Step
 
-- Ask a tester to follow the README from a fresh Linux/WSL clone and record any setup friction. After that, decide whether native Windows PowerShell setup, Docker, or a more packaged local install path is justified. Also re-run the remaining finance calibration scenarios after provider quota resets or with a paid/non-free provider: overdue-invoices SQL/export and vague-finance clarification.
+- Ask a tester to follow the README from a fresh Linux/WSL clone and record any setup friction. Re-test the redesigned chat flow with a stable provider/model because the current real-provider browser pass showed a useful clarification on the first request, then a malformed structured response after the clarification answer. Also re-run the remaining finance calibration scenarios after provider quota resets or with a paid/non-free provider: overdue-invoices SQL/export and vague-finance clarification.
 
 ## Next Session Prompt
 
@@ -47,7 +48,7 @@ Use this prompt to continue:
 ```text
 Read AGENTS.md and docs/implementation-status.md first. Continue from the current V0 CSV Chat state.
 
-Goal for this session: test the documented local onboarding path from a fresh Linux/WSL clone if possible, record any setup friction, and only then decide whether native Windows PowerShell setup, Docker, or a more packaged local install path is justified. Also re-run the remaining finance calibration scenarios after provider quota resets or with a paid/non-free provider: overdue-invoices SQL/export and vague-finance clarification.
+Goal for this session: test the documented local onboarding path from a fresh Linux/WSL clone if possible, record any setup friction, and re-test the redesigned chat flow with a stable provider/model. Also re-run the remaining finance calibration scenarios after provider quota resets or with a paid/non-free provider: overdue-invoices SQL/export and vague-finance clarification.
 
 Start by checking git status and setup readiness. Do not print secrets, database credentials, or final CSV contents. Use the configured .env provider/database if available.
 

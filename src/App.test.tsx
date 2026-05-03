@@ -214,19 +214,146 @@ describe("App", () => {
 
   it("keeps prepared SQL hidden until Advanced is opened", async () => {
     const user = userEvent.setup();
+    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+    let currentSession: Record<string, unknown> = { ...sessionResponse, status: "drafting_intent", messages: [], approved_intent: null };
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/setup/status") {
+        return new Response(JSON.stringify(setupReadyResponse), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      if (url === "/sessions") {
+        return new Response(JSON.stringify({ session: currentSession }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      if (url === "/sessions/session123") {
+        return new Response(JSON.stringify(currentSession), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      if (url === "/sessions/session123/messages") {
+        currentSession = {
+          ...currentSession,
+          messages: [{ role: "user", content: "Export customer emails" }]
+        };
+        return new Response(JSON.stringify(currentSession), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      if (url === "/sessions/session123/propose-intent") {
+        return new Response(JSON.stringify({ message: "Here is the CSV plan.", intent: approvedIntent, questions: [] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      if (url === "/sessions/session123/approve-intent") {
+        currentSession = { ...currentSession, status: "generating_sql", approved_intent: approvedIntent };
+        return new Response(JSON.stringify(currentSession), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      if (url === "/sessions/session123/prepare-sql") {
+        return new Response(
+          JSON.stringify({
+            sql: "select email from customers limit 10",
+            valid: true,
+            errors: [],
+            attempts: [
+              {
+                sql: "select email from customers limit 10",
+                valid: true,
+                errors: [],
+                repair_changes: []
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+          }
+        );
+      }
+      return new Response(JSON.stringify({ detail: "Not found" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" }
+      });
+    });
     renderApp();
 
     await user.type(await screen.findByPlaceholderText("Export customer emails for active accounts created this quarter."), "Export customer emails");
     await user.click(screen.getByRole("button", { name: "Send" }));
-    await user.click(await screen.findByRole("button", { name: "Prepare export" }));
+    await user.click(await screen.findByRole("button", { name: "Approve CSV plan" }));
 
-    expect(await screen.findByText("CSV checks passed. Export is ready to run.")).toBeInTheDocument();
+    expect(await screen.findByText("The CSV is ready to create.")).toBeInTheDocument();
     expect(screen.queryByText("select email from customers limit 10")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /Advanced/i }));
 
     expect(screen.getByText("select email from customers limit 10")).toBeInTheDocument();
     expect(screen.getByText(/validate_sql: SQL validation attempt 1 passed./)).toBeInTheDocument();
+  });
+
+  it("shows persisted session errors after a provider failure", async () => {
+    const user = userEvent.setup();
+    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+    const failedSession = {
+      ...sessionResponse,
+      status: "failed",
+      messages: [{ role: "user", content: "Export customer emails" }],
+      last_error:
+        "Model provider could not respond because the provider reported a quota, credit, or rate-limit problem. Check your provider account or switch to a provider/model with available usage, then try again."
+    };
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/setup/status") {
+        return new Response(JSON.stringify(setupReadyResponse), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      if (url === "/sessions") {
+        return new Response(JSON.stringify({ session: { ...sessionResponse, status: "drafting_intent", messages: [] } }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      if (url === "/sessions/session123/messages" || url === "/sessions/session123") {
+        return new Response(JSON.stringify(failedSession), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      if (url === "/sessions/session123/propose-intent") {
+        return new Response(
+          JSON.stringify({
+            detail:
+              "Model provider could not respond because the provider reported a quota, credit, or rate-limit problem. Check your provider account or switch to a provider/model with available usage, then try again."
+          }),
+          {
+            status: 400,
+            headers: { "Content-Type": "application/json" }
+          }
+        );
+      }
+      return new Response(JSON.stringify({ detail: "Not found" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" }
+      });
+    });
+
+    renderApp();
+
+    await user.type(await screen.findByPlaceholderText("Export customer emails for active accounts created this quarter."), "Export customer emails");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(await screen.findByText(/quota, credit, or rate-limit problem/)).toBeInTheDocument();
   });
 
   it("shows clarification when a CSV plan is not ready", async () => {
@@ -286,10 +413,9 @@ describe("App", () => {
 
     await user.type(await screen.findByPlaceholderText("Export customer emails for active accounts created this quarter."), "Send me the useful customer stuff.");
     await user.click(screen.getByRole("button", { name: "Send" }));
-    await user.click(await screen.findByRole("button", { name: "Propose CSV plan" }));
 
     expect(await screen.findAllByText("Which customer fields should the CSV include?")).not.toHaveLength(0);
-    expect(screen.queryByRole("button", { name: "Approve plan" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Approve CSV plan" })).not.toBeInTheDocument();
   });
 
   it("saves OpenRouter provider settings", async () => {
