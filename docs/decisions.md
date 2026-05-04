@@ -9,6 +9,7 @@ Resolved V0 product and architecture decisions. Revisit these only with evidence
 - **Context setup is file-based.** The app scans the database, generates editable Markdown context, and lets admins tweak that file directly. Synonyms and common joins belong in those notes, not in a structured management feature.
 - **Two SQL repair attempts.** Keep two bounded server-side repair attempts after initial SQL validation failure.
 - **No export expiry workflow.** Once the CSV is ready, the user downloads it to their chosen location.
+- **Approved CSV labels own final headers.** The CSV writer uses the approved CSV plan column labels as the downloaded file headers. SQL must return the same number of selected outputs in the same order; exact SQL alias text is not the product boundary.
 
 ## Safety
 
@@ -16,6 +17,7 @@ Resolved V0 product and architecture decisions. Revisit these only with evidence
 - **Policy stays explicit.** V0 supports blocked schemas, tables, columns, functions, and execution/export limits. No sensitivity classifier or redaction layer.
 - **Default row limits live in Settings.** Keep row limits as export safety configuration, not as normal CSV-plan content the user approves each time.
 - **Validate against scanned schema.** Generated SQL must reference tables from the current scanned schema context before it can execute; missing-table errors should feed repair, not appear after export starts.
+- **Validate source hints by output position.** When a CSV column has a direct `source_hint`, the SQL expression in that same output position must use the hinted source. Derived columns may have no source hint.
 - **No provider-log controls.** The app makes the model-provider boundary clear and supports custom/local providers where practical.
 
 ## Model Providers

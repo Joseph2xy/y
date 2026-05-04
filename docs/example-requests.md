@@ -68,6 +68,28 @@ Expected intent:
 One row per region. Include region and total revenue for the previous calendar quarter.
 ```
 
+## Custom Labels And Derived Columns
+
+```text
+Give me each student with their name and average grade. Name the columns Student and Average grade.
+```
+
+Expected intent:
+
+```text
+One row per student. Include the student name and average grade calculated from the student's grade records. The downloaded CSV headers should be Student and Average grade.
+```
+
+```text
+Export accounts with customer email and a risk band based on overdue invoices and recent support tickets.
+```
+
+Expected intent:
+
+```text
+One row per account. Include customer email and a derived risk band. The risk band should be described in the CSV plan because it is not a single direct database column.
+```
+
 ## Negative / Clarification Cases
 
 ```text

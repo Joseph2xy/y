@@ -212,12 +212,10 @@ def _check_output_columns(
         errors.append("SQL selected fields must have explicit output names.")
         return
 
-    normalized_expected_columns = [_normalize_part(column) for column in expected_columns]
-    if output_columns != normalized_expected_columns:
+    if len(output_columns) != len(expected_columns):
         errors.append(
-            "SQL output columns must exactly match the approved CSV columns: "
-            + ", ".join(expected_columns)
-            + "."
+            f"SQL must select exactly {len(expected_columns)} output column"
+            f"{'' if len(expected_columns) == 1 else 's'} for the approved CSV plan."
         )
 
 
@@ -240,30 +238,36 @@ def _check_intent_source_hints(
     intent: CSVIntent,
     errors: list[str],
 ) -> None:
-    required_hints = [_normalize_source_hint(column.source_hint) for column in intent.columns if column.source_hint]
-    if not required_hints:
+    required_hints = [_normalize_source_hint(column.source_hint) for column in intent.columns]
+    if not any(required_hints):
         return
 
-    selected_sources = _selected_source_names(statement)
-    for source_hint in required_hints:
-        if source_hint not in selected_sources:
-            errors.append(f"SQL must select from approved source hint '{source_hint}'.")
+    selected_sources = _selected_expression_source_names(statement)
+    for index, source_hint in enumerate(required_hints):
+        if not source_hint:
+            continue
+        if index >= len(selected_sources) or source_hint not in selected_sources[index]:
+            errors.append(
+                f"SQL output column {index + 1} must select from approved source hint '{source_hint}'."
+            )
 
 
-def _selected_source_names(statement: exp.Expression) -> set[str]:
-    sources: set[str] = set()
+def _selected_expression_source_names(statement: exp.Expression) -> list[set[str]]:
     if not isinstance(statement, exp.Select):
-        return sources
+        return []
 
     table_aliases = _table_aliases(statement)
+    selected_sources: list[set[str]] = []
     for expression in statement.expressions:
+        sources: set[str] = set()
         if isinstance(expression, exp.Alias):
             expression = expression.this
         for column in expression.find_all(exp.Column):
             _add_column_source(sources, column, table_aliases)
         if isinstance(expression, exp.Column):
             _add_column_source(sources, expression, table_aliases)
-    return sources
+        selected_sources.append(sources)
+    return selected_sources
 
 
 def _table_aliases(statement: exp.Expression) -> dict[str, str]:

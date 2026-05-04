@@ -92,7 +92,9 @@ def test_build_sql_prompt_includes_approved_intent_and_sql_requirements() -> Non
     assert "Approved CSV intent" in content
     assert "Customer emails" in content
     assert "integer LIMIT" in content
-    assert "names exactly matching" in content
+    assert "same number of selected columns" in content
+    assert "same order" in content
+    assert "approved CSV column labels as the final headers" in content
     assert "source_hint" in content
     assert "table.column" in content
     assert "COUNT(*) is allowed" in content

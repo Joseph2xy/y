@@ -235,16 +235,23 @@ def test_rejects_session_altering_function_by_default() -> None:
     assert "SQL references blocked function 'set_config'." in result.errors
 
 
-def test_validates_output_columns_against_approved_intent() -> None:
+def test_validates_output_column_count_against_approved_intent() -> None:
     result = validate_sql(
-        "select email, status from customers limit 10",
-        expected_columns=["email", "created_at"],
+        "select email, status, created_at from customers limit 10",
+        expected_columns=["Customer email", "Status"],
     )
 
     assert not result.valid
-    assert result.errors == [
-        "SQL output columns must exactly match the approved CSV columns: email, created_at."
-    ]
+    assert result.errors == ["SQL must select exactly 2 output columns for the approved CSV plan."]
+
+
+def test_allows_custom_labels_that_do_not_match_sql_output_names() -> None:
+    result = validate_sql(
+        "select email as customer_email, created_at as signup_date from customers limit 10",
+        expected_columns=["Customer", "Signup date"],
+    )
+
+    assert result.valid
 
 
 def test_rejects_star_when_output_columns_are_required() -> None:
@@ -262,7 +269,7 @@ def test_rejects_table_star_when_output_columns_are_required() -> None:
 
 
 def test_allows_count_star_when_output_columns_are_required() -> None:
-    result = validate_sql("select count(*) as total from customers limit 10", expected_columns=["total"])
+    result = validate_sql("select count(*) as total from customers limit 10", expected_columns=["Customer count"])
 
     assert result.valid
 
@@ -296,7 +303,38 @@ def test_validates_intent_source_hints_against_selected_columns() -> None:
     )
 
     assert not result.valid
-    assert result.errors == ["SQL must select from approved source hint 'customers.email'."]
+    assert result.errors == ["SQL output column 1 must select from approved source hint 'customers.email'."]
+
+
+def test_validates_intent_source_hints_by_output_position() -> None:
+    intent = CSVIntent(
+        summary="Customer emails",
+        row_meaning="One row per customer",
+        columns=[
+            CSVColumnIntent(
+                name="Customer email",
+                description="Customer email",
+                source_hint="customers.email",
+            ),
+            CSVColumnIntent(
+                name="Customer status",
+                description="Customer status",
+                source_hint="customers.status",
+            ),
+        ],
+    )
+
+    result = validate_sql(
+        "select status as customer_status, email as customer_email from customers limit 10",
+        expected_columns=["Customer email", "Customer status"],
+        intent=intent,
+    )
+
+    assert not result.valid
+    assert result.errors == [
+        "SQL output column 1 must select from approved source hint 'customers.email'.",
+        "SQL output column 2 must select from approved source hint 'customers.status'.",
+    ]
 
 
 def test_allows_intent_source_hints_selected_with_matching_alias() -> None:
@@ -382,4 +420,4 @@ def test_source_hint_validation_does_not_trust_alias_named_like_required_table()
     )
 
     assert not result.valid
-    assert result.errors == ["SQL must select from approved source hint 'customers.email'."]
+    assert result.errors == ["SQL output column 1 must select from approved source hint 'customers.email'."]

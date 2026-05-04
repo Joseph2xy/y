@@ -40,7 +40,7 @@ def create_export(
     export_path = export_dir / f"{export_id}.csv"
 
     try:
-        rows = _limited_rows(query_runner(sql), expected_columns, max_rows)
+        rows = _approved_header_rows(query_runner(sql), expected_columns, max_rows)
         row_count = write_csv(export_path, expected_columns, rows)
         byte_count = count_csv_bytes(export_path)
 
@@ -66,7 +66,7 @@ def export_path(export_id: str, export_dir: Path = EXPORT_DIR) -> Path:
     return export_dir / f"{export_id}.csv"
 
 
-def _limited_rows(
+def _approved_header_rows(
     rows: Iterable[dict[str, Any]],
     expected_columns: list[str],
     max_rows: int,
@@ -75,8 +75,12 @@ def _limited_rows(
         if index > max_rows:
             raise ExportError(f"Query returned more than the {max_rows} row limit.")
 
-        missing = [column for column in expected_columns if column not in row]
-        if missing:
-            raise ExportError("Query result is missing expected CSV columns: " + ", ".join(missing))
+        values = list(row.values())
+        if len(values) != len(expected_columns):
+            raise ExportError(
+                f"Query result returned {len(values)} column"
+                f"{'' if len(values) == 1 else 's'}, but the approved CSV plan has "
+                f"{len(expected_columns)}."
+            )
 
-        yield row
+        yield dict(zip(expected_columns, values, strict=True))

@@ -18,10 +18,10 @@ The model helps interpret the request and propose SQL. The application owns cred
 6. Model proposes a user-facing CSV plan.
 7. User approves the CSV plan once.
 8. Model proposes SQL internally.
-9. App validates SQL, including output names, approved source hints, read-only limits, policy blocks, and scanned-schema table references.
+9. App validates SQL, including output count/order, approved source hints, read-only limits, policy blocks, and scanned-schema table references.
 10. App gives validation errors to the model for up to two repair attempts if needed.
 11. App executes validated SQL with read-only limits.
-12. App validates result columns against the approved intent.
+12. App maps result values by position to the approved CSV headers.
 13. App escapes formula-like CSV cells.
 14. App writes the CSV and returns a download.
 
@@ -39,8 +39,6 @@ React/Vite frontend
 ```
 
 There is no worker, queue, scheduler, or separate execution service in V0. The backend process is the execution boundary.
-
-Frontend and backend stay in one repo for V0.
 
 ## Frontend
 
@@ -66,7 +64,7 @@ Stack:
 
 UX constraints:
 
-- Keep the app compact, centered, dark by default, and chat-first.
+- Keep the app compact, chat-first, and focused on one current CSV flow.
 - Show setup/export/debug controls only when useful.
 - Do not add a dashboard shell or upload panel in V0.
 - Use plain user-facing language: CSV, CSV plan, CSV intent.
@@ -81,7 +79,7 @@ Purpose:
 - scan schema/context
 - manage chat/export sessions
 - call the configured model provider
-- validate SQL against safety policy, approved intent, source hints, and scanned schema context
+- validate SQL against safety policy, approved output shape, source hints, and scanned schema context
 - execute read-only SQL
 - validate and write CSVs
 - keep enough debug trace information to inspect failures
@@ -145,8 +143,8 @@ Minimum checks:
 - no writes, DDL, COPY, EXECUTE, or unsafe commands
 - no blocked schemas/tables/columns/functions
 - required integer `LIMIT`
-- selected output fields match the approved CSV intent
-- selected source hints match approved `source_hint` values when present
+- selected output count and order match the approved CSV intent
+- selected source hints match approved `source_hint` values by output position when present
 - referenced tables are present in the scanned schema context, with CTE names allowed
 - parseable under Postgres dialect
 
@@ -171,7 +169,9 @@ The final CSV is the product artifact.
 
 Responsibilities:
 
-- verify output columns match the approved intent
+- write approved intent column labels as the CSV headers
+- map result values by position to the approved headers
+- verify the query result has the same column count as the approved intent
 - validate basic values where possible
 - enforce row and byte limits
 - escape formula-like string cells

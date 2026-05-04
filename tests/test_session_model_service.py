@@ -355,7 +355,7 @@ def test_prepare_sql_marks_session_failed_when_repair_generation_fails(tmp_path,
     assert updated.debug_traces[-1].details["error"] == "repair failed"
 
 
-def test_prepare_sql_rejects_wrong_output_columns(tmp_path, monkeypatch) -> None:
+def test_prepare_sql_rejects_wrong_output_column_count(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     ensure_context_files()
     session = create_session()
@@ -372,7 +372,7 @@ def test_prepare_sql_rejects_wrong_output_columns(tmp_path, monkeypatch) -> None
 
     updated = load_session(session.id)
     assert response.valid is False
-    assert response.errors == ["SQL output columns must exactly match the approved CSV columns: email."]
+    assert response.errors == ["SQL must select exactly 1 output column for the approved CSV plan."]
     assert updated.status == "failed"
 
 

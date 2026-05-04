@@ -1,104 +1,71 @@
 # Agent Memory
 
-Update this file at the end of each section of work.
+Lightweight working memory for coding agents. Keep this short; detailed current status belongs in `docs/implementation-status.md`.
 
-## Previously Done
+## Current Focus
 
-- Reviewed current app state and fixed the session state transition so adding a user message keeps the session in `drafting_intent` until a CSV plan is proposed.
-- Ran the first end-to-end local demo path against real local Postgres using a deterministic local mock OpenAI-compatible model server.
-- Fixed Postgres read-only query timeout setup so `SET LOCAL statement_timeout` and `SET LOCAL lock_timeout` work during export execution.
-- Adjusted the compact frontend workflow layout so CSV plan approval, SQL preparation, export execution, and download controls are visible and clickable.
-- Added `tools/mock_openai_server.py` for repeatable local demos without external model credentials.
-- Added `CONTEXT.md` as the canonical product glossary.
-- Consolidated resolved documentation questions into `docs/decisions.md`.
-- Removed unused issue-tracker and triage-label agent docs.
-- Implemented richer context setup: schema scans now include primary keys, foreign-key relationship hints, conservative representative filter values, and generated editable Markdown when the default context has not been customized.
-- Added `tools/model_eval.py` and pytest coverage for behavior-based model flow evals covering clear requests, joins, aggregates, vague/gibberish requests, blocked sensitive-field requests, and SQL repair.
-- Added persisted session debug traces for model prompts, model outputs, SQL validation attempts, repair attempts, and export execution, exposed through the read-only Advanced UI.
-- Reviewed the trace changes with CodeRabbit (`0 issues`) and a manual pass; fixed failed model calls so they also persist prompt/error traces. Verified with `106 passed`, compileall, model evals, frontend tests, and `pnpm build`.
-- Added lightweight setup readiness/bootstrap flow: backend reports database/provider/context readiness, checks the configured database connection, bootstraps context scanning when configuration exists, and the frontend shows setup UI only when something is missing. Verified with `112 passed`, compileall, model evals, frontend tests/build, and Postgres smoke.
-- Added simple `.env` support for local database/model configuration, plus `.env.example`, gitignore coverage, README setup instructions, and setup-screen copy aligned with `.env`.
-- Reviewed backend `app/*.py` and tests for AGENTS/docs alignment; tightened SQL policy conversion so built-in unsafe blocked functions remain blocked even when `policy.json` customizes `blocked_functions`. Verified with `113 passed` and compileall.
-- Reviewed docs and repo hygiene against AGENTS/docs; tightened README flow/model-provider wording, confirmed generated runtime/build files are ignored, and found no tracked ignored artifacts beyond `data/exports/.gitkeep`.
-- Rechecked app state against docs and current LiteLLM/SQLGlot/psycopg/FastAPI docs before real-provider testing; fixed provider-missing tests so local `.env`/OpenRouter fallback credentials do not mask missing-provider assertions. Verified with `116 passed`, compileall, frontend tests, and frontend build.
-- Exposed custom OpenAI-compatible provider setup in the first-run provider panel and documented the matching `.env` variables.
-- Confirmed the configured OpenRouter provider works from `.env`; a real model-provider app flow proposed a CSV plan, prepared valid SQL in one attempt, exported 3 rows, and returned a download URL without printing CSV contents.
-- Ran four real-provider calibration scenarios against the small customer/account schema. Three concrete requests exported successfully with first-attempt SQL validation. A vague request initially returned clarification-shaped model output that failed the strict CSV intent schema; fixed `CSVIntentProposal` to allow `intent: null` plus questions, keep the session in drafting state, and show clarification in the UI.
-- Added `tools/realistic_calibration.py` for real-provider calibration against a disposable five-table retail/support Postgres schema without printing credentials or CSV contents.
-- Ran realistic-schema calibration with four concrete requests and one vague request. Shipped Q1 orders, March revenue by product category, open high-priority support tickets, and active West-region accessory buyers all exported with valid SQL on the first attempt. The vague sales request returned focused clarification questions. No prompt or context tuning was needed from this pass.
-- Added local development hardening: `tools/dev.py` plus `pnpm dev:app` runs the FastAPI backend and Vite frontend together, and `tools/check_setup.py` plus `pnpm check:setup` reports database/provider/context readiness from the terminal. Updated README setup flow and verified with `120 passed`, compileall, `pnpm test`, `pnpm build`, and `pnpm check:setup`.
-- Added `tools/finance_calibration.py` for real-provider calibration against a disposable five-table finance/invoicing Postgres schema.
-- Ran finance calibration. Unpaid invoices, recognized revenue by month, and March payments exported with valid SQL on the first attempt. The overdue-invoices request exposed a model-output shape issue where an assumption list item was an object; fixed `CSVIntent` list fields to coerce simple object-shaped model mistakes into strings. The rerun produced a reasonable overdue-invoices CSV plan, but SQL preparation and the final vague-finance clarification were blocked by the configured OpenRouter free-model daily rate limit. Verified with `121 passed` and compileall.
-- Cleaned repo hygiene: removed ignored build/cache/runtime artifacts and old generated session/export files, deleted stale docs `docs/agents/domain.md` and `docs/dependency-audit.md`, and updated README/implementation status to reflect the smaller active doc set.
-- Added `docs/flow.excalidraw`, an editable lane diagram explaining the app process, boundaries, and safety flow from setup through CSV download.
-- Remade and polished `docs/flow.excalidraw` as a cleaner four-lane 13-step flow after the first version proved too dense. Verified readability with agent-browser against a temporary local render and kept the source as valid Excalidraw JSON.
-- Simplified local tester onboarding. The root README now focuses on first-run and everyday use; added `tools/setup_local.sh` for Linux/WSL setup without overwriting `.env`; improved `.env.example`; added `docs/local-user-guide.md`, `docs/troubleshooting.md`, and `docs/development.md`; and made `pnpm check:setup` print concrete next actions. Windows support is WSL-first for now. Verified the focused check setup tests, `bash -n tools/setup_local.sh`, and `pnpm check:setup`.
-- Made context lifecycle explicit for testers. First-run setup creates context only when files are missing; changing `DATABASE_URL` later requires `pnpm rescan:context` or deleting context files for a fresh regenerate. Added `tools/rescan_context.py`, the `pnpm rescan:context` script, docs, and focused test coverage.
-- Added context freshness tracking. Schema context now stores sanitized database source metadata and scan time; setup status warns when the current `DATABASE_URL` differs from the context source; `pnpm check:setup` prints current/scanned database labels; and the setup UI shows a rescan panel with a button when context is stale.
-- Reworked the main chat UX so sending a request automatically asks for a CSV plan, approving the plan automatically prepares/validates the export, and the normal path shows one next action instead of separate propose/prepare/run pipeline controls. Added friendlier provider quota and malformed-model-output error messages while keeping raw details in Advanced traces.
-- Split setup diagnostics for missing database configuration vs configured-but-unreachable database. `setup_status` now returns `connect_database` when `DATABASE_URL` exists but the connection fails; `pnpm check:setup`, the setup UI, troubleshooting docs, and focused tests now point users toward starting Postgres or fixing host/port/credentials.
-- Reworked the frontend into a prompt-kit/shadcn chat workspace. The normal screen now uses an auto-scrolling conversation area, prompt suggestions, a prompt-kit composer, assistant-side CSV plan/export cards, and read-only Advanced details. Verified desktop/mobile browser screenshots, fixed mobile horizontal overflow, and avoided pulling prompt-kit markdown/Shiki payload because this V0 chat does not render markdown.
-- Reset the frontend UX from first principles. Reinstalled/reset shadcn defaults, kept only useful prompt-kit primitives, replaced `src/App.tsx` with one centered chat canvas, moved SQL/debug details into an Advanced dialog, kept setup as fallback-only, removed unused markdown/message UI and dependencies, updated frontend tests, and verified `pnpm test`, `pnpm build`, plus desktop/mobile browser screenshots.
-- Revisited Prompt Kit after reviewing its component list. Replaced custom chat bubbles with Prompt Kit `Message`, added scroll-to-latest, `ThinkingBar` loading states, `SystemMessage` notices, and Prompt Kit code blocks in Advanced/setup code surfaces. Added lazy-loaded Markdown and narrowed lazy Shiki highlighting to SQL/JSON/shell so `pnpm build` stays below the main-bundle warning threshold. Verified `pnpm test` and `pnpm build`.
-- Rebuilt the ready-state chat screen around Prompt Kit block composition rather than layering primitives into the old centered screen. Moved Prompt Kit primitives from `src/components/ui` to `src/components/prompt-kit`, kept shadcn UI files for shadcn components only, switched to a full-height conversation shell with centered message rows and anchored composer, and intentionally skipped generic sidebar/history/full-chat blocks because they widen the product beyond the V0 CSV flow. Verified `pnpm test` and `pnpm build`.
-- Reworked the frontend into an Artifact Split layout after deciding chat should remain the entry point but the CSV plan should be a persistent artifact. `src/App.tsx` now has a left conversation pane using Prompt Kit chat/composer primitives and a right CSV artifact panel using shadcn cards, badges, dialogs, fields, and buttons for plan review, clarification, approval, safety/validation status, export, download, and Advanced details. Verified with `pnpm test`, `pnpm build`, and an agent-browser Vite check against mocked setup/session endpoints.
-- Added a persisted light/dark mode header toggle using the existing shadcn theme variables and lucide icons. Verified with `pnpm test` (`8 passed`) and `pnpm build`.
-- Switched the shadcn preset to `b1Ymqvgiu` using `pnpm dlx shadcn@latest init --preset b1Ymqvgiu --force --reinstall`, which moved the design tokens to the blue theme/chart palette and Inter font while keeping Nova/Base UI/lucide/default radius. Removed the stale Geist font dependency/import after the CLI added Inter. Verified with `pnpm test` (`8 passed`), `pnpm build`, and `pnpm dlx shadcn@latest preset resolve --json`.
-- Added a ready-state shadcn settings dialog in the header with Database and Provider tabs. The Database tab shows backend-environment database guidance, current/context source details, and a context rescan action; the Provider tab reuses the local model-provider form for OpenRouter/custom OpenAI-compatible settings. Then tightened frontend composition to prefer upstream shadcn/Prompt Kit defaults: PromptInput now matches the Prompt Kit registry source, EmptyArtifact uses shadcn Empty, repeated column/attempt rows use shadcn Cards, and custom visual overrides were removed unless they serve layout or component-required behavior. Verified with `pnpm test` (`9 passed`) and `pnpm build`.
-- Tightened the Settings copy after deciding not to move `DATABASE_URL` into browser-editable settings for V0. The Database tab now explicitly says database credentials stay in the backend `.env` file and should be followed by a context rescan after changes; the Provider tab says model provider settings are editable there and saved locally by the backend. README, local user guide, and implementation status now describe the same split.
-- Removed model-provider `.env` fallback. `.env` is now only for `DATABASE_URL`; model provider setup must be saved through Settings to `data/settings/model_provider.json`. Setup/check endpoints now report a clear provider-not-configured problem even if old provider env vars are present. Updated `.env.example`, README, local user guide, troubleshooting, setup script, check setup output, backend provider config code, and focused tests.
-- Added an explicit database connection test from Settings. The new `POST /settings/database/test` endpoint tests the current backend `DATABASE_URL` and returns a sanitized success/failure message plus database source metadata; the Database tab has a "Test connection" button and displays the result.
-- Addressed review findings around context recovery and CSV validation. Context scans now recover malformed generated schema/policy JSON and refresh autogenerated context markdown when it still matches the previous generated schema text. CSV intents reject duplicate column names, SQL preparation/export validate intent source hints when present, the frontend safety copy now says exactly what is checked, and failed SQL preparation has a Try again action. Verified with `135 passed`, compileall, focused App tests, and `pnpm build`.
-- Completed the recommended follow-up pass. Added frontend coverage for the SQL-preparation Try again path, removed unused public `/sessions/{id}/clarify` and `/sessions/{id}/propose-sql` endpoints from FastAPI/OpenAPI while keeping service-level helpers for evals, regenerated API types, and tuned SQL/repair prompts to tell the model how to satisfy approved `source_hint` values. Verified with `134 passed`, compileall, focused App tests (`10 passed`), `pnpm build`, and `tools/model_eval.py`.
-- Continued cleanup by removing stale service-level clarification/SQL proposal helpers, the unused standalone `/sql/validate` API, unused Prompt Kit/shadcn component files, and frontend aliases whose responses were discarded. Clarification evals now exercise `propose_csv_intent(intent=None)`, SQL validation remains covered through the approval-gated `prepare_sql` and export paths, and `shadcn` is now classified as a dev dependency because it is used by build-time CSS/tooling rather than runtime app code.
-- Replaced FastAPI `TestClient` usage in tests and calibration/smoke tools with a shared HTTPX `ASGITransport` helper after the sync TestClient/threadpool path hung under the local Python 3.14 environment. API route handlers and the model-provider dependency are now async, and CSV downloads return a direct `Response` with CSV bytes instead of `FileResponse` streaming.
-- Extracted the duplicated real-provider calibration harness into `tools/calibration.py`; retail/support and finance calibration files now keep only their distinct scenarios, business context, and schema seed data.
-- Tightened unclear-message handling at the model/provider boundary without adding backend natural-language filtering. The intent prompt and `CSVIntentProposal` schema now require `intent: null` for greetings, capability questions, generic CSV requests, and vague/useful/everything/all-data requests unless the user has enough detail for an approvable CSV plan. Added deterministic eval cases and updated the mock OpenAI-compatible server so browser verification covers `hello` -> clarification while clear requests still produce approvable plans.
-- Removed assistant avatars from the chat stream and loading/status rows. User chat bubbles and the Prompt Kit composer textarea now use normal foreground text instead of primary blue text, so light/dark chat colors stay readable and consistent. Verified with focused App tests and `pnpm build`.
-- Changed clarification UX so model responses with `intent: null` render in the left chat stream, not in the CSV artifact panel. The artifact panel now stays in its empty plan state until there is a real CSV intent, while plan-bearing proposal messages continue to be represented by the CSV plan artifact. Verified with focused App tests and `pnpm build`.
-- Tightened CSV intent prompt/schema guidance so ID-like fields are excluded unless the user explicitly asks for identifiers, including foreign-key IDs such as `account_id`, and CSV labels should be user-facing like "Creation date" rather than raw database names when possible. Kept this as model guidance plus user approval rather than app-side proposal rewriting. Verified prompt/session tests, compileall, and `tools/model_eval.py`.
-- Moved row-limit configuration out of the CSV plan UI and into Settings -> Safety. The visible plan no longer shows "Max rows"; Settings edits `policy.max_row_count` through the existing context API, and the intent prompt/schema now treat the context policy value as the default row cap unless the user asks for a smaller limit. Verified backend prompt/context/export/session tests, API type generation, App tests, `pnpm build`, compileall, and `tools/model_eval.py`.
-- Kept model proposal messages in the left chat even when they include a real CSV intent, and removed the duplicate proposal banner from the artifact panel. Replaced the clipped safety status card with a compact bordered status block so "Checking CSV" and "Ready to create" render cleanly in the narrow artifact panel. Verified App tests and `pnpm build`.
-- Fixed SQL validation so generated SQL cannot reference tables outside the scanned schema context. `SQLPolicy` now carries known tables from `SchemaContext`, prepare/export validation rejects unknown tables such as `public.customers` before execution, and CTE names remain allowed. This turns missing-table cases into validation/repair errors instead of export-time Postgres failures. Verified focused SQL/export/session tests, full pytest (`133 passed`), compileall, `tools/model_eval.py`, App tests, and `pnpm build`.
-- Added `tools/complex_calibration.py` for broader real-provider calibration against disposable SaaS/product-analytics and marketplace/ecommerce Postgres schemas. The script copies local provider settings into the disposable run directory without printing them, reports plan/clarification, approval, SQL validation, export summary, trace steps, and suspicious notes, and stops cleanly on provider quota/configuration failures. A first quota-limited run completed one SaaS export after repair and exposed an overly strict source-hint validation case in a grouped revenue export.
-- Fixed the source-hint validation issue found by complex calibration. SQL selected-source extraction now maps real table aliases back to base table names, so aggregate/date expressions such as `sum(i.total_amount)` and `date_trunc('month', i.issued_date)` satisfy approved hints like `invoices.total_amount` and `invoices.issued_date`; aliases named after an approved source table do not spoof that boundary. Verified focused SQL guard coverage and related export/session API tests.
-- Discussed calibration findings and made the minimal V0 changes for derived CSV columns without adding full lineage tracking. SQL Guard now allows `COUNT(*)` while still rejecting `SELECT *`/`table.*`; CSV intent parsing keeps `source_hint` to concrete `table.column`/`schema.table.column` values and converts formula/count/prose hints to `None`; prompts tell the model to put derived logic in descriptions/derived fields and avoid hiding source-hinted columns behind CTE aliases when practical. Verified focused tests, full pytest (`139 passed`), compileall, and `tools/model_eval.py`. A SaaS-only complex calibration rerun showed churn-risk and feature-usage now export on first SQL attempt; remaining findings are CTE source-hint lineage for latest CSM, exact-label export casing/quoting mismatch, conservative clarification on some concrete requests, and provider quota before blocked-sensitive-fields.
+The app is a local V0 CSV Chat product: chat -> context -> approved CSV plan -> validated SQL -> read-only execution -> CSV download.
+
+Recent direction from product discussion:
+
+- Keep V0 dynamic enough for custom labels and derived columns.
+- Approved CSV plan labels own final CSV headers.
+- SQL/query results must match the approved plan by output count and order.
+- Direct `source_hint` values are validated by output position when present.
+- Derived columns can have no direct source hint.
+- Do not add a query compiler or broad semantic layer unless calibration shows the raw-SQL validation approach is not enough.
+
+## Recently Completed
+
+- Added complex calibration for disposable SaaS/product-analytics and marketplace/ecommerce schemas.
+- Fixed source-hint validation for table aliases in selected expressions, including aggregates and date expressions.
+- Allowed `COUNT(*)` for count columns while continuing to reject `SELECT *` and `table.*`.
+- Sanitized model-provided `source_hint` values so formula/count/prose hints become derived/unknown instead of invalid direct sources.
+- Made approved CSV labels the final export headers and rewrote query result rows by position during export.
+- Updated SQL/repair prompts to require output count/order rather than exact SQL alias text.
+- Cleaned docs so `docs/implementation-status.md` is the current handoff and this file stays concise.
+
+## Last Verification
+
+On 2026-05-04 after approved-header export changes:
+
+```text
+.venv/bin/python -m pytest -q -> 142 passed
+.venv/bin/python -m compileall -q app tests tools -> passed
+.venv/bin/python tools/model_eval.py -> passed
+```
+
+Frontend was not rerun for the approved-header backend change. Last documented frontend verification was `pnpm test` and `pnpm build` passing on 2026-05-03.
 
 ## Next Step
 
-- Discuss remaining calibration findings before changing behavior: whether to add limited CTE source lineage for simple CTE projections, how to enforce exact output label casing/quoting before execution, and whether concrete-but-ambiguous requests should be clarified or handled with assumptions. Then re-run `tools/complex_calibration.py` against a stable provider/model with available quota, including the blocked-sensitive-fields scenario. Also continue the broader Artifact Split end-to-end flow and local onboarding test.
+Re-run `tools/complex_calibration.py` with provider quota available, including blocked-sensitive-fields. Then decide whether either remaining behavior question deserves a V0 change:
+
+- limited CTE source lineage for simple CTE projections
+- clarification vs assumptions for concrete-but-ambiguous requests
 
 ## Next Session Prompt
-
-Use this prompt to continue:
 
 ```text
 Read AGENTS.md and docs/implementation-status.md first. Continue from the current V0 CSV Chat state.
 
-Goal for this session: continue the complex calibration work without turning it into a benchmark or tuning the app to specific schemas. The purpose is to test whether the app flow behaves well across realistic SaaS/product-analytics and marketplace/ecommerce databases: chat -> clarification or CSV plan -> one approval -> SQL generation -> validation/repair -> read-only export -> CSV download.
+Goal: continue complex calibration without turning it into a benchmark or tuning the app to specific schemas. Test whether the app flow behaves well across realistic SaaS/product-analytics and marketplace/ecommerce databases: chat -> clarification or CSV plan -> one approval -> SQL generation -> validation/repair -> read-only export -> CSV download.
 
-Start by checking git status, current branch, recent commits, and setup readiness. Do not print secrets, database credentials, provider keys, or final CSV contents. Be aware the branch `codex/complex-calibration-source-hints` was pushed at commit `40c7277` with `tools/complex_calibration.py` and source-hint alias validation. The working tree may contain additional uncommitted follow-up changes around derived CSV columns, prompt/source_hint handling, and SQL Guard; review them before editing and do not revert user changes.
+Start by checking git status, current branch, recent commits, and setup readiness. Do not print secrets, database credentials, provider keys, or final CSV contents.
 
-Known calibration problem/context:
+Known context:
 - `tools/complex_calibration.py` provisions disposable SaaS/product-analytics and marketplace/ecommerce Postgres schemas, copies local provider settings into the temp run directory without printing them, and reports each scenario.
-- The first OpenRouter quota-limited run completed one SaaS export after repair, then found source-hint validation was too strict for grouped/aggregate SQL using aliases.
-- Source-hint validation was fixed to map real table aliases back to base table names while preventing alias spoofing.
-- Follow-up calibration apparently showed churn-risk and feature-usage exports passing, with remaining findings around simple CTE source-hint lineage for latest CSM, exact-label export casing/quoting mismatch, conservative clarification on some concrete requests, and provider quota before blocked-sensitive-fields.
+- Source-hint validation maps real table aliases back to base table names while preventing alias spoofing.
+- Approved CSV plan labels own final export headers; SQL/result validation checks output count, order, and source hints by position.
+- Remaining findings are simple CTE source-hint lineage, conservative clarification on some concrete requests, and provider quota before blocked-sensitive-fields.
 
 Next work:
-1. Review the uncommitted diff first and understand any changes already made since commit `40c7277`.
-2. Decide whether the remaining findings justify app changes:
-   - limited CTE source lineage for simple CTE projections
-   - exact output label casing/quoting enforcement before execution
-   - whether concrete-but-ambiguous prompts should clarify or proceed with assumptions
-3. If provider quota is available, rerun:
-   `.venv/bin/python tools/complex_calibration.py --admin-url 'postgresql://Joseph@127.0.0.1:5432/postgres'`
-   or use `--domain saas` / `--domain marketplace` for focused runs.
-4. Report scenario outcomes: request, clarification vs plan, plan summary/columns/filters/derived fields/assumptions, approval decision, SQL validation and repair attempts, export row count/columns, trace steps, and suspicious notes.
+1. Review the current diff before editing and do not revert user changes.
+2. If provider quota is available, run:
+   .venv/bin/python tools/complex_calibration.py --admin-url 'postgresql://Joseph@127.0.0.1:5432/postgres'
+   or use --domain saas / --domain marketplace for focused runs.
+3. Report scenario outcomes: request, clarification vs plan, plan summary/columns/filters/derived fields/assumptions, approval decision, SQL validation and repair attempts, export row count/columns, trace steps, and suspicious notes.
+4. If a concrete bug appears, fix it with focused tests. If the issue is schema/business ambiguity, prefer reporting it unless traces show a general prompt/context problem.
 
-Do not add app-side rewrites for IDs, labels, filters, joins, or derived fields unless there is a clear safety/app-boundary reason. Let the model do interpretation, naming, joins, derived fields, grouping, and labels. Hard checks should stay focused on app boundaries: no SQL before approval, validation before execution, blocked policy fields/tables/functions, read-only execution, limits, CSV formula escaping, and no final CSV on validation failure.
-
-If a concrete bug appears, fix it with focused changes and tests. If the issue is schema/business ambiguity, prefer reporting it unless traces show a general prompt/context problem. Keep the product narrow: chat -> context -> approved CSV plan -> validated SQL -> CSV download.
-
-Before final response, run relevant verification: pytest for touched backend areas, compileall, `tools/model_eval.py` if prompt/model-flow behavior changed, and frontend tests/build only if frontend/API types changed. End with: new calibration coverage/results, model behavior observations, app safety boundary observations, and recommended next product fixes.
+Keep the product narrow: chat -> context -> approved CSV plan -> validated SQL -> CSV download.
 ```

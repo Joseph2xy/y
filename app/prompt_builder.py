@@ -68,8 +68,9 @@ def build_sql_prompt(
                 "Approved CSV intent:\n"
                 f"{_dump(approved_intent.model_dump())}\n\n"
                 "Propose one Postgres SELECT statement for the approved CSV intent. "
-                "The SQL must include an integer LIMIT and must return columns with names exactly matching the CSV intent. "
-                "When a CSV column includes a source_hint, select from that hinted table.column and alias it to the approved CSV column name. "
+                "The SQL must include an integer LIMIT and must return the same number of selected columns, in the same order, as the CSV intent columns. "
+                "The app will write the approved CSV column labels as the final headers, so SQL aliases may be simple database-friendly names. "
+                "When a CSV column includes a source_hint, the selected expression in that same output position must use the hinted table.column. "
                 "Do not use SELECT * or table.*. COUNT(*) is allowed for count columns. "
                 "Avoid hiding source-hinted output columns behind CTE output aliases; keep the hinted table.column visible in the final selected expression when practical."
             ),
@@ -98,7 +99,9 @@ def build_sql_repair_prompt(
                 f"{_dump(validation_errors)}\n\n"
                 "Return repaired SQL only for the same approved CSV intent. "
                 "Do not broaden the data requested. "
-                "When a CSV column includes a source_hint, select from that hinted table.column and alias it to the approved CSV column name. "
+                "Return the same number of selected columns, in the same order, as the CSV intent columns. "
+                "The app will write the approved CSV column labels as the final headers, so SQL aliases may be simple database-friendly names. "
+                "When a CSV column includes a source_hint, the selected expression in that same output position must use the hinted table.column. "
                 "Do not use SELECT * or table.*. COUNT(*) is allowed for count columns. "
                 "Avoid hiding source-hinted output columns behind CTE output aliases; keep the hinted table.column visible in the final selected expression when practical."
             ),

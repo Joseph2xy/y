@@ -46,13 +46,13 @@ Run:
 pnpm check:setup
 ```
 
-The check covers:
+The check reports whether these are ready:
 
 - database configuration and connection
 - model provider configuration
 - generated database context
 
-If context is missing but the database and provider are configured, start the app and it will prepare context automatically. You can also run `pnpm dev:app` and use the setup screen.
+If context is missing but the database and provider are configured, start the app and use the setup screen to prepare context.
 
 This automatic generation only happens when the context files are missing. Once context exists, the app assumes it is local editable state and does not replace it on startup.
 
@@ -87,7 +87,7 @@ pnpm check:setup
 pnpm dev:app
 ```
 
-## Changing Database Or Provider
+## Changing Database
 
 To change the database:
 
@@ -107,7 +107,7 @@ data/context/context.md
 data/context/policy.json
 ```
 
-6. Start the app again:
+6. Start the app:
 
 ```bash
 pnpm dev:app
@@ -129,22 +129,22 @@ pnpm dev:app
 
 The setup screen will regenerate context from the new database.
 
-## Settings
+## Changing Provider
 
-The app Settings tab is split by responsibility:
-
-- Database shows connection/context status, lets you test the current connection, and lets you rescan context. `DATABASE_URL` stays in the backend `.env` file for V0.
-- Model Provider can save OpenRouter or custom OpenAI-compatible provider settings locally.
-
-To change the database, edit `DATABASE_URL` in `.env`, restart or refresh the backend, then rescan context.
-
-To change the provider, use Settings. Provider settings saved through the app live at:
+Use Settings -> Model Provider. Provider settings saved through the app live at:
 
 ```text
 data/settings/model_provider.json
 ```
 
 API responses never return the saved API key.
+
+## Settings
+
+The app Settings tab is split by responsibility:
+
+- Database shows connection/context status, lets you test the current connection, and lets you rescan context. `DATABASE_URL` stays in the backend `.env` file for V0.
+- Model Provider can save OpenRouter or custom OpenAI-compatible provider settings locally.
 
 ## Local Data
 

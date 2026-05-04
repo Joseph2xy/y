@@ -2,21 +2,6 @@
 
 This guide is for contributors working on CSV Chat.
 
-## Project Shape
-
-```text
-React/Vite frontend
-  -> FastAPI backend
-      -> LiteLLM SDK model adapter
-      -> context.md + schema.json + policy.json
-      -> Postgres via psycopg
-      -> SQLGlot guard
-      -> CSV writer
-      -> local export files
-```
-
-There is no worker, queue, scheduler, or separate execution service in V0.
-
 ## Commands
 
 Install dependencies:
@@ -84,6 +69,7 @@ Optional real-provider calibration:
 ```bash
 .venv/bin/python tools/realistic_calibration.py
 .venv/bin/python tools/finance_calibration.py
+.venv/bin/python tools/complex_calibration.py
 ```
 
 Do not print secrets, database credentials, or final CSV contents from calibration scripts.

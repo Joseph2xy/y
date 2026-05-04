@@ -22,7 +22,7 @@ def test_intent_rejects_duplicate_column_names() -> None:
 
 def test_create_export_writes_csv(tmp_path: Path) -> None:
     response = create_export(
-        intent=intent(["email", "note"]),
+        intent=intent(["Email", "Note"]),
         sql="select email, note from customers limit 10",
         policy=ContextPolicy(max_row_count=100),
         query_runner=lambda sql: [{"email": "a@example.com", "note": "=1+1"}],
@@ -30,10 +30,29 @@ def test_create_export_writes_csv(tmp_path: Path) -> None:
     )
 
     assert response.row_count == 1
-    assert response.columns == ["email", "note"]
+    assert response.columns == ["Email", "Note"]
     assert response.download_url == f"/exports/{response.export_id}/download"
     assert (tmp_path / f"{response.export_id}.csv").read_text(encoding="utf-8") == (
-        "email,note\na@example.com,'=1+1\n"
+        "Email,Note\na@example.com,'=1+1\n"
+    )
+
+
+def test_create_export_uses_approved_headers_for_custom_labels_and_derived_columns(tmp_path: Path) -> None:
+    response = create_export(
+        intent=intent(["Student", "Average grade"]),
+        sql=(
+            "select students.name as student_name, avg(grades.grade) as average_grade "
+            "from students join grades on grades.student_id = students.id "
+            "group by students.name limit 10"
+        ),
+        policy=ContextPolicy(max_row_count=100),
+        query_runner=lambda sql: [{"student_name": "Alice", "average_grade": 88.5}],
+        export_dir=tmp_path,
+    )
+
+    assert response.columns == ["Student", "Average grade"]
+    assert (tmp_path / f"{response.export_id}.csv").read_text(encoding="utf-8") == (
+        "Student,Average grade\nAlice,88.5\n"
     )
 
 
@@ -48,10 +67,10 @@ def test_create_export_rejects_invalid_sql(tmp_path: Path) -> None:
         )
 
 
-def test_create_export_rejects_sql_with_wrong_output_columns(tmp_path: Path) -> None:
-    with pytest.raises(ExportError, match="output columns"):
+def test_create_export_rejects_wrong_output_column_count(tmp_path: Path) -> None:
+    with pytest.raises(ExportError, match="select exactly 1 output column"):
         create_export(
-            intent=intent(["email", "status"]),
+            intent=intent(["email"]),
             sql="select email, created_at from customers limit 10",
             policy=ContextPolicy(),
             query_runner=lambda sql: [{"email": "a@example.com", "created_at": "2026-01-01"}],
@@ -81,8 +100,8 @@ def test_create_export_rejects_unknown_table_from_schema_context(tmp_path: Path)
     assert list(tmp_path.iterdir()) == []
 
 
-def test_create_export_rejects_missing_expected_column(tmp_path: Path) -> None:
-    with pytest.raises(ExportError, match="missing expected CSV columns"):
+def test_create_export_rejects_result_column_count_mismatch(tmp_path: Path) -> None:
+    with pytest.raises(ExportError, match="Query result returned 1 column"):
         create_export(
             intent=intent(["email", "status"]),
             sql="select email, status from customers limit 10",

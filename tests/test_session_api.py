@@ -341,7 +341,7 @@ def test_prepare_sql_endpoint_repairs_and_returns_validation_trace(tmp_path, mon
     assert body["attempts"][1]["repair_changes"] == ["Added a limit."]
 
 
-def test_prepare_sql_endpoint_rejects_wrong_output_columns(tmp_path, monkeypatch) -> None:
+def test_prepare_sql_endpoint_rejects_wrong_output_column_count(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     ensure_context_files()
     override_queue_provider(
@@ -363,7 +363,7 @@ def test_prepare_sql_endpoint_rejects_wrong_output_columns(tmp_path, monkeypatch
     body = response.json()
     assert response.status_code == 200
     assert body["valid"] is False
-    assert body["errors"] == ["SQL output columns must exactly match the approved CSV columns: email."]
+    assert body["errors"] == ["SQL must select exactly 1 output column for the approved CSV plan."]
 
 
 def test_prepare_sql_endpoint_requires_model_configuration(tmp_path, monkeypatch) -> None:

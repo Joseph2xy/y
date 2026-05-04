@@ -48,8 +48,6 @@ Then open `http://127.0.0.1:5173` and let the setup screen prepare the app.
 
 ## I Changed `DATABASE_URL`
 
-The app stores sanitized scan metadata in `data/context/schema.json`: database name, host, port, and scan time. It does not store database credentials there.
-
 After changing `DATABASE_URL`, run:
 
 ```bash
@@ -63,8 +61,6 @@ pnpm rescan:context
 ```
 
 This updates `data/context/schema.json` from the new database and preserves your existing `context.md` and `policy.json`.
-
-Review `data/context/context.md` after the rescan. If it contains notes for the old database, edit or remove them.
 
 For a completely fresh generated context, delete the old files:
 
