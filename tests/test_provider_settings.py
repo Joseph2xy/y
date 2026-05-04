@@ -81,6 +81,23 @@ def test_model_config_uses_saved_provider_settings(tmp_path, monkeypatch) -> Non
     assert config.base_url is None
 
 
+def test_model_config_supports_openai_provider_without_base_url(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    save_provider_settings(
+        ModelProviderSettingsUpdate(
+            provider="openai",
+            model="openai/gpt-4.1-mini",
+            api_key="sk-test",
+        )
+    )
+
+    config = model_config_from_settings()
+
+    assert config.model == "openai/gpt-4.1-mini"
+    assert config.api_key == "sk-test"
+    assert config.base_url is None
+
+
 def test_model_config_requires_saved_api_key(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
 

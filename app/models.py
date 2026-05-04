@@ -208,7 +208,7 @@ class ModelConfig(BaseModel):
 
 
 class ModelProviderSettings(BaseModel):
-    provider: str = Field(default="openrouter", pattern="^(openrouter|custom)$")
+    provider: str = Field(default="openrouter", pattern="^(openrouter|openai|custom)$")
     model: str = Field(default="openrouter/openai/gpt-4o-mini", min_length=1)
     api_key: str | None = Field(default=None, min_length=1)
     base_url: str | None = Field(default=None, min_length=1)
@@ -216,7 +216,7 @@ class ModelProviderSettings(BaseModel):
 
 
 class ModelProviderSettingsUpdate(BaseModel):
-    provider: str = Field(default="openrouter", pattern="^(openrouter|custom)$")
+    provider: str = Field(default="openrouter", pattern="^(openrouter|openai|custom)$")
     model: str = Field(default="openrouter/openai/gpt-4o-mini", min_length=1)
     api_key: str | None = Field(default=None)
     base_url: str | None = Field(default=None)

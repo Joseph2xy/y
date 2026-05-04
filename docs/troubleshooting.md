@@ -26,7 +26,7 @@ Use a read-only database user. Do not use an admin account.
 
 ## Model Provider Is Not Configured
 
-Run `pnpm dev:app`, open Settings, and save either OpenRouter or custom OpenAI-compatible provider settings.
+Run `pnpm dev:app`, open Settings, and save OpenAI, OpenRouter, or custom OpenAI-compatible provider settings.
 
 Provider settings are stored locally under:
 
@@ -35,6 +35,26 @@ data/settings/model_provider.json
 ```
 
 The app does not fall back to model provider values in `.env`. If this file is missing or has no saved API key, setup reports that the model provider is not configured.
+
+## Model Provider Says Rate Limit Or Quota Exceeded
+
+The app reached the provider, but the selected account or model cannot serve another request right now.
+
+For OpenRouter free models, this can look like:
+
+```text
+429 RateLimitError
+Rate limit exceeded: free-models-per-day
+```
+
+Fix options:
+
+- wait for the quota reset
+- choose another model in Settings
+- add provider credits or use a paid model
+- use a custom OpenAI-compatible endpoint that has capacity
+
+After changing provider settings, try the request again.
 
 ## Context Is Not Ready
 

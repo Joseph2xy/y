@@ -378,5 +378,5 @@ def test_prepare_sql_endpoint_requires_model_configuration(tmp_path, monkeypatch
 
     assert response.status_code == 400
     assert response.json()["detail"] == (
-        "Model provider is not configured. Open Settings and add an OpenRouter or custom provider API key."
+        "Model provider is not configured. Open Settings and add an OpenRouter, OpenAI, or custom provider API key."
     )

@@ -502,6 +502,47 @@ describe("App", () => {
     });
   });
 
+  it("saves OpenAI provider settings without a base URL", async () => {
+    const user = userEvent.setup();
+    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+    let savedBody: unknown = null;
+    let providerSaved = false;
+
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/setup/status") return jsonResponse(providerSaved ? setupReadyResponse : providerNeededResponse);
+      if (url === "/settings/model-provider" && init?.method === "PUT") {
+        savedBody = JSON.parse(String(init.body));
+        providerSaved = true;
+        return jsonResponse({
+          provider: "openai",
+          model: "openai/gpt-4.1-mini",
+          base_url: null,
+          temperature: 0,
+          api_key_configured: true
+        });
+      }
+      if (url === "/settings/model-provider") return jsonResponse(providerResponse);
+      return jsonResponse({ detail: "Not found" }, 404);
+    });
+
+    renderApp();
+
+    await user.click(await screen.findByRole("button", { name: "OpenAI" }));
+    await user.type(screen.getByLabelText("API key"), "sk-test");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByText("What CSV do you need?")).toBeInTheDocument();
+    expect(savedBody).toMatchObject({
+      provider: "openai",
+      model: "openai/gpt-4.1-mini",
+      api_key: "sk-test",
+      base_url: null,
+      temperature: 0
+    });
+    expect(screen.queryByLabelText("Base URL")).not.toBeInTheDocument();
+  });
+
   it("saves custom OpenAI-compatible provider settings", async () => {
     const user = userEvent.setup();
     const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;

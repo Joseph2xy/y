@@ -67,6 +67,7 @@ import type {
 
 type Notice = { type: "error" | "info"; text: string } | null;
 type Theme = "light" | "dark";
+type ProviderKind = "openrouter" | "openai" | "custom";
 
 const EXAMPLE_REQUESTS = [
   "Active customer emails created this quarter",
@@ -85,7 +86,7 @@ export function App() {
   const [sqlPrep, setSqlPrep] = useState<SQLPreparationResponse | null>(null);
   const [exportResult, setExportResult] = useState<ExportCreateResponse | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
-  const [providerKind, setProviderKind] = useState<"openrouter" | "custom">("openrouter");
+  const [providerKind, setProviderKind] = useState<ProviderKind>("openrouter");
   const [providerModel, setProviderModel] = useState("openrouter/openai/gpt-4o-mini");
   const [providerBaseUrl, setProviderBaseUrl] = useState("");
   const [providerApiKey, setProviderApiKey] = useState("");
@@ -171,7 +172,7 @@ export function App() {
       }),
     onSuccess: (settings) => {
       setProviderApiKey("");
-      setProviderKind(settings.provider === "custom" ? "custom" : "openrouter");
+      setProviderKind(providerKindFromSettings(settings.provider));
       setProviderModel(settings.model);
       setProviderBaseUrl(settings.base_url ?? "");
       setNotice({ type: "info", text: "Model provider settings saved." });
@@ -299,6 +300,12 @@ export function App() {
     setNotice({ type: "error", text: friendlyErrorMessage(error.message) });
   }
 
+  function handleProviderChange(provider: ProviderKind) {
+    setProviderKind(provider);
+    if (provider === "openrouter") setProviderModel("openrouter/openai/gpt-4o-mini");
+    if (provider === "openai") setProviderModel("openai/gpt-4.1-mini");
+  }
+
   const busy =
     startSessionMutation.isPending ||
     bootstrapMutation.isPending ||
@@ -324,7 +331,7 @@ export function App() {
 
   useEffect(() => {
     if (providerSettings?.model) {
-      setProviderKind(providerSettings.provider === "custom" ? "custom" : "openrouter");
+      setProviderKind(providerKindFromSettings(providerSettings.provider));
       setProviderModel(providerSettings.model);
       setProviderBaseUrl(providerSettings.base_url ?? "");
     }
@@ -369,7 +376,7 @@ export function App() {
           apiKey={providerApiKey}
           busy={busy}
           notice={notice}
-          onProviderChange={setProviderKind}
+          onProviderChange={handleProviderChange}
           onModelChange={setProviderModel}
           onBaseUrlChange={setProviderBaseUrl}
           onApiKeyChange={setProviderApiKey}
@@ -399,7 +406,7 @@ export function App() {
         onNewSession={() => startSessionMutation.mutate()}
         onDefaultRowLimitChange={setDefaultRowLimit}
         onSaveSafety={() => safetyMutation.mutate()}
-        onProviderChange={setProviderKind}
+        onProviderChange={handleProviderChange}
         onModelChange={setProviderModel}
         onBaseUrlChange={setProviderBaseUrl}
         onApiKeyChange={setProviderApiKey}
@@ -471,7 +478,7 @@ function AppHeader({
   theme: Theme;
   contextDocument?: ContextDocument;
   providerSettings?: ModelProviderSettingsResponse;
-  provider: "openrouter" | "custom";
+  provider: ProviderKind;
   model: string;
   baseUrl: string;
   apiKey: string;
@@ -480,7 +487,7 @@ function AppHeader({
   onNewSession: () => void;
   onDefaultRowLimitChange: (value: string) => void;
   onSaveSafety: () => void;
-  onProviderChange: (value: "openrouter" | "custom") => void;
+  onProviderChange: (value: ProviderKind) => void;
   onModelChange: (value: string) => void;
   onBaseUrlChange: (value: string) => void;
   onApiKeyChange: (value: string) => void;
@@ -553,7 +560,7 @@ function SettingsDialog({
   status: SetupStatusResponse;
   contextDocument?: ContextDocument;
   providerSettings?: ModelProviderSettingsResponse;
-  provider: "openrouter" | "custom";
+  provider: ProviderKind;
   model: string;
   baseUrl: string;
   apiKey: string;
@@ -561,7 +568,7 @@ function SettingsDialog({
   busy: boolean;
   onDefaultRowLimitChange: (value: string) => void;
   onSaveSafety: () => void;
-  onProviderChange: (value: "openrouter" | "custom") => void;
+  onProviderChange: (value: ProviderKind) => void;
   onModelChange: (value: string) => void;
   onBaseUrlChange: (value: string) => void;
   onApiKeyChange: (value: string) => void;
@@ -1111,13 +1118,13 @@ function SetupFallback({
 }: {
   status: SetupStatusResponse | null;
   providerSettings?: ModelProviderSettingsResponse;
-  provider: "openrouter" | "custom";
+  provider: ProviderKind;
   model: string;
   baseUrl: string;
   apiKey: string;
   busy: boolean;
   notice: Notice;
-  onProviderChange: (value: "openrouter" | "custom") => void;
+  onProviderChange: (value: ProviderKind) => void;
   onModelChange: (value: string) => void;
   onBaseUrlChange: (value: string) => void;
   onApiKeyChange: (value: string) => void;
@@ -1258,12 +1265,12 @@ function ProviderForm({
   onSave
 }: {
   settings?: ModelProviderSettingsResponse;
-  provider: "openrouter" | "custom";
+  provider: ProviderKind;
   model: string;
   baseUrl: string;
   apiKey: string;
   busy: boolean;
-  onProviderChange: (value: "openrouter" | "custom") => void;
+  onProviderChange: (value: ProviderKind) => void;
   onModelChange: (value: string) => void;
   onBaseUrlChange: (value: string) => void;
   onApiKeyChange: (value: string) => void;
@@ -1290,12 +1297,13 @@ function ProviderForm({
               value={[provider]}
               onValueChange={(value) => {
                 const nextValue = value[value.length - 1];
-                if (nextValue === "openrouter" || nextValue === "custom") onProviderChange(nextValue);
+                if (nextValue === "openrouter" || nextValue === "openai" || nextValue === "custom") onProviderChange(nextValue);
               }}
               variant="outline"
               size="sm"
             >
               <ToggleGroupItem value="openrouter">OpenRouter</ToggleGroupItem>
+              <ToggleGroupItem value="openai">OpenAI</ToggleGroupItem>
               <ToggleGroupItem value="custom">Custom</ToggleGroupItem>
             </ToggleGroup>
           </Field>
@@ -1472,6 +1480,11 @@ function friendlyErrorMessage(message: string) {
     return "Model provider returned a response the app could not use. Try again, or switch to a different provider/model if it keeps happening.";
   }
   return message;
+}
+
+function providerKindFromSettings(provider: string): ProviderKind {
+  if (provider === "openai" || provider === "custom") return provider;
+  return "openrouter";
 }
 
 function artifactSubtitle({

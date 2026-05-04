@@ -276,7 +276,7 @@ export interface components {
             name: string;
             /**
              * Source Hint
-             * @description Optional database source as table.column when a specific source column is known.
+             * @description Optional concrete database source as table.column when a specific source column is known. Use null for derived values, counts, formulas, filters, or uncertain sources.
              */
             source_hint?: string | null;
         };

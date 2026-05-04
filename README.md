@@ -1,42 +1,30 @@
 # CSV Chat
 
-CSV Chat is a local app for generating a validated CSV from a Postgres database.
+CSV Chat is a local app that turns a plain-language request into a validated CSV download from Postgres.
 
-You describe the CSV in plain language. The app scans your database context, proposes a CSV plan for approval, generates SQL internally, validates it, runs it with read-only limits, and gives you a CSV download.
+The app scans database context, proposes a CSV plan for you to approve, generates SQL internally, validates it, runs it with read-only limits, and writes the CSV. The model never receives database credentials and never executes SQL directly.
 
-The model never receives database credentials and never executes SQL directly.
+## Quick Start
 
-## Recommended Setup
+Use Linux or Windows with WSL. On Windows, keep the repo inside the WSL filesystem, such as `~/code/csv-chat`, not under `/mnt/c/...`.
 
-Linux or Windows with WSL.
-
-Prerequisites:
+You need:
 
 - Python 3.11 or newer
 - Node.js and pnpm
-- access to a Postgres database through a read-only user
-- an OpenRouter API key, or a custom OpenAI-compatible model endpoint
+- a Postgres database and a read-only database user
+- an OpenAI API key, an OpenRouter API key, or a custom OpenAI-compatible model endpoint
 
-For Windows, install WSL and run these commands inside the Linux shell. Keep the repo inside the WSL filesystem, such as `~/code/csv-chat`, instead of under `/mnt/c/...`.
-
-## First Run
-
-Install dependencies and create `.env` if it does not exist:
+Run setup:
 
 ```bash
 ./tools/setup_local.sh
 ```
 
-Edit `.env` with your database connection:
+Edit `.env` and set your read-only database URL:
 
 ```text
 DATABASE_URL=postgresql://readonly:password@localhost:5432/appdb
-```
-
-Check whether the app is ready:
-
-```bash
-pnpm check:setup
 ```
 
 Start the app:
@@ -51,20 +39,32 @@ Open:
 http://127.0.0.1:5173
 ```
 
-The backend runs on `http://127.0.0.1:8000`.
+In the app:
+
+1. Open Settings.
+2. Save your model provider.
+3. Use the setup screen to scan the database and prepare context.
+4. Start a chat and ask for a CSV.
+
+To check readiness at any time:
+
+```bash
+pnpm check:setup
+```
+
+If setup is not ready, the command prints the next required action.
 
 ## Everyday Use
 
 After setup is complete:
 
 ```bash
-pnpm check:setup
 pnpm dev:app
 ```
 
-If setup is not ready, `pnpm check:setup` prints the next required action.
+Open `http://127.0.0.1:5173`.
 
-The Settings tab keeps the V0 split clear: database credentials stay in the backend `.env` file, while model provider details are edited in the app and saved locally by the backend. If no provider is saved, setup reports a model provider problem instead of falling back to `.env`.
+Database credentials stay in `.env`. Model provider settings are edited in the app and saved locally under `data/settings/model_provider.json`.
 
 ## Database Changes
 

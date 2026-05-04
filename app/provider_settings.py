@@ -72,7 +72,7 @@ def model_config_from_settings(path: Path = MODEL_PROVIDER_PATH) -> ModelConfig:
         )
 
     raise ProviderSettingsError(
-        "Model provider is not configured. Open Settings and add an OpenRouter or custom provider API key."
+        "Model provider is not configured. Open Settings and add an OpenRouter, OpenAI, or custom provider API key."
     )
 
 
