@@ -247,24 +247,41 @@ def _selected_source_names(statement: exp.Expression) -> set[str]:
     if not isinstance(statement, exp.Select):
         return sources
 
+    table_aliases = _table_aliases(statement)
     for expression in statement.expressions:
         if isinstance(expression, exp.Alias):
             expression = expression.this
-        if isinstance(expression, exp.Column):
-            column_name = _normalize_part(expression.name)
-            table_name = _normalize_part(expression.table)
-            if column_name:
-                sources.add(column_name)
-            if table_name and column_name:
-                sources.add(f"{table_name}.{column_name}")
         for column in expression.find_all(exp.Column):
-            column_name = _normalize_part(column.name)
-            table_name = _normalize_part(column.table)
-            if column_name:
-                sources.add(column_name)
-            if table_name and column_name:
-                sources.add(f"{table_name}.{column_name}")
+            _add_column_source(sources, column, table_aliases)
+        if isinstance(expression, exp.Column):
+            _add_column_source(sources, expression, table_aliases)
     return sources
+
+
+def _table_aliases(statement: exp.Expression) -> dict[str, str]:
+    aliases: dict[str, str] = {}
+    for table in statement.find_all(exp.Table):
+        table_name = _normalize_part(table.name)
+        if not table_name:
+            continue
+        aliases[table_name] = table_name
+        alias = _normalize_part(table.alias)
+        if alias:
+            aliases[alias] = table_name
+    return aliases
+
+
+def _add_column_source(sources: set[str], column: exp.Column, table_aliases: dict[str, str]) -> None:
+    column_name = _normalize_part(column.name)
+    table_name = _normalize_part(column.table)
+    if column_name:
+        sources.add(column_name)
+    if table_name and column_name:
+        base_table = table_aliases.get(table_name)
+        if base_table and base_table != table_name:
+            sources.add(f"{base_table}.{column_name}")
+        else:
+            sources.add(f"{table_name}.{column_name}")
 
 
 def _normalize_source_hint(source_hint: str | None) -> str:

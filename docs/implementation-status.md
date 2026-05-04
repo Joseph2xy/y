@@ -59,6 +59,8 @@ CSV intent guidance was tightened so ID-like fields, including foreign-key IDs s
 
 SQL validation now checks generated SQL table references against the scanned schema context. Missing-table cases such as SQL against `public.customers` when the scanned database has no such table are rejected before execution and fed into the bounded repair loop instead of surfacing as export-time Postgres errors. CTE names remain allowed.
 
+Complex calibration on 2026-05-04 added disposable SaaS/product-analytics and marketplace/ecommerce schemas with harder realistic prompts. The first quota-limited run completed one SaaS export and exposed an overly strict source-hint validation case for grouped exports: selected expressions such as `date_trunc('month', i.issued_date)` and `sum(i.total_amount)` did not satisfy approved source hints like `invoices.issued_date` and `invoices.total_amount` when SQL used table aliases. SQL validation now resolves table aliases in selected expressions while preserving the approved-source boundary and rejecting aliases named to spoof an approved source table.
+
 ## Implemented
 
 Backend:
@@ -112,6 +114,7 @@ Tools:
 - `tools/postgres_smoke.py`: provisions a disposable local Postgres demo DB and drives scan -> chat -> plan -> approval -> SQL prep -> export -> download.
 - `tools/model_eval.py`: behavior-based model flow evals for clear requests, joins, aggregates, clarification/rejection cases, and SQL repair.
 - `tools/realistic_calibration.py`: provisions a disposable realistic retail/support Postgres schema and drives real-provider calibration without printing credentials or CSV contents.
+- `tools/complex_calibration.py`: provisions disposable SaaS/product-analytics and marketplace/ecommerce Postgres schemas, runs broader real-provider calibration prompts through the normal app flow, and reports plan/clarification, approval, SQL validation, export summary, trace steps, and suspicious notes without printing credentials or CSV contents.
 
 ## API Surface
 
@@ -152,7 +155,7 @@ Last documented full backend suite: `133 passed` on 2026-05-03 after scanned-sch
 
 Last documented onboarding check update: `tests/test_check_setup.py` passed, `bash -n tools/setup_local.sh` passed, and `pnpm check:setup` reported ready on 2026-05-03.
 
-Last documented model eval verification: `.venv/bin/python tools/model_eval.py` passed on 2026-05-03 after source-hint prompt wording, ID/default-label guidance, and schema-backed SQL validation updates.
+Last documented model eval verification: `.venv/bin/python tools/model_eval.py` passed on 2026-05-04 after complex calibration and source-hint alias validation updates.
 
 Last documented frontend verification: `pnpm test` passed with `10 passed`; `pnpm build` passed on 2026-05-03 after row-limit Settings, chat/artifact message placement, and safety-status UI updates.
 
@@ -173,6 +176,13 @@ Optional real-provider realistic calibration:
 ```bash
 .venv/bin/python tools/realistic_calibration.py
 .venv/bin/python tools/finance_calibration.py
+.venv/bin/python tools/complex_calibration.py
+```
+
+If local Postgres requires an explicit admin TCP role on this machine:
+
+```bash
+.venv/bin/python tools/complex_calibration.py --admin-url 'postgresql://Joseph@127.0.0.1:5432/postgres'
 ```
 
 ## Provider Configuration
@@ -229,6 +239,7 @@ Ignored generated artifacts such as `.openapi/`, `dist/`, `__pycache__/`, `.pyte
 - Export enforces row and byte limits.
 - Export columns must match the approved CSV intent.
 - Export SQL must select from approved intent source hints when the plan includes them.
+- Source-hint validation resolves real table aliases in selected expressions, including aggregate and date expressions, so `sum(i.total_amount)` can satisfy an approved `invoices.total_amount` hint when `i` aliases `invoices`; aliases named after the approved table do not spoof that boundary.
 - CSV cells that look formula-like are escaped.
 - SQL and validation traces stay behind read-only Advanced UI.
 - Debug traces are stored with the local session and are cleared when a new user request resets the session plan.

@@ -306,3 +306,67 @@ def test_allows_intent_source_hints_selected_with_matching_alias() -> None:
     )
 
     assert result.valid
+
+
+def test_allows_intent_source_hints_selected_through_table_aliases_and_aggregates() -> None:
+    intent = CSVIntent(
+        summary="Revenue by month and region",
+        row_meaning="One row per month and region",
+        columns=[
+            CSVColumnIntent(
+                name="Month",
+                description="Invoice month",
+                source_hint="invoices.issued_date",
+            ),
+            CSVColumnIntent(
+                name="Account Region",
+                description="Account region",
+                source_hint="accounts.region",
+            ),
+            CSVColumnIntent(
+                name="Invoice Revenue",
+                description="Invoice revenue",
+                source_hint="invoices.total_amount",
+            ),
+        ],
+    )
+
+    result = validate_sql(
+        """
+        select
+          date_trunc('month', i.issued_date) as "Month",
+          a.region as "Account Region",
+          sum(i.total_amount) as "Invoice Revenue"
+        from invoices i
+        join accounts a on a.id = i.account_id
+        group by 1, 2
+        limit 100
+        """,
+        expected_columns=["Month", "Account Region", "Invoice Revenue"],
+        intent=intent,
+    )
+
+    assert result.valid
+
+
+def test_source_hint_validation_does_not_trust_alias_named_like_required_table() -> None:
+    intent = CSVIntent(
+        summary="Customer emails",
+        row_meaning="One row per customer",
+        columns=[
+            CSVColumnIntent(
+                name="email",
+                description="Customer email",
+                source_hint="customers.email",
+            )
+        ],
+    )
+
+    result = validate_sql(
+        "select customers.email as email from accounts customers limit 10",
+        expected_columns=["email"],
+        intent=intent,
+    )
+
+    assert not result.valid
+    assert result.errors == ["SQL must select from approved source hint 'customers.email'."]
