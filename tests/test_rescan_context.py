@@ -14,7 +14,10 @@ def test_rescan_context_reports_updated_files(monkeypatch, capsys) -> None:
         table_count=2,
         column_count=7,
     )
-    monkeypatch.setattr(rescan_context, "scan_context", lambda: response)
+    async def scan_context() -> ContextScanResponse:
+        return response
+
+    monkeypatch.setattr(rescan_context, "scan_context", scan_context)
 
     assert rescan_context.main() == 0
 

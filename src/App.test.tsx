@@ -543,6 +543,45 @@ describe("App", () => {
     expect(screen.queryByLabelText("Base URL")).not.toBeInTheDocument();
   });
 
+  it("saves OpenCode Zen provider settings without requiring an API key", async () => {
+    const user = userEvent.setup();
+    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+    let savedBody: unknown = null;
+    let providerSaved = false;
+
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/setup/status") return jsonResponse(providerSaved ? setupReadyResponse : providerNeededResponse);
+      if (url === "/settings/model-provider" && init?.method === "PUT") {
+        savedBody = JSON.parse(String(init.body));
+        providerSaved = true;
+        return jsonResponse({
+          provider: "opencode",
+          model: "nemotron-3-super-free",
+          base_url: "https://opencode.ai/zen/v1",
+          temperature: 0,
+          api_key_configured: false
+        });
+      }
+      if (url === "/settings/model-provider") return jsonResponse(providerResponse);
+      return jsonResponse({ detail: "Not found" }, 404);
+    });
+
+    renderApp();
+
+    await user.click(await screen.findByRole("button", { name: "OpenCode Zen" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByText("What CSV do you need?")).toBeInTheDocument();
+    expect(savedBody).toMatchObject({
+      provider: "opencode",
+      model: "nemotron-3-super-free",
+      api_key: null,
+      base_url: null,
+      temperature: 0
+    });
+  });
+
   it("saves custom OpenAI-compatible provider settings", async () => {
     const user = userEvent.setup();
     const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;

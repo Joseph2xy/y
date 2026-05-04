@@ -13,7 +13,7 @@ You need:
 - Python 3.11 or newer
 - Node.js and pnpm
 - a Postgres database and a read-only database user
-- an OpenAI API key, an OpenRouter API key, or a custom OpenAI-compatible model endpoint
+- an OpenCode Zen free model, an OpenAI API key, an OpenRouter API key, or a custom OpenAI-compatible model endpoint
 
 Run setup:
 

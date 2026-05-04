@@ -26,7 +26,7 @@ Use a read-only database user. Do not use an admin account.
 
 ## Model Provider Is Not Configured
 
-Run `pnpm dev:app`, open Settings, and save OpenAI, OpenRouter, or custom OpenAI-compatible provider settings.
+Run `pnpm dev:app`, open Settings, and save OpenCode Zen, OpenAI, OpenRouter, or custom OpenAI-compatible provider settings.
 
 Provider settings are stored locally under:
 
@@ -35,6 +35,8 @@ data/settings/model_provider.json
 ```
 
 The app does not fall back to model provider values in `.env`. If this file is missing or has no saved API key, setup reports that the model provider is not configured.
+
+OpenCode Zen free models can be saved without an API key.
 
 ## Model Provider Says Rate Limit Or Quota Exceeded
 

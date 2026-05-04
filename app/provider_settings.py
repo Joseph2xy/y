@@ -35,6 +35,8 @@ def save_provider_settings(
     existing = load_provider_settings(path)
     api_key = _clean_optional(update.api_key)
     base_url = _clean_optional(update.base_url)
+    if update.provider == "opencode":
+        base_url = "https://opencode.ai/zen/v1"
     preserved_api_key = existing.api_key if _can_preserve_api_key(existing, update.provider, base_url) else None
     settings = ModelProviderSettings(
         provider=update.provider,
@@ -43,7 +45,7 @@ def save_provider_settings(
         base_url=base_url,
         temperature=update.temperature,
     )
-    if not settings.api_key:
+    if not settings.api_key and settings.provider != "opencode":
         raise ProviderSettingsError("API key is required for the selected model provider.")
 
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -63,7 +65,7 @@ def provider_settings_response(settings: ModelProviderSettings) -> ModelProvider
 
 def model_config_from_settings(path: Path = MODEL_PROVIDER_PATH) -> ModelConfig:
     settings = load_provider_settings(path)
-    if settings.api_key:
+    if settings.api_key or settings.provider == "opencode":
         return ModelConfig(
             model=settings.model,
             api_key=settings.api_key,
@@ -72,7 +74,7 @@ def model_config_from_settings(path: Path = MODEL_PROVIDER_PATH) -> ModelConfig:
         )
 
     raise ProviderSettingsError(
-        "Model provider is not configured. Open Settings and add an OpenRouter, OpenAI, or custom provider API key."
+        "Model provider is not configured. Open Settings and add an OpenRouter, OpenAI, OpenCode Zen, or custom provider API key."
     )
 
 

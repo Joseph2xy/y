@@ -67,7 +67,7 @@ import type {
 
 type Notice = { type: "error" | "info"; text: string } | null;
 type Theme = "light" | "dark";
-type ProviderKind = "openrouter" | "openai" | "custom";
+type ProviderKind = "openrouter" | "openai" | "opencode" | "custom";
 
 const EXAMPLE_REQUESTS = [
   "Active customer emails created this quarter",
@@ -304,6 +304,7 @@ export function App() {
     setProviderKind(provider);
     if (provider === "openrouter") setProviderModel("openrouter/openai/gpt-4o-mini");
     if (provider === "openai") setProviderModel("openai/gpt-4.1-mini");
+    if (provider === "opencode") setProviderModel("nemotron-3-super-free");
   }
 
   const busy =
@@ -1277,11 +1278,12 @@ function ProviderForm({
   onSave: () => void;
 }) {
   const custom = provider === "custom";
+  const opencode = provider === "opencode";
   const savedKeyMatches =
     Boolean(settings?.api_key_configured) &&
     settings?.provider === provider &&
     (settings.base_url ?? null) === (custom ? baseUrl.trim() : null);
-  const disabled = busy || !model.trim() || (custom && !baseUrl.trim()) || (!apiKey.trim() && !savedKeyMatches);
+  const disabled = busy || !model.trim() || (custom && !baseUrl.trim()) || (!opencode && !apiKey.trim() && !savedKeyMatches);
 
   return (
     <Card aria-label="Provider settings">
@@ -1297,13 +1299,14 @@ function ProviderForm({
               value={[provider]}
               onValueChange={(value) => {
                 const nextValue = value[value.length - 1];
-                if (nextValue === "openrouter" || nextValue === "openai" || nextValue === "custom") onProviderChange(nextValue);
+                if (nextValue === "openrouter" || nextValue === "openai" || nextValue === "opencode" || nextValue === "custom") onProviderChange(nextValue);
               }}
               variant="outline"
               size="sm"
             >
               <ToggleGroupItem value="openrouter">OpenRouter</ToggleGroupItem>
               <ToggleGroupItem value="openai">OpenAI</ToggleGroupItem>
+              <ToggleGroupItem value="opencode">OpenCode Zen</ToggleGroupItem>
               <ToggleGroupItem value="custom">Custom</ToggleGroupItem>
             </ToggleGroup>
           </Field>
@@ -1326,7 +1329,7 @@ function ProviderForm({
               type="password"
               placeholder={savedKeyMatches ? "Leave blank to keep saved key" : "API key"}
             />
-            <FieldDescription>Stored locally by the backend.</FieldDescription>
+            <FieldDescription>{opencode ? "Optional for free Zen models. Stored locally by the backend if provided." : "Stored locally by the backend."}</FieldDescription>
           </Field>
         </FieldGroup>
       </CardContent>
@@ -1483,7 +1486,7 @@ function friendlyErrorMessage(message: string) {
 }
 
 function providerKindFromSettings(provider: string): ProviderKind {
-  if (provider === "openai" || provider === "custom") return provider;
+  if (provider === "openai" || provider === "opencode" || provider === "custom") return provider;
   return "openrouter";
 }
 

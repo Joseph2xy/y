@@ -98,6 +98,24 @@ def test_model_config_supports_openai_provider_without_base_url(tmp_path, monkey
     assert config.base_url is None
 
 
+def test_model_config_supports_opencode_without_api_key(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    settings = save_provider_settings(
+        ModelProviderSettingsUpdate(
+            provider="opencode",
+            model="nemotron-3-super-free",
+        )
+    )
+
+    config = model_config_from_settings()
+
+    assert settings.api_key is None
+    assert settings.base_url == "https://opencode.ai/zen/v1"
+    assert config.model == "nemotron-3-super-free"
+    assert config.api_key is None
+    assert config.base_url == "https://opencode.ai/zen/v1"
+
+
 def test_model_config_requires_saved_api_key(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
 

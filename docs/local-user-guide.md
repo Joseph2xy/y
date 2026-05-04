@@ -11,7 +11,7 @@ You need:
 - Python 3.11 or newer
 - Node.js and pnpm
 - Postgres access through a read-only database user
-- an OpenAI API key, an OpenRouter API key, or a custom OpenAI-compatible model endpoint
+- an OpenCode Zen free model, an OpenAI API key, an OpenRouter API key, or a custom OpenAI-compatible model endpoint
 
 On Windows, run everything inside WSL and keep the repo in the Linux filesystem, such as `~/code/csv-chat`. Avoid `/mnt/c/...`.
 
@@ -157,7 +157,7 @@ API responses never return the saved API key.
 The app Settings tab is split by responsibility:
 
 - Database shows connection/context status, lets you test the current connection, and lets you rescan context. `DATABASE_URL` stays in the backend `.env` file for V0.
-- Model Provider can save OpenAI, OpenRouter, or custom OpenAI-compatible provider settings locally.
+- Model Provider can save OpenCode Zen, OpenAI, OpenRouter, or custom OpenAI-compatible provider settings locally.
 
 ## Local Data
 
