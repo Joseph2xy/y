@@ -68,6 +68,7 @@ Tools:
 - `tools/calibration.py`: shared calibration harness.
 - `tools/realistic_calibration.py`, `tools/finance_calibration.py`, `tools/complex_calibration.py`: disposable-schema real-provider calibration scripts.
 - `tools/mock_openai_server.py`: deterministic local OpenAI-compatible model server.
+- `docs/calibration-report-2026-05-04.md`: real-provider calibration prompts and observed outcomes for OpenCode Zen, SaaS, marketplace, and banking-adjacent scenarios.
 
 ## API Surface
 
@@ -104,10 +105,10 @@ pnpm test
 pnpm build
 ```
 
-Last documented backend/model-flow verification on 2026-05-04:
+Last documented backend/model-flow verification on 2026-05-04 before OpenCode Zen calibration:
 
 ```text
-.venv/bin/python -m pytest -q -> 142 passed
+.venv/bin/python -m pytest -q -> 145 passed
 .venv/bin/python -m compileall -q app tests tools -> passed
 .venv/bin/python tools/model_eval.py -> passed
 ```

@@ -2,6 +2,8 @@
 
 Use these to test product behavior and model prompts.
 
+For a longer set of real calibration prompts and observed outcomes, see `docs/calibration-report-2026-05-04.md`.
+
 ## Simple List Exports
 
 ```text
