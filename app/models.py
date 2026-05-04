@@ -6,7 +6,6 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-
 class HealthResponse(BaseModel):
     status: str = "ok"
 
@@ -115,8 +114,27 @@ class CSVColumnIntent(BaseModel):
     description: str = Field(min_length=1)
     source_hint: str | None = Field(
         default=None,
-        description="Optional database source as table.column when a specific source column is known.",
+        description=(
+            "Optional concrete database source as table.column when a specific source column is known. "
+            "Use null for derived values, counts, formulas, filters, or uncertain sources."
+        ),
     )
+
+    @field_validator("source_hint", mode="before")
+    @classmethod
+    def coerce_source_hint(cls, value: Any) -> Any:
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            return value
+
+        hint = value.strip().strip('"')
+        parts = [part.strip().strip('"') for part in hint.split(".")]
+        if len(parts) not in (2, 3):
+            return None
+        if all(_is_identifier_part(part) for part in parts):
+            return ".".join(parts)
+        return None
 
 
 class CSVIntent(BaseModel):
@@ -300,3 +318,11 @@ def _coerce_text_list_item(item: Any) -> str:
                 parts.append(f"{key}: {value}")
         return "; ".join(parts)
     return str(item)
+
+
+def _is_identifier_part(value: str) -> bool:
+    if not value:
+        return False
+    if not (value[0].isalpha() or value[0] == "_"):
+        return False
+    return all(character.isalnum() or character == "_" for character in value)

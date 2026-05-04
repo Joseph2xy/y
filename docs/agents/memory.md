@@ -62,10 +62,11 @@ Update this file at the end of each section of work.
 - Fixed SQL validation so generated SQL cannot reference tables outside the scanned schema context. `SQLPolicy` now carries known tables from `SchemaContext`, prepare/export validation rejects unknown tables such as `public.customers` before execution, and CTE names remain allowed. This turns missing-table cases into validation/repair errors instead of export-time Postgres failures. Verified focused SQL/export/session tests, full pytest (`133 passed`), compileall, `tools/model_eval.py`, App tests, and `pnpm build`.
 - Added `tools/complex_calibration.py` for broader real-provider calibration against disposable SaaS/product-analytics and marketplace/ecommerce Postgres schemas. The script copies local provider settings into the disposable run directory without printing them, reports plan/clarification, approval, SQL validation, export summary, trace steps, and suspicious notes, and stops cleanly on provider quota/configuration failures. A first quota-limited run completed one SaaS export after repair and exposed an overly strict source-hint validation case in a grouped revenue export.
 - Fixed the source-hint validation issue found by complex calibration. SQL selected-source extraction now maps real table aliases back to base table names, so aggregate/date expressions such as `sum(i.total_amount)` and `date_trunc('month', i.issued_date)` satisfy approved hints like `invoices.total_amount` and `invoices.issued_date`; aliases named after an approved source table do not spoof that boundary. Verified focused SQL guard coverage and related export/session API tests.
+- Discussed calibration findings and made the minimal V0 changes for derived CSV columns without adding full lineage tracking. SQL Guard now allows `COUNT(*)` while still rejecting `SELECT *`/`table.*`; CSV intent parsing keeps `source_hint` to concrete `table.column`/`schema.table.column` values and converts formula/count/prose hints to `None`; prompts tell the model to put derived logic in descriptions/derived fields and avoid hiding source-hinted columns behind CTE aliases when practical. Verified focused tests, full pytest (`139 passed`), compileall, and `tools/model_eval.py`. A SaaS-only complex calibration rerun showed churn-risk and feature-usage now export on first SQL attempt; remaining findings are CTE source-hint lineage for latest CSM, exact-label export casing/quoting mismatch, conservative clarification on some concrete requests, and provider quota before blocked-sensitive-fields.
 
 ## Next Step
 
-- Re-test unclear-message behavior and `tools/complex_calibration.py` against a stable provider/model with available quota. Also continue the broader Artifact Split end-to-end flow: settings dialog provider changes, context rescan/recovery, approve -> prepare -> retry-if-needed -> create -> download, and ask a tester to follow the README from a fresh Linux/WSL clone and record setup friction.
+- Discuss remaining calibration findings before changing behavior: whether to add limited CTE source lineage for simple CTE projections, how to enforce exact output label casing/quoting before execution, and whether concrete-but-ambiguous requests should be clarified or handled with assumptions. Then re-run `tools/complex_calibration.py` against a stable provider/model with available quota, including the blocked-sensitive-fields scenario. Also continue the broader Artifact Split end-to-end flow and local onboarding test.
 
 ## Next Session Prompt
 
@@ -74,24 +75,30 @@ Use this prompt to continue:
 ```text
 Read AGENTS.md and docs/implementation-status.md first. Continue from the current V0 CSV Chat state.
 
-Goal for this session: re-test unclear-message behavior against a stable real provider/model in repeated runs, test the documented local onboarding path from a fresh Linux/WSL clone if possible, record any setup friction, and re-test the Artifact Split chat flow with a stable provider/model. Also re-run the remaining finance calibration scenarios after provider quota resets or with a paid/non-free provider: overdue-invoices SQL/export and vague-finance clarification.
+Goal for this session: continue the complex calibration work without turning it into a benchmark or tuning the app to specific schemas. The purpose is to test whether the app flow behaves well across realistic SaaS/product-analytics and marketplace/ecommerce databases: chat -> clarification or CSV plan -> one approval -> SQL generation -> validation/repair -> read-only export -> CSV download.
 
-Start by checking git status and setup readiness. Do not print secrets, database credentials, or final CSV contents. Use the configured .env provider/database if available.
+Start by checking git status, current branch, recent commits, and setup readiness. Do not print secrets, database credentials, provider keys, or final CSV contents. Be aware the branch `codex/complex-calibration-source-hints` was pushed at commit `40c7277` with `tools/complex_calibration.py` and source-hint alias validation. The working tree may contain additional uncommitted follow-up changes around derived CSV columns, prompt/source_hint handling, and SQL Guard; review them before editing and do not revert user changes.
 
-For another calibration pass, run 3-5 realistic CSV requests through the actual API flow:
-1. create session
-2. add user request
-3. propose CSV plan
-4. approve only if the plan is reasonable
-5. prepare SQL
-6. export if SQL validation passes
-7. inspect persisted debug traces
+Known calibration problem/context:
+- `tools/complex_calibration.py` provisions disposable SaaS/product-analytics and marketplace/ecommerce Postgres schemas, copies local provider settings into the temp run directory without printing them, and reports each scenario.
+- The first OpenRouter quota-limited run completed one SaaS export after repair, then found source-hint validation was too strict for grouped/aggregate SQL using aliases.
+- Source-hint validation was fixed to map real table aliases back to base table names while preventing alias spoofing.
+- Follow-up calibration apparently showed churn-risk and feature-usage exports passing, with remaining findings around simple CTE source-hint lineage for latest CSM, exact-label export casing/quoting mismatch, conservative clarification on some concrete requests, and provider quota before blocked-sensitive-fields.
 
-Report for each request: request text, whether the model proposed a plan or clarification, planned columns/filters, SQL validation result and repair attempts, export row count/columns, and any mismatch or suspicious behavior.
+Next work:
+1. Review the uncommitted diff first and understand any changes already made since commit `40c7277`.
+2. Decide whether the remaining findings justify app changes:
+   - limited CTE source lineage for simple CTE projections
+   - exact output label casing/quoting enforcement before execution
+   - whether concrete-but-ambiguous prompts should clarify or proceed with assumptions
+3. If provider quota is available, rerun:
+   `.venv/bin/python tools/complex_calibration.py --admin-url 'postgresql://Joseph@127.0.0.1:5432/postgres'`
+   or use `--domain saas` / `--domain marketplace` for focused runs.
+4. Report scenario outcomes: request, clarification vs plan, plan summary/columns/filters/derived fields/assumptions, approval decision, SQL validation and repair attempts, export row count/columns, trace steps, and suspicious notes.
 
-If a concrete bug appears, fix it with focused changes and tests. If the issue is schema/business ambiguity, tune data/context/context.md or prompt wording only when the traces show a specific confusion. Keep the product narrow: chat -> context -> approved CSV plan -> validated SQL -> CSV download.
+Do not add app-side rewrites for IDs, labels, filters, joins, or derived fields unless there is a clear safety/app-boundary reason. Let the model do interpretation, naming, joins, derived fields, grouping, and labels. Hard checks should stay focused on app boundaries: no SQL before approval, validation before execution, blocked policy fields/tables/functions, read-only execution, limits, CSV formula escaping, and no final CSV on validation failure.
 
-If local-install friction comes up, start from `README.md`, `tools/setup_local.sh`, `pnpm check:setup`, and `pnpm dev:app` before adding anything broader.
+If a concrete bug appears, fix it with focused changes and tests. If the issue is schema/business ambiguity, prefer reporting it unless traces show a general prompt/context problem. Keep the product narrow: chat -> context -> approved CSV plan -> validated SQL -> CSV download.
 
-Before final response, run relevant verification: pytest, frontend tests/build when frontend/API types changed, compileall, and model_eval if prompt/model-flow behavior changed. End with conclusions and recommended next actions.
+Before final response, run relevant verification: pytest for touched backend areas, compileall, `tools/model_eval.py` if prompt/model-flow behavior changed, and frontend tests/build only if frontend/API types changed. End with: new calibration coverage/results, model behavior observations, app safety boundary observations, and recommended next product fixes.
 ```

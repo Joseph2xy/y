@@ -75,6 +75,8 @@ def test_build_intent_prompt_includes_context_schema_policy_and_messages() -> No
     assert "Creation date" in content
     assert "created_at" in content
     assert "source_hint" in content
+    assert "table.column" in content
+    assert "Use source_hint null for derived values" in content
     assert "policy max_row_count" in content
     assert "smaller row limit" in content
 
@@ -93,6 +95,8 @@ def test_build_sql_prompt_includes_approved_intent_and_sql_requirements() -> Non
     assert "names exactly matching" in content
     assert "source_hint" in content
     assert "table.column" in content
+    assert "COUNT(*) is allowed" in content
+    assert "Avoid hiding source-hinted output columns behind CTE output aliases" in content
 
 
 def test_response_format_for_includes_model_schema() -> None:

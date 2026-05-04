@@ -130,6 +130,48 @@ def test_csv_intent_coerces_model_text_list_objects() -> None:
     assert proposal.intent.assumptions == ["Invoice total calculated from invoice lines."]
 
 
+def test_csv_intent_keeps_only_concrete_source_hints() -> None:
+    proposal = CSVIntentProposal.model_validate(
+        {
+            "message": "Here is the CSV plan.",
+            "intent": {
+                "summary": "Student grades",
+                "row_meaning": "One row per student.",
+                "columns": [
+                    {
+                        "name": "Student Name",
+                        "description": "Student name",
+                        "source_hint": "students.name",
+                    },
+                    {
+                        "name": "Average Grade",
+                        "description": "Average of subject grades",
+                        "source_hint": "grades.math + grades.english + grades.science",
+                    },
+                    {
+                        "name": "Open Ticket Count",
+                        "description": "Count of open tickets",
+                        "source_hint": "support_tickets (count where status='open')",
+                    },
+                    {
+                        "name": "Qualified Source",
+                        "description": "Schema-qualified source",
+                        "source_hint": "public.students.class_name",
+                    },
+                ],
+            },
+        }
+    )
+
+    assert proposal.intent is not None
+    assert [column.source_hint for column in proposal.intent.columns] == [
+        "students.name",
+        None,
+        None,
+        "public.students.class_name",
+    ]
+
+
 def test_propose_csv_intent_marks_session_failed_when_model_generation_fails(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     ensure_context_files()

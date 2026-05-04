@@ -203,7 +203,7 @@ def _check_output_columns(
     if not isinstance(statement, exp.Select):
         return
 
-    if any(isinstance(expression, exp.Star) or expression.find(exp.Star) for expression in statement.expressions):
+    if any(_is_wildcard_output_expression(expression) for expression in statement.expressions):
         errors.append("SQL must explicitly select the approved CSV columns; SELECT * is not allowed.")
         return
 
@@ -219,6 +219,14 @@ def _check_output_columns(
             + ", ".join(expected_columns)
             + "."
         )
+
+
+def _is_wildcard_output_expression(expression: exp.Expression) -> bool:
+    if isinstance(expression, exp.Star):
+        return True
+    if isinstance(expression, exp.Column) and isinstance(expression.this, exp.Star):
+        return True
+    return False
 
 
 def _function_name(function: exp.Func) -> str:

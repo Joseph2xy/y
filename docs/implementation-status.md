@@ -61,6 +61,8 @@ SQL validation now checks generated SQL table references against the scanned sch
 
 Complex calibration on 2026-05-04 added disposable SaaS/product-analytics and marketplace/ecommerce schemas with harder realistic prompts. The first quota-limited run completed one SaaS export and exposed an overly strict source-hint validation case for grouped exports: selected expressions such as `date_trunc('month', i.issued_date)` and `sum(i.total_amount)` did not satisfy approved source hints like `invoices.issued_date` and `invoices.total_amount` when SQL used table aliases. SQL validation now resolves table aliases in selected expressions while preserving the approved-source boundary and rejecting aliases named to spoof an approved source table.
 
+Follow-up calibration discussion on 2026-05-04 clarified that V0 should support useful derived CSV columns without building a full SQL lineage engine yet. SQL validation now allows `COUNT(*)` aggregates while still rejecting `SELECT *`/`table.*`, and CSV intent parsing keeps `source_hint` to concrete `table.column`/`schema.table.column` references while treating formulas, counts, filters, or prose hints as derived/unknown sources. SQL prompts now tell the model to keep formulas in descriptions/derived fields and avoid hiding source-hinted output columns behind CTE aliases when practical. A SaaS-only rerun showed the previous churn-risk and feature-usage failures now export on first SQL attempt. Remaining calibration findings: the model sometimes asks clarifications for concrete-but-ambiguous requests, CTE-derived source hints such as latest health snapshot CSM still fail validation without lineage support, and an exact-label export reached execution but returned unquoted/lowercased labels for `Account`/`Plan`.
+
 ## Implemented
 
 Backend:
@@ -156,6 +158,8 @@ Last documented full backend suite: `133 passed` on 2026-05-03 after scanned-sch
 Last documented onboarding check update: `tests/test_check_setup.py` passed, `bash -n tools/setup_local.sh` passed, and `pnpm check:setup` reported ready on 2026-05-03.
 
 Last documented model eval verification: `.venv/bin/python tools/model_eval.py` passed on 2026-05-04 after complex calibration and source-hint alias validation updates.
+
+Last documented focused calibration rerun: `.venv/bin/python tools/complex_calibration.py --domain saas` ran on 2026-05-04 against a temporary local Postgres instance until provider quota was hit. Churn-risk and feature-usage scenarios exported successfully after `COUNT(*)` and source-hint sanitization changes; friendly-labels still failed on CTE source-hint lineage; exact-labels failed at export due returned column labels not matching `Account`/`Plan`; blocked-sensitive-fields was not evaluated because the provider hit quota.
 
 Last documented frontend verification: `pnpm test` passed with `10 passed`; `pnpm build` passed on 2026-05-03 after row-limit Settings, chat/artifact message placement, and safety-status UI updates.
 

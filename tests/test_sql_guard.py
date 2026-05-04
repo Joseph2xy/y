@@ -254,6 +254,19 @@ def test_rejects_star_when_output_columns_are_required() -> None:
     assert result.errors == ["SQL must explicitly select the approved CSV columns; SELECT * is not allowed."]
 
 
+def test_rejects_table_star_when_output_columns_are_required() -> None:
+    result = validate_sql("select customers.* from customers limit 10", expected_columns=["email"])
+
+    assert not result.valid
+    assert result.errors == ["SQL must explicitly select the approved CSV columns; SELECT * is not allowed."]
+
+
+def test_allows_count_star_when_output_columns_are_required() -> None:
+    result = validate_sql("select count(*) as total from customers limit 10", expected_columns=["total"])
+
+    assert result.valid
+
+
 def test_allows_aliases_that_match_approved_intent_columns() -> None:
     result = validate_sql(
         "select lower(email) as email from customers limit 10",

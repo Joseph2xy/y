@@ -38,8 +38,9 @@ def build_intent_prompt(
                 "for a CSV without saying what should be in it, or asks for useful/everything/all data, intent must be null.\n\n"
                 "If proposing a CSV intent, use only user-facing CSV language. CSV column names should be readable "
                 "labels for the exported file, not raw database names when a clearer label exists. For example, use "
-                "'Creation date' instead of 'created_at'. Keep source_hint on each column when a specific database "
-                "source is known.\n\n"
+                "'Creation date' instead of 'created_at'. Keep source_hint on each column only when a specific direct "
+                "database source column is known, using table.column. Use source_hint null for derived values, counts, "
+                "formulas, filters, or uncertain sources, and describe those in description or derived_fields.\n\n"
                 "Exclude ID-like fields by default, including primary keys, foreign-key IDs, and columns named 'id' "
                 "or ending in '_id', unless the user explicitly asks for identifiers. If the user asks for all/everything "
                 "but has not explicitly asked for IDs, do not include IDs.\n\n"
@@ -68,7 +69,9 @@ def build_sql_prompt(
                 f"{_dump(approved_intent.model_dump())}\n\n"
                 "Propose one Postgres SELECT statement for the approved CSV intent. "
                 "The SQL must include an integer LIMIT and must return columns with names exactly matching the CSV intent. "
-                "When a CSV column includes a source_hint, select from that hinted table.column and alias it to the approved CSV column name."
+                "When a CSV column includes a source_hint, select from that hinted table.column and alias it to the approved CSV column name. "
+                "Do not use SELECT * or table.*. COUNT(*) is allowed for count columns. "
+                "Avoid hiding source-hinted output columns behind CTE output aliases; keep the hinted table.column visible in the final selected expression when practical."
             ),
         ),
     ]
@@ -95,7 +98,9 @@ def build_sql_repair_prompt(
                 f"{_dump(validation_errors)}\n\n"
                 "Return repaired SQL only for the same approved CSV intent. "
                 "Do not broaden the data requested. "
-                "When a CSV column includes a source_hint, select from that hinted table.column and alias it to the approved CSV column name."
+                "When a CSV column includes a source_hint, select from that hinted table.column and alias it to the approved CSV column name. "
+                "Do not use SELECT * or table.*. COUNT(*) is allowed for count columns. "
+                "Avoid hiding source-hinted output columns behind CTE output aliases; keep the hinted table.column visible in the final selected expression when practical."
             ),
         ),
     ]
