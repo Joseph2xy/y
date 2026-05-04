@@ -128,12 +128,14 @@ Completed calibration so far:
 - Retail/support realistic schema succeeded for concrete requests and clarified vague sales requests.
 - Finance/invoicing realistic schema succeeded for unpaid invoices, recognized revenue by month, and March payments; later scenarios were blocked by provider quota.
 - SaaS/product-analytics complex calibration confirmed churn-risk and feature-usage exports after derived/count/source-hint updates.
+- OpenCode Zen calibration on 2026-05-04 found `big-pickle` to be the best current free-model fit among the `/zen/v1` candidates tested. `big-pickle` completed SaaS calibration with 13/14 clean scenarios and marketplace calibration with 11/12 clean scenarios; focused reruns of the two flagged scenarios then passed. `nemotron-3-super-free` and `minimax-m2.5-free` were usable but less reliable for structured JSON and/or latency.
+- Banking-adjacent calibration on 2026-05-04 used a disposable regional-bank schema with customers, branches, relationship managers, deposit accounts, transactions, cards, disputes, loans, loan payments, and KYC reviews. With `big-pickle`, the full run completed 9/10 scenarios cleanly; the only failure was a transient structured-output issue (`questions: null`) on open card disputes, and a focused rerun of that scenario passed end to end. Sensitive identifier and approval-bypass scenarios clarified without SQL/export.
 
 Known remaining findings:
 
 - Simple CTE-derived source hints, such as latest health snapshot CSM, can still fail without CTE lineage support.
-- The model may clarify some concrete-but-ambiguous requests instead of proceeding with assumptions.
-- `tools/complex_calibration.py` still needs a full run with provider quota available, including blocked-sensitive-fields coverage.
+- Some free OpenCode Zen models can produce invalid JSON/schema mismatches or read timeouts even when simple probes pass.
+- The app's current OpenCode Zen adapter works with `big-pickle`, `minimax-m2.5-free`, and `nemotron-3-super-free` on `/zen/v1`. `hy3-preview-free` rejects JSON mode, and the tested MiMo free IDs were not supported by that endpoint.
 
 ## Provider Configuration
 
@@ -169,7 +171,6 @@ Ignored generated artifacts such as `.openapi/`, `dist/`, `__pycache__/`, `.pyte
 
 ## Next Work
 
-1. Re-run `tools/complex_calibration.py` against a stable provider/model with available quota, including blocked-sensitive-fields.
+1. Use `big-pickle` as the current recommended OpenCode Zen free model for continued manual/product calibration.
 2. Decide whether simple CTE source lineage is worth adding for V0.
-3. Decide whether concrete-but-ambiguous requests should clarify or proceed with explicit assumptions.
-4. Continue broader Artifact Split end-to-end testing and fresh-clone local onboarding testing.
+3. Continue broader Artifact Split end-to-end testing and fresh-clone local onboarding testing.

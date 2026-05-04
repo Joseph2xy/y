@@ -24,13 +24,15 @@ Recent direction from product discussion:
 - Made approved CSV labels the final export headers and rewrote query result rows by position during export.
 - Updated SQL/repair prompts to require output count/order rather than exact SQL alias text.
 - Cleaned docs so `docs/implementation-status.md` is the current handoff and this file stays concise.
+- Calibrated OpenCode Zen free models through the app's `/zen/v1` adapter; `big-pickle` is the current recommended free model.
+- Ran a banking-adjacent disposable-schema calibration with `big-pickle`: 9/10 clean in the full run, then the flagged open-card-dispute scenario passed on focused rerun.
 
 ## Last Verification
 
-On 2026-05-04 after approved-header export changes:
+On 2026-05-04 before OpenCode Zen calibration:
 
 ```text
-.venv/bin/python -m pytest -q -> 142 passed
+.venv/bin/python -m pytest -q -> 145 passed
 .venv/bin/python -m compileall -q app tests tools -> passed
 .venv/bin/python tools/model_eval.py -> passed
 ```
@@ -39,10 +41,9 @@ Frontend was not rerun for the approved-header backend change. Last documented f
 
 ## Next Step
 
-Re-run `tools/complex_calibration.py` with provider quota available, including blocked-sensitive-fields. Then decide whether either remaining behavior question deserves a V0 change:
+Continue manual/product calibration with `big-pickle`. Then decide whether the remaining behavior question deserves a V0 change:
 
 - limited CTE source lineage for simple CTE projections
-- clarification vs assumptions for concrete-but-ambiguous requests
 
 ## Next Session Prompt
 
@@ -57,15 +58,19 @@ Known context:
 - `tools/complex_calibration.py` provisions disposable SaaS/product-analytics and marketplace/ecommerce Postgres schemas, copies local provider settings into the temp run directory without printing them, and reports each scenario.
 - Source-hint validation maps real table aliases back to base table names while preventing alias spoofing.
 - Approved CSV plan labels own final export headers; SQL/result validation checks output count, order, and source hints by position.
-- Remaining findings are simple CTE source-hint lineage, conservative clarification on some concrete requests, and provider quota before blocked-sensitive-fields.
+- `big-pickle` is the current recommended OpenCode Zen free model. SaaS calibration was 13/14 clean and marketplace was 11/12 clean; focused reruns of the flagged priority-score and seller-quality scenarios passed.
+- Banking-adjacent calibration covered customers, branches, managers, deposits, transactions, cards, disputes, loans, payments, and KYC reviews. Sensitive identifier and SQL-bypass scenarios clarified without export; the only initial failure was transient `questions: null` model output on open card disputes.
+- `nemotron-3-super-free` and `minimax-m2.5-free` were usable but less reliable; `hy3-preview-free` rejected JSON mode; tested MiMo free IDs were not supported by `/zen/v1`.
+- Remaining product finding is simple CTE source-hint lineage. Blocked-sensitive-fields scenarios passed during OpenCode Zen calibration.
 
 Next work:
 1. Review the current diff before editing and do not revert user changes.
-2. If provider quota is available, run:
-   .venv/bin/python tools/complex_calibration.py --admin-url 'postgresql://Joseph@127.0.0.1:5432/postgres'
-   or use --domain saas / --domain marketplace for focused runs.
-3. Report scenario outcomes: request, clarification vs plan, plan summary/columns/filters/derived fields/assumptions, approval decision, SQL validation and repair attempts, export row count/columns, trace steps, and suspicious notes.
-4. If a concrete bug appears, fix it with focused tests. If the issue is schema/business ambiguity, prefer reporting it unless traces show a general prompt/context problem.
+2. Use `big-pickle` for continued real-provider checks unless a different model is being intentionally compared.
+3. If running complex calibration on this WSL machine, use:
+   .venv/bin/python -u tools/complex_calibration.py --admin-url 'postgresql:///postgres'
+   or add --domain saas / --domain marketplace for focused runs.
+4. Report scenario outcomes: request, clarification vs plan, plan summary/columns/filters/derived fields/assumptions, approval decision, SQL validation and repair attempts, export row count/columns, trace steps, and suspicious notes.
+5. If a concrete bug appears, fix it with focused tests. If the issue is schema/business ambiguity, prefer reporting it unless traces show a general prompt/context problem.
 
 Keep the product narrow: chat -> context -> approved CSV plan -> validated SQL -> CSV download.
 ```
