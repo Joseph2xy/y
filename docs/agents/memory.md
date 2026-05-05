@@ -26,6 +26,7 @@ Recent direction from product discussion:
 - Cleaned docs so `docs/implementation-status.md` is the current handoff and this file stays concise.
 - Calibrated OpenCode Zen free models through the app's `/zen/v1` adapter; `big-pickle` is the current recommended free model.
 - Ran a banking-adjacent disposable-schema calibration with `big-pickle`: 9/10 clean in the full run, then the flagged open-card-dispute scenario passed on focused rerun.
+- Added `tools/local_db.py` and `pnpm db:*` commands for a persistent local Postgres test cluster under `~/.local/share/csv-chat-pg`.
 
 ## Last Verification
 
@@ -38,6 +39,15 @@ On 2026-05-04 before OpenCode Zen calibration:
 ```
 
 Frontend was not rerun for the approved-header backend change. Last documented frontend verification was `pnpm test` and `pnpm build` passing on 2026-05-03.
+
+On 2026-05-05 for local DB helper:
+
+```text
+pnpm db:start -> initialized persistent local cluster and started Postgres
+pnpm db:seed -> seeded demo, retail, finance, SaaS complex, and marketplace complex databases
+pnpm db:status -> listed all five csv_chat_* databases
+.venv/bin/python -m compileall -q tools/local_db.py -> passed
+```
 
 ## Next Step
 
@@ -60,14 +70,16 @@ Known context:
 - Approved CSV plan labels own final export headers; SQL/result validation checks output count, order, and source hints by position.
 - `big-pickle` is the current recommended OpenCode Zen free model. SaaS calibration was 13/14 clean and marketplace was 11/12 clean; focused reruns of the flagged priority-score and seller-quality scenarios passed.
 - Banking-adjacent calibration covered customers, branches, managers, deposits, transactions, cards, disputes, loans, payments, and KYC reviews. Sensitive identifier and SQL-bypass scenarios clarified without export; the only initial failure was transient `questions: null` model output on open card disputes.
+- For manual local DB testing, use `pnpm db:start`, `pnpm db:seed`, `pnpm db:urls`, then copy a read-only URL into `.env` and run `pnpm rescan:context`.
 - `nemotron-3-super-free` and `minimax-m2.5-free` were usable but less reliable; `hy3-preview-free` rejected JSON mode; tested MiMo free IDs were not supported by `/zen/v1`.
 - Remaining product finding is simple CTE source-hint lineage. Blocked-sensitive-fields scenarios passed during OpenCode Zen calibration.
 
 Next work:
 1. Review the current diff before editing and do not revert user changes.
 2. Use `big-pickle` for continued real-provider checks unless a different model is being intentionally compared.
-3. If running complex calibration on this WSL machine, use:
-   .venv/bin/python -u tools/complex_calibration.py --admin-url 'postgresql:///postgres'
+3. If running complex calibration against the persistent local DB helper, use:
+   pnpm db:start
+   .venv/bin/python -u tools/complex_calibration.py --admin-url 'postgresql://postgres@127.0.0.1:5432/postgres'
    or add --domain saas / --domain marketplace for focused runs.
 4. Report scenario outcomes: request, clarification vs plan, plan summary/columns/filters/derived fields/assumptions, approval decision, SQL validation and repair attempts, export row count/columns, trace steps, and suspicious notes.
 5. If a concrete bug appears, fix it with focused tests. If the issue is schema/business ambiguity, prefer reporting it unless traces show a general prompt/context problem.

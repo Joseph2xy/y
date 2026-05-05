@@ -25,6 +25,38 @@ pnpm dev
 
 The Vite dev server proxies API calls to `http://127.0.0.1:8000`.
 
+## Local Test Databases
+
+For manual development, use the persistent local Postgres cluster:
+
+```bash
+pnpm db:start
+pnpm db:seed
+pnpm db:status
+pnpm db:urls
+```
+
+The cluster lives under `~/.local/share/csv-chat-pg` and survives restarts. `pnpm db:seed` drops and recreates the disposable local test databases:
+
+- `csv_chat_demo`: small accounts/customers smoke-test database.
+- `csv_chat_retail_calibration`: retail orders, products, customers, and support tickets.
+- `csv_chat_finance_calibration`: customers, invoices, invoice lines, payments, and refunds.
+- `csv_chat_saas_complex_calibration`: SaaS accounts, subscriptions, invoices, usage, feature events, support, and health snapshots.
+- `csv_chat_marketplace_complex_calibration`: marketplace sellers, buyers, products, orders, shipments, returns, refunds, and reviews.
+
+Copy a `DATABASE_URL` from `pnpm db:urls` into `.env`, then run:
+
+```bash
+pnpm rescan:context
+pnpm dev:app
+```
+
+Stop the local server with:
+
+```bash
+pnpm db:stop
+```
+
 ## Verification
 
 Run:
@@ -52,16 +84,10 @@ pnpm rescan:context
 
 The rescan updates `schema.json`, including sanitized database source metadata, preserves `policy.json`, and preserves edited `context.md` notes.
 
-Optional local Postgres smoke test:
+Optional local Postgres smoke test, after `pnpm db:start`:
 
 ```bash
-.venv/bin/python tools/postgres_smoke.py
-```
-
-On this Fedora WSL machine, local peer auth has worked with:
-
-```bash
-.venv/bin/python tools/postgres_smoke.py --admin-url 'postgresql:///postgres'
+.venv/bin/python tools/postgres_smoke.py --admin-url 'postgresql://postgres@127.0.0.1:5432/postgres'
 ```
 
 Optional real-provider calibration:

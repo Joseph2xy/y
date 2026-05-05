@@ -10,7 +10,7 @@ You need:
 
 - Python 3.11 or newer
 - Node.js and pnpm
-- Postgres access through a read-only database user
+- Postgres access through a read-only database user, or the built-in local test databases
 - an OpenCode Zen free model, an OpenAI API key, an OpenRouter API key, or a custom OpenAI-compatible model endpoint
 
 On Windows, run everything inside WSL and keep the repo in the Linux filesystem, such as `~/code/csv-chat`. Avoid `/mnt/c/...`.
@@ -32,7 +32,27 @@ The script:
 
 It does not install system packages and does not overwrite an existing `.env`.
 
-2. Edit `.env`:
+2. Choose a database.
+
+For local testing, start and seed the built-in disposable test databases:
+
+```bash
+pnpm db:start
+pnpm db:seed
+pnpm db:urls
+```
+
+Copy one of the printed `DATABASE_URL` values into `.env`. The local test cluster is stored under `~/.local/share/csv-chat-pg`, so it survives restarts. `pnpm db:seed` is destructive for these test databases and recreates them from scratch.
+
+Available local test databases:
+
+- Demo: small accounts/customers smoke-test database.
+- Retail: customers, products, orders, order items, and support tickets.
+- Finance: customers, invoices, invoice lines, payments, and refunds.
+- SaaS complex: accounts, users, plans, subscriptions, invoices, payments, usage events, feature events, support tickets, and health snapshots.
+- Marketplace complex: sellers, buyers, products, promotions, orders, order items, shipments, returns, refunds, and reviews.
+
+For your own Postgres database, edit `.env` directly:
 
 ```text
 DATABASE_URL=postgresql://readonly:password@localhost:5432/appdb
@@ -83,8 +103,11 @@ The app stores the database name, host, port, and scan time in `schema.json`. It
 After the first setup:
 
 ```bash
+pnpm db:start
 pnpm dev:app
 ```
+
+`pnpm db:start` is only needed when you use the built-in local test databases.
 
 Open:
 
@@ -103,7 +126,7 @@ http://127.0.0.1:8000
 To change the database:
 
 1. Stop the app if it is running.
-2. Edit `DATABASE_URL` in `.env`.
+2. Edit `DATABASE_URL` in `.env`. For local test database URLs, run `pnpm db:urls`.
 3. Run `pnpm check:setup`.
 4. If the app reports that context was scanned from a different database, rescan from the setup screen or run:
 

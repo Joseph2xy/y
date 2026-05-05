@@ -78,6 +78,38 @@ pnpm rescan:context
 
 This updates `data/context/schema.json` from the new database and preserves your existing `policy.json`. It also preserves `context.md` if you have edited it, because that file may contain your own business notes. Review `context.md` after switching databases and remove old notes that no longer apply.
 
+## Local Test Databases
+
+For local manual testing, you can run a persistent Postgres test cluster under `~/.local/share/csv-chat-pg`.
+
+```bash
+pnpm db:start
+pnpm db:seed
+pnpm db:status
+pnpm db:urls
+```
+
+`pnpm db:start` initializes and starts the local Postgres server if needed. `pnpm db:seed` drops and recreates the disposable CSV Chat test databases:
+
+- `csv_chat_demo`: small accounts/customers smoke-test database.
+- `csv_chat_retail_calibration`: retail orders, products, customers, and support tickets.
+- `csv_chat_finance_calibration`: customers, invoices, invoice lines, payments, and refunds.
+- `csv_chat_saas_complex_calibration`: SaaS accounts, subscriptions, invoices, usage, feature events, support, and health snapshots.
+- `csv_chat_marketplace_complex_calibration`: marketplace sellers, buyers, products, orders, shipments, returns, refunds, and reviews.
+
+Copy one of the `DATABASE_URL` values from `pnpm db:urls` into `.env`, then run:
+
+```bash
+pnpm rescan:context
+pnpm dev:app
+```
+
+Stop the local server with:
+
+```bash
+pnpm db:stop
+```
+
 ## Local Files
 
 These files are local runtime data and are ignored by git:

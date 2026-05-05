@@ -59,6 +59,7 @@ Frontend:
 Tools:
 
 - `tools/setup_local.sh`: Linux/WSL first-run helper.
+- `tools/local_db.py`: persistent local Postgres test-cluster helper with demo, retail, finance, SaaS complex, and marketplace complex databases.
 - `tools/dev.py`: starts backend and frontend together.
 - `tools/check_setup.py`: reports database, provider, and context readiness.
 - `tools/rescan_context.py`: regenerates schema context after changing `DATABASE_URL`.
@@ -120,6 +121,15 @@ pnpm test -> 10 passed
 pnpm build -> passed
 ```
 
+Local manual database helper verification on 2026-05-05:
+
+```text
+pnpm db:start -> initialized ~/.local/share/csv-chat-pg and started Postgres on 127.0.0.1:5432
+pnpm db:seed -> seeded demo, retail, finance, SaaS complex, and marketplace complex databases
+pnpm db:status -> listed all five csv_chat_* databases
+.venv/bin/python -m compileall -q tools/local_db.py -> passed
+```
+
 ## Calibration Notes
 
 Completed calibration so far:
@@ -145,6 +155,8 @@ The root `.env` file is for backend database configuration:
 ```text
 DATABASE_URL=postgresql://readonly:password@localhost:5432/appdb
 ```
+
+For local manual testing, run `pnpm db:start`, `pnpm db:seed`, and `pnpm db:urls`, then copy one of the generated read-only `DATABASE_URL` values into `.env`. The persistent local test cluster lives under `~/.local/share/csv-chat-pg`; seeded databases are disposable and may be recreated with `pnpm db:seed`.
 
 Model provider settings are saved through app Settings under:
 

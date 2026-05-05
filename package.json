@@ -7,6 +7,12 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "dev:app": ".venv/bin/python tools/dev.py",
+    "db:init": ".venv/bin/python tools/local_db.py init",
+    "db:start": ".venv/bin/python tools/local_db.py start",
+    "db:seed": ".venv/bin/python tools/local_db.py seed",
+    "db:status": ".venv/bin/python tools/local_db.py status",
+    "db:stop": ".venv/bin/python tools/local_db.py stop",
+    "db:urls": ".venv/bin/python tools/local_db.py urls",
     "check:setup": ".venv/bin/python tools/check_setup.py",
     "rescan:context": ".venv/bin/python tools/rescan_context.py",
     "build": "tsc -p tsconfig.app.json && tsc -p tsconfig.node.json && vite build",

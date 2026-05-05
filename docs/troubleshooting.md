@@ -8,11 +8,28 @@ Edit `.env` and set:
 DATABASE_URL=postgresql://readonly:password@localhost:5432/appdb
 ```
 
+For the built-in local test databases, run:
+
+```bash
+pnpm db:start
+pnpm db:seed
+pnpm db:urls
+```
+
+Then copy one of the printed `DATABASE_URL` values into `.env`.
+
 Restart `pnpm dev:app` after changing `.env`.
 
 ## Database Connection Fails
 
 If `pnpm check:setup` reports `configured=True`, `.env` has a `DATABASE_URL`, but the app cannot connect to it. For example, `Connection refused` on `127.0.0.1:5432` usually means Postgres is not running there, is listening on a different port, or the database is outside WSL.
+
+If you are using the built-in local test databases, start them and check status:
+
+```bash
+pnpm db:start
+pnpm db:status
+```
 
 Check:
 
@@ -23,6 +40,34 @@ Check:
 - the user is read-only for normal tables
 
 Use a read-only database user. Do not use an admin account.
+
+## Local Test Databases Are Missing
+
+The built-in local test databases live inside one persistent Postgres cluster under:
+
+```text
+~/.local/share/csv-chat-pg
+```
+
+If `pnpm db:status` shows the server is running but no `csv_chat_*` databases are listed, seed them:
+
+```bash
+pnpm db:seed
+```
+
+This drops and recreates the disposable local test databases. It does not affect external databases.
+
+If the server is stopped:
+
+```bash
+pnpm db:start
+```
+
+If you need to stop it:
+
+```bash
+pnpm db:stop
+```
 
 ## Model Provider Is Not Configured
 
