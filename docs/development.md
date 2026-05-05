@@ -84,12 +84,6 @@ pnpm rescan:context
 
 The rescan updates `schema.json`, including sanitized database source metadata, preserves `policy.json`, and preserves edited `context.md` notes.
 
-Optional local Postgres smoke test, after `pnpm db:start`:
-
-```bash
-.venv/bin/python tools/postgres_smoke.py --admin-url 'postgresql://postgres@127.0.0.1:5432/postgres'
-```
-
 Optional real-provider calibration:
 
 ```bash
@@ -125,5 +119,5 @@ src/api-types.ts
 - `docs/decisions.md`: resolved V0 decisions
 - `docs/implementation-status.md`: current status and next handoff
 - `docs/example-requests.md`: behavior examples
-- `docs/flow.excalidraw`: editable process diagram
+- `docs/calibration-notes.md`: observed calibration outcomes
 - `docs/agents/memory.md`: lightweight agent memory

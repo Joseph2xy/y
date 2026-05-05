@@ -23,6 +23,7 @@ Backend state is still filesystem JSON under `data/`. There is no worker, queue,
 
 ## Recent Changes
 
+- Markdown docs were pruned: dated calibration reports and duplicated first-run guide content were removed from the active docs set. README is now the primary user setup guide; troubleshooting and development docs hold focused support material.
 - Approved CSV plan labels now own final CSV headers. SQL/result validation checks explicit output count and order, and direct `source_hint` values are validated by output position when present. This supports custom labels and derived columns such as averages without requiring exact SQL alias casing.
 - SQL validation allows derived/count expressions such as `COUNT(*)` while still rejecting `SELECT *`/`table.*`.
 - CSV intent parsing keeps `source_hint` only for concrete `table.column` or `schema.table.column` references; formulas, counts, filters, and prose hints are treated as derived/unknown sources.
@@ -65,11 +66,8 @@ Tools:
 - `tools/rescan_context.py`: regenerates schema context after changing `DATABASE_URL`.
 - `tools/export_openapi.py`: exports OpenAPI schema.
 - `tools/model_eval.py`: deterministic behavior evals for the model flow.
-- `tools/postgres_smoke.py`: local Postgres end-to-end smoke.
 - `tools/calibration.py`: shared calibration harness.
 - `tools/realistic_calibration.py`, `tools/finance_calibration.py`, `tools/complex_calibration.py`: disposable-schema real-provider calibration scripts.
-- `tools/mock_openai_server.py`: deterministic local OpenAI-compatible model server.
-- `docs/calibration-report-2026-05-04.md`: real-provider calibration prompts and observed outcomes for OpenCode Zen, SaaS, marketplace, and banking-adjacent scenarios.
 
 ## API Surface
 
@@ -106,7 +104,7 @@ pnpm test
 pnpm build
 ```
 
-Last documented backend/model-flow verification on 2026-05-04 before OpenCode Zen calibration:
+Last documented backend/model-flow verification:
 
 ```text
 .venv/bin/python -m pytest -q -> 145 passed
@@ -132,21 +130,12 @@ pnpm db:status -> listed all five csv_chat_* databases
 
 ## Calibration Notes
 
-Completed calibration so far:
-
-- Local deterministic Postgres smoke path succeeded.
-- Real OpenRouter provider path succeeded on the small customer/account demo.
-- Retail/support realistic schema succeeded for concrete requests and clarified vague sales requests.
-- Finance/invoicing realistic schema succeeded for unpaid invoices, recognized revenue by month, and March payments; later scenarios were blocked by provider quota.
-- SaaS/product-analytics complex calibration confirmed churn-risk and feature-usage exports after derived/count/source-hint updates.
-- OpenCode Zen calibration on 2026-05-04 found `big-pickle` to be the best current free-model fit among the `/zen/v1` candidates tested. `big-pickle` completed SaaS calibration with 13/14 clean scenarios and marketplace calibration with 11/12 clean scenarios; focused reruns of the two flagged scenarios then passed. `nemotron-3-super-free` and `minimax-m2.5-free` were usable but less reliable for structured JSON and/or latency.
-- Banking-adjacent calibration on 2026-05-04 used a disposable regional-bank schema with customers, branches, relationship managers, deposit accounts, transactions, cards, disputes, loans, loan payments, and KYC reviews. With `big-pickle`, the full run completed 9/10 scenarios cleanly; the only failure was a transient structured-output issue (`questions: null`) on open card disputes, and a focused rerun of that scenario passed end to end. Sensitive identifier and approval-bypass scenarios clarified without SQL/export.
+The current calibration tooling covers deterministic model-flow checks, persistent local Postgres test databases, and disposable realistic schemas for retail, finance, SaaS/product analytics, and marketplace ecommerce. Concrete requests to try live in `docs/example-requests.md`; observed run notes live in `docs/calibration-notes.md`.
 
 Known remaining findings:
 
 - Simple CTE-derived source hints, such as latest health snapshot CSM, can still fail without CTE lineage support.
-- Some free OpenCode Zen models can produce invalid JSON/schema mismatches or read timeouts even when simple probes pass.
-- The app's current OpenCode Zen adapter works with `big-pickle`, `minimax-m2.5-free`, and `nemotron-3-super-free` on `/zen/v1`. `hy3-preview-free` rejects JSON mode, and the tested MiMo free IDs were not supported by that endpoint.
+- Free or experimental model endpoints can produce invalid JSON/schema mismatches or read timeouts even when simple probes pass.
 
 ## Provider Configuration
 
@@ -184,6 +173,6 @@ Ignored generated artifacts such as `.openapi/`, `dist/`, `__pycache__/`, `.pyte
 
 ## Next Work
 
-1. Use `big-pickle` as the current recommended OpenCode Zen free model for continued manual/product calibration.
-2. Decide whether simple CTE source lineage is worth adding for V0.
-3. Continue broader Artifact Split end-to-end testing and fresh-clone local onboarding testing.
+1. Decide whether simple CTE source lineage is worth adding for V0.
+2. Continue broader Artifact Split end-to-end testing and fresh-clone local onboarding testing.
+3. Keep docs current at milestones, with `docs/implementation-status.md` as the concise handoff and durable details in architecture/decisions.

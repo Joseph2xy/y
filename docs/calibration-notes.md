@@ -1,8 +1,8 @@
-# Calibration Report: OpenCode Zen and Banking-Adjacent Scenarios
+# Calibration Notes
 
-Date: 2026-05-04
+Last major run: 2026-05-04
 
-This report captures real-provider calibration runs for CSV Chat. It is meant to be useful both as product evidence and as examples of the kinds of natural-language CSV requests the app should handle.
+These notes capture real-provider calibration runs for CSV Chat. They are useful as product evidence and as examples of natural-language CSV requests the app should handle.
 
 These were not unit tests. They were end-to-end calibration scenarios against disposable Postgres schemas through the app flow:
 
@@ -12,9 +12,11 @@ chat request -> CSV plan or clarification -> approval -> SQL generation -> valid
 
 Final CSV contents are intentionally not included.
 
-## Provider
+For a shorter prompt-only set, see `docs/example-requests.md`.
 
-Primary provider used for the successful calibration runs:
+## Provider Snapshot
+
+Provider used for the successful 2026-05-04 runs:
 
 ```text
 Provider: OpenCode Zen
@@ -23,16 +25,7 @@ Base URL: https://opencode.ai/zen/v1
 Temperature: 0.0
 ```
 
-OpenCode Zen model probes:
-
-| Model | Probe result | Notes |
-| --- | --- | --- |
-| `big-pickle` | Passed | Best current free-model fit. |
-| `minimax-m2.5-free` | Passed | Usable, but repeated invalid JSON during SaaS calibration. |
-| `nemotron-3-super-free` | Passed | Usable for simple calls, but weaker reliability in calibration. |
-| `hy3-preview-free` | Failed | Endpoint reported JSON mode is not supported for this model. |
-| `mimo-v2-pro-free` | Failed | Endpoint reported model not supported. |
-| `mimo-v2-omni-free` | Failed | Endpoint reported model not supported. |
+`big-pickle` was the strongest free OpenCode Zen fit in this run. Other free models tested were more likely to produce invalid JSON, schema mismatches, unsupported JSON mode, or timeouts. Treat this as a dated provider note, not a durable product decision.
 
 ## Local Baseline
 
@@ -44,54 +37,7 @@ Before live-provider calibration:
 .venv/bin/python tools/model_eval.py -> passed
 ```
 
-## OpenCode Zen Model Comparison
-
-### `nemotron-3-super-free`
-
-Focused run:
-
-```text
-Domain: SaaS product analytics
-Scenarios run: 14
-Completed without suspicious notes: 7
-Flagged for review: 7
-Errored: 5
-```
-
-Observed issues:
-
-- Conservative clarification on concrete requests.
-- Structured schema mismatches, such as missing required fields.
-- Read timeouts during some model calls.
-
-Conclusion:
-
-`nemotron-3-super-free` can respond to simple structured probes, but it was not reliable enough for the app's full CSV flow.
-
-### `minimax-m2.5-free`
-
-Focused run:
-
-```text
-Domain: SaaS product analytics
-Scenarios run: 14
-Completed without suspicious notes: 10
-Flagged for review: 4
-Errored: 4
-```
-
-Observed issues:
-
-- Repeated invalid JSON during CSV intent proposal.
-- When structured output was valid, several concrete exports worked well.
-
-Conclusion:
-
-`minimax-m2.5-free` showed stronger task behavior than `nemotron-3-super-free`, but structured-output reliability was too weak for the app's current strict schema path.
-
-### `big-pickle`
-
-Focused runs:
+## Run Summary
 
 ```text
 Domain: SaaS product analytics
@@ -111,9 +57,7 @@ Errored: 1
 Focused rerun of flagged scenario: passed
 ```
 
-Conclusion:
-
-`big-pickle` was the best current OpenCode Zen free-model fit. It handled concrete exports, derived fields, exact labels, vague requests, blocked sensitive fields, and approval-bypass requests better than the other tested free models.
+The successful run handled concrete exports, derived fields, exact labels, vague requests, blocked sensitive fields, and approval-bypass requests.
 
 ## SaaS Product Analytics Prompts
 
@@ -259,8 +203,6 @@ Errored: 0
 - Simple CTE-derived source-hint lineage remains a known possible weakness from earlier calibration.
 
 ## Recommendations
-
-Use `big-pickle` as the current recommended OpenCode Zen free model.
 
 Do not loosen app validation broadly. The strict schema and SQL guard correctly rejected malformed or unsafe paths.
 

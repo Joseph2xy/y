@@ -62,14 +62,6 @@ Stack:
 - Vitest + React Testing Library
 - Playwright later
 
-UX constraints:
-
-- Keep the app compact, chat-first, and focused on one current CSV flow.
-- Show setup/export/debug controls only when useful.
-- Do not add a dashboard shell or upload panel in V0.
-- Use plain user-facing language: CSV, CSV plan, CSV intent.
-- Keep SQL/table/column jargon in Advanced/debug surfaces.
-- Keep assistant/model prose in chat. The artifact panel shows the durable CSV plan and actions, not duplicate chat responses.
 
 ## Backend
 

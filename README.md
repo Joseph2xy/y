@@ -128,7 +128,7 @@ data/exports/*.csv
 
 ## More Help
 
-- [Local user guide](docs/local-user-guide.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [Development guide](docs/development.md)
 - [Current implementation status](docs/implementation-status.md)
+- [Calibration notes](docs/calibration-notes.md)

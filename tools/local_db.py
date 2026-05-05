@@ -15,7 +15,6 @@ import psycopg
 from tools.calibration import provision_database
 from tools.complex_calibration import MARKETPLACE_DOMAIN, SAAS_DOMAIN
 from tools.finance_calibration import seed_schema as seed_finance_schema
-from tools.postgres_smoke import provision_demo_database
 from tools.realistic_calibration import seed_schema as seed_retail_schema
 
 
@@ -136,11 +135,13 @@ def seed_databases(host: str, port: int, readonly_password: str) -> None:
         raise SystemExit(f"Postgres is not running on {host}:{port}. Run `pnpm db:start` first.")
 
     admin_url = admin_database_url(host, port)
-    provision_demo_database(
+    provision_database(
         admin_url=admin_url,
         database="csv_chat_demo",
         readonly_user="csv_chat_readonly",
         readonly_password=readonly_password,
+        readonly_host=host,
+        seed_schema=seed_demo_schema,
     )
     print("Seeded demo database: csv_chat_demo")
 
@@ -225,6 +226,48 @@ def _log_file(base_dir: Path) -> Path:
 
 def _is_initialized(data_dir: Path) -> bool:
     return (data_dir / "PG_VERSION").exists()
+
+
+def seed_demo_schema(conn: psycopg.Connection[Any]) -> None:
+    conn.execute(
+        """
+        create table accounts (
+          id integer primary key,
+          name text not null,
+          plan text not null
+        )
+        """
+    )
+    conn.execute(
+        """
+        create table customers (
+          id integer primary key,
+          account_id integer not null references accounts(id),
+          email text not null,
+          full_name text not null,
+          status text not null,
+          created_at date not null
+        )
+        """
+    )
+    conn.execute(
+        """
+        insert into accounts (id, name, plan) values
+          (1, 'Acme Co', 'Pro'),
+          (2, 'Globex', 'Starter'),
+          (3, 'Initech', 'Enterprise')
+        """
+    )
+    conn.execute(
+        """
+        insert into customers (id, account_id, email, full_name, status, created_at) values
+          (1, 1, 'ada@example.com', 'Ada Lovelace', 'active', date '2026-04-12'),
+          (2, 1, 'grace@example.com', 'Grace Hopper', 'active', date '2026-03-09'),
+          (3, 2, 'alan@example.com', 'Alan Turing', 'inactive', date '2026-02-01'),
+          (4, 3, 'katherine@example.com', 'Katherine Johnson', 'active', date '2026-01-17'),
+          (5, 2, 'margaret@example.com', 'Margaret Hamilton', 'active', date '2025-12-28')
+        """
+    )
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 # Decisions
 
-Resolved V0 product and architecture decisions. Revisit these only with evidence from the running app, smoke tests, model evaluations, or real user workflows.
+Resolved V0 product and architecture decisions. Revisit these only with evidence from the running app, local database checks, model evaluations, calibration runs, or real user workflows.
 
 ## Product
 
@@ -24,7 +24,7 @@ Resolved V0 product and architecture decisions. Revisit these only with evidence
 
 - **LiteLLM SDK only.** Do not run LiteLLM proxy in V0. Revisit the adapter if direct SDKs become simpler or LiteLLM creates maintenance drag.
 - **API-key-first.** OpenRouter is the first-class default. Custom OpenAI-compatible base URLs cover local/internal endpoints. More API-key providers and account/subscription integrations can come later.
-- **Quality is behavior-based.** A usable model must make the app behave correctly across clear, under-specified, invalid/gibberish, approval, SQL validation, and repair scenarios. Use `docs/example-requests.md` and smoke tests to evaluate models.
+- **Quality is behavior-based.** A usable model must make the app behave correctly across clear, under-specified, invalid/gibberish, approval, SQL validation, and repair scenarios. Use `docs/example-requests.md`, model evals, and calibration runs to evaluate models.
 
 ## Architecture
 
