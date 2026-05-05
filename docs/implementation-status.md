@@ -16,14 +16,16 @@ The app has a working local V0 vertical slice:
 8. Execute safely with read-only limits.
 9. Write a formula-escaped CSV using approved CSV plan labels as headers.
 10. End the chat-driven run and return a download link.
+11. Optionally save the completed CSV plan plus validated SQL for later reruns without chat.
 
-The normal ready-state UI is an Artifact Split layout: chat on the left, durable CSV plan/export state on the right, and SQL/debug details hidden in read-only Advanced. Once the user approves the CSV plan, the chat pane is hidden for that run and the centered artifact shows export progress. Once validation passes, the app creates the CSV automatically. Once an export is created, the completed artifact shows Download CSV and Start over actions. Settings handles database/context status, database connection testing, context rescans, model-provider setup, and export row limits.
+The normal ready-state UI is an Artifact Split layout: chat on the left, durable CSV plan/export state on the right, and SQL/debug details hidden in read-only Advanced. Once the user approves the CSV plan, the chat pane is hidden for that run and the centered artifact shows export progress. Once validation passes, the app creates the CSV automatically. Once an export is created, the completed artifact shows Download CSV, Save CSV Plan, and Start over actions. Saved CSVs is a top-level view where saved plans can be rerun, renamed, inspected, or deleted. Settings handles database/context status, database connection testing, context rescans, model-provider setup, and export row limits.
 
 Backend state is still filesystem JSON under `data/`. There is no worker, queue, scheduler, SQLite store, SSE/WebSocket progress, editable SQL, or multi-database support in V0.
 
 ## Recent Changes
 
 - CSV-plan approval now ends the chat phase for a run in V0. The UI hides chat immediately, shows export progress in the artifact panel, creates the CSV automatically after validation passes, then offers Download CSV and Start over.
+- Successful exports can now be saved as Saved CSVs. The app persists the approved CSV intent plus validated SQL under `data/saved_csv_plans/`, keeps SQL read-only in Advanced/details, and revalidates saved SQL before each rerun.
 - Markdown docs were pruned: dated calibration reports and duplicated first-run guide content were removed from the active docs set. README is now the primary user setup guide; troubleshooting and development docs hold focused support material.
 - Fresh WSL onboarding is more defensive: setup rejects `sudo`, checks Node/Corepack/pnpm and Python venv/pip prerequisites, `pnpm run doctor` checks local setup end to end, and `pnpm db:test-url` diagnoses `.env` Postgres connectivity without exposing passwords.
 - Windows real-data onboarding now prefers importing a pgAdmin/Postgres backup into the local WSL Postgres cluster with `pnpm db:import`. This avoids Windows Firewall, WSL host IP, `listen_addresses`, and `pg_hba.conf` issues for the happy path while keeping direct Windows Postgres connections as an advanced fallback.
@@ -49,6 +51,7 @@ Backend modules:
 - `app/csv_writer.py`: CSV writing and formula-like cell escaping.
 - `app/export_service.py`: validation, execution, limits, approved-header mapping, and CSV output.
 - `app/session_store.py`: filesystem JSON session persistence.
+- `app/saved_csv_plan_store.py`: filesystem JSON persistence for reusable Saved CSVs.
 - `app/model_provider.py`: LiteLLM SDK wrapper.
 - `app/prompt_builder.py`: prompts for intent, SQL, and repair.
 - `app/session_model_service.py`: approval-gated model orchestration.
@@ -94,6 +97,12 @@ POST /sessions/{session_id}/propose-intent
 POST /sessions/{session_id}/approve-intent
 POST /sessions/{session_id}/prepare-sql
 POST /sessions/{session_id}/export
+GET  /saved-csv-plans
+POST /saved-csv-plans
+GET  /saved-csv-plans/{plan_id}
+PUT  /saved-csv-plans/{plan_id}
+POST /saved-csv-plans/{plan_id}/run
+DELETE /saved-csv-plans/{plan_id}
 GET  /exports/{export_id}/download
 ```
 
@@ -173,6 +182,7 @@ data/context/context.md
 data/context/schema.json
 data/context/policy.json
 data/sessions/*.json
+data/saved_csv_plans/*.json
 data/exports/*.csv
 data/settings/model_provider.json
 .env

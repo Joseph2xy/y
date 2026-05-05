@@ -46,6 +46,7 @@ def add_message(session_id: str, message: ChatMessage, session_dir: Path = SESSI
     if message.role == "user":
         session.approved_intent = None
         session.export_id = None
+        session.last_export_sql = None
         session.status = SessionStatus.DRAFTING_INTENT
         session.last_error = None
         session.debug_traces = []
@@ -63,10 +64,12 @@ def approve_intent(session_id: str, intent: CSVIntent, session_dir: Path = SESSI
 def mark_export_complete(
     session_id: str,
     export_id: str,
+    sql: str | None = None,
     session_dir: Path = SESSION_DIR,
 ) -> ExportSession:
     session = load_session(session_id, session_dir)
     session.export_id = export_id
+    session.last_export_sql = sql
     session.status = SessionStatus.COMPLETE
     session.last_error = None
     return save_session(session, session_dir)

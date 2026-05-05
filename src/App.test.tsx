@@ -20,6 +20,7 @@ const sessionResponse = {
   messages: [],
   approved_intent: null,
   export_id: null,
+  last_export_sql: null,
   last_error: null,
   debug_traces: []
 };
@@ -67,6 +68,20 @@ const contextResponse = {
     statement_timeout_ms: 30000,
     lock_timeout_ms: 5000
   }
+};
+
+const savedPlanResponse = {
+  id: "saved123",
+  name: "Customer emails",
+  description: "Reusable customer email CSV",
+  intent: approvedIntent,
+  sql: "select email from customers limit 10",
+  created_at: "2026-05-05T12:00:00Z",
+  updated_at: "2026-05-05T12:00:00Z",
+  last_run_at: null,
+  last_export_id: null,
+  schema_fingerprint: "appdb",
+  row_limit: 10
 };
 
 const providerNeededResponse = {
@@ -134,6 +149,7 @@ describe("App", () => {
         if (url === "/setup/status") return jsonResponse(setupReadyResponse);
         if (url === "/settings/model-provider") return jsonResponse(providerResponse);
         if (url === "/context") return jsonResponse(contextResponse);
+        if (url === "/saved-csv-plans") return jsonResponse({ plans: [] });
         if (url === "/sessions") return jsonResponse({ session: sessionResponse });
         if (url === "/sessions/session123") return jsonResponse(sessionResponse);
         return jsonResponse({ detail: "Not found" }, 404);
@@ -462,6 +478,108 @@ describe("App", () => {
 
     expect(await screen.findByPlaceholderText("Describe the CSV you need")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Download CSV" })).not.toBeInTheDocument();
+  });
+
+  it("saves a completed CSV plan from the download step", async () => {
+    const user = userEvent.setup();
+    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+    const requests: Array<{ url: string; method: string; body?: string }> = [];
+    let currentSession: Record<string, unknown> = { ...sessionResponse };
+
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      requests.push({ url, method, body: typeof init?.body === "string" ? init.body : undefined });
+      if (url === "/setup/status") return jsonResponse(setupReadyResponse);
+      if (url === "/context") return jsonResponse(contextResponse);
+      if (url === "/saved-csv-plans" && method === "GET") return jsonResponse({ plans: [] });
+      if (url === "/saved-csv-plans" && method === "POST") return jsonResponse(savedPlanResponse);
+      if (url === "/sessions") return jsonResponse({ session: currentSession });
+      if (url === "/sessions/session123") return jsonResponse(currentSession);
+      if (url === "/sessions/session123/messages") {
+        currentSession = { ...currentSession, messages: [{ role: "user", content: "Export customer emails" }] };
+        return jsonResponse(currentSession);
+      }
+      if (url === "/sessions/session123/propose-intent") {
+        return jsonResponse({ message: "Here is the CSV plan.", intent: approvedIntent, questions: [] });
+      }
+      if (url === "/sessions/session123/approve-intent") {
+        currentSession = { ...currentSession, status: "generating_sql", approved_intent: approvedIntent, export_id: null };
+        return jsonResponse(currentSession);
+      }
+      if (url === "/sessions/session123/prepare-sql") {
+        return jsonResponse({
+          sql: "select email from customers limit 10",
+          valid: true,
+          errors: [],
+          attempts: [{ sql: "select email from customers limit 10", valid: true, errors: [], repair_changes: [] }]
+        });
+      }
+      if (url === "/sessions/session123/export") {
+        currentSession = { ...currentSession, status: "complete", export_id: "export123", last_export_sql: "select email from customers limit 10" };
+        return jsonResponse({
+          export_id: "export123",
+          row_count: 3,
+          byte_count: 42,
+          columns: ["email"],
+          download_url: "/exports/export123/download"
+        });
+      }
+      return jsonResponse({ detail: "Not found" }, 404);
+    });
+
+    renderApp();
+
+    await user.type(await screen.findByPlaceholderText("Describe the CSV you need"), "Export customer emails");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    await user.click(await screen.findByRole("button", { name: "Approve CSV plan" }));
+    await screen.findByRole("link", { name: "Download CSV" });
+    await user.click(screen.getByRole("button", { name: "Save CSV Plan" }));
+    await user.clear(await screen.findByLabelText("Name"));
+    await user.type(screen.getByLabelText("Name"), "Customer emails");
+    await user.click(screen.getByRole("button", { name: /^Save$/ }));
+
+    await screen.findByText('Saved as "Customer emails".');
+    expect(screen.getByRole("button", { name: "Saved" })).toBeDisabled();
+
+    const saveRequest = requests.find((request) => request.url === "/saved-csv-plans" && request.method === "POST");
+    expect(saveRequest?.body).toContain('"session_id":"session123"');
+    expect(saveRequest?.body).not.toContain('"sql"');
+  });
+
+  it("runs a saved CSV from the Saved CSVs view", async () => {
+    const user = userEvent.setup();
+    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      if (url === "/setup/status") return jsonResponse(setupReadyResponse);
+      if (url === "/context") return jsonResponse(contextResponse);
+      if (url === "/saved-csv-plans" && method === "GET") return jsonResponse({ plans: [savedPlanResponse] });
+      if (url === "/saved-csv-plans/saved123/run") {
+        return jsonResponse({
+          export_id: "export456",
+          row_count: 2,
+          byte_count: 30,
+          columns: ["email"],
+          download_url: "/exports/export456/download"
+        });
+      }
+      if (url === "/sessions") return jsonResponse({ session: sessionResponse });
+      if (url === "/sessions/session123") return jsonResponse(sessionResponse);
+      return jsonResponse({ detail: "Not found" }, 404);
+    });
+
+    renderApp();
+
+    await user.click(await screen.findByRole("button", { name: "Saved CSVs" }));
+    expect(await screen.findByText("Customer emails")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Run" }));
+
+    expect(await screen.findByRole("link", { name: "Download CSV" })).toHaveAttribute("href", "/exports/export456/download");
+    expect(screen.getByText("2")).toBeInTheDocument();
   });
 
   it("hides chat and shows progress while approval starts the export", async () => {

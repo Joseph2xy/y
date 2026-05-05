@@ -211,9 +211,11 @@ function PromptInputAction({
 
   return (
     <Tooltip {...props}>
-      <TooltipTrigger disabled={disabled} onClick={(event) => event.stopPropagation()}>
-        {children}
-      </TooltipTrigger>
+      <TooltipTrigger
+        disabled={disabled}
+        onClick={(event) => event.stopPropagation()}
+        render={children as React.ReactElement}
+      />
       <TooltipContent side={side} className={className}>
         {tooltip}
       </TooltipContent>

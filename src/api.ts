@@ -9,6 +9,9 @@ import type {
   DatabaseConnectionTestResponse,
   ModelProviderSettingsResponse,
   ModelProviderSettingsUpdate,
+  SavedCSVPlan,
+  SavedCSVPlanCreateRequest,
+  SavedCSVPlanUpdateRequest,
   SetupStatusResponse,
   SQLPreparationResponse
 } from "./types";
@@ -33,6 +36,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
     throw new Error(message);
   }
 
+  if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }
 
@@ -115,5 +119,36 @@ export function createSessionExport(sessionId: string, sql: string): Promise<Exp
   return request<ExportCreateResponse>(`/sessions/${sessionId}/export`, {
     method: "POST",
     body: JSON.stringify({ sql })
+  });
+}
+
+export async function listSavedCSVPlans(): Promise<SavedCSVPlan[]> {
+  const response = await request<{ plans: SavedCSVPlan[] }>("/saved-csv-plans");
+  return response.plans;
+}
+
+export function createSavedCSVPlan(requestBody: SavedCSVPlanCreateRequest): Promise<SavedCSVPlan> {
+  return request<SavedCSVPlan>("/saved-csv-plans", {
+    method: "POST",
+    body: JSON.stringify(requestBody)
+  });
+}
+
+export function updateSavedCSVPlan(planId: string, requestBody: SavedCSVPlanUpdateRequest): Promise<SavedCSVPlan> {
+  return request<SavedCSVPlan>(`/saved-csv-plans/${planId}`, {
+    method: "PUT",
+    body: JSON.stringify(requestBody)
+  });
+}
+
+export function runSavedCSVPlan(planId: string): Promise<ExportCreateResponse> {
+  return request<ExportCreateResponse>(`/saved-csv-plans/${planId}/run`, {
+    method: "POST"
+  });
+}
+
+export async function deleteSavedCSVPlan(planId: string): Promise<void> {
+  await request<unknown>(`/saved-csv-plans/${planId}`, {
+    method: "DELETE"
   });
 }

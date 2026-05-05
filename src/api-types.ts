@@ -73,6 +73,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/saved-csv-plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Saved Csv Plans Endpoint */
+        get: operations["list_saved_csv_plans_endpoint_saved_csv_plans_get"];
+        put?: never;
+        /** Create Saved Csv Plan Endpoint */
+        post: operations["create_saved_csv_plan_endpoint_saved_csv_plans_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/saved-csv-plans/{plan_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Saved Csv Plan Endpoint */
+        get: operations["get_saved_csv_plan_endpoint_saved_csv_plans__plan_id__get"];
+        /** Update Saved Csv Plan Endpoint */
+        put: operations["update_saved_csv_plan_endpoint_saved_csv_plans__plan_id__put"];
+        post?: never;
+        /** Delete Saved Csv Plan Endpoint */
+        delete: operations["delete_saved_csv_plan_endpoint_saved_csv_plans__plan_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/saved-csv-plans/{plan_id}/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run Saved Csv Plan Endpoint */
+        post: operations["run_saved_csv_plan_endpoint_saved_csv_plans__plan_id__run_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sessions": {
         parameters: {
             query?: never;
@@ -428,6 +482,8 @@ export interface components {
             id: string;
             /** Last Error */
             last_error?: string | null;
+            /** Last Export Sql */
+            last_export_sql?: string | null;
             /** Messages */
             messages?: components["schemas"]["ChatMessage"][];
             /** @default drafting_intent */
@@ -502,6 +558,57 @@ export interface components {
             sql: string;
             /** Valid */
             valid: boolean;
+        };
+        /** SavedCSVPlan */
+        SavedCSVPlan: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Description */
+            description?: string | null;
+            /** Id */
+            id: string;
+            intent: components["schemas"]["CSVIntent"];
+            /** Last Export Id */
+            last_export_id?: string | null;
+            /** Last Run At */
+            last_run_at?: string | null;
+            /** Name */
+            name: string;
+            /** Row Limit */
+            row_limit: number;
+            /** Schema Fingerprint */
+            schema_fingerprint?: string | null;
+            /** Sql */
+            sql: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** SavedCSVPlanCreateRequest */
+        SavedCSVPlanCreateRequest: {
+            /** Description */
+            description?: string | null;
+            /** Name */
+            name: string;
+            /** Session Id */
+            session_id: string;
+        };
+        /** SavedCSVPlanListResponse */
+        SavedCSVPlanListResponse: {
+            /** Plans */
+            plans?: components["schemas"]["SavedCSVPlan"][];
+        };
+        /** SavedCSVPlanUpdateRequest */
+        SavedCSVPlanUpdateRequest: {
+            /** Description */
+            description?: string | null;
+            /** Name */
+            name: string;
         };
         /** SchemaColumn */
         SchemaColumn: {
@@ -750,6 +857,185 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+        };
+    };
+    list_saved_csv_plans_endpoint_saved_csv_plans_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedCSVPlanListResponse"];
+                };
+            };
+        };
+    };
+    create_saved_csv_plan_endpoint_saved_csv_plans_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SavedCSVPlanCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedCSVPlan"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_saved_csv_plan_endpoint_saved_csv_plans__plan_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedCSVPlan"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_saved_csv_plan_endpoint_saved_csv_plans__plan_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SavedCSVPlanUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedCSVPlan"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_saved_csv_plan_endpoint_saved_csv_plans__plan_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_saved_csv_plan_endpoint_saved_csv_plans__plan_id__run_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportCreateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

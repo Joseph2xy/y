@@ -42,6 +42,14 @@ export type SQLPreparationResponse = Omit<
 
 export type ExportCreateResponse = Schema["ExportCreateResponse"];
 
+export type SavedCSVPlan = Omit<Schema["SavedCSVPlan"], "intent"> & {
+  intent: CSVIntent;
+};
+
+export type SavedCSVPlanCreateRequest = Schema["SavedCSVPlanCreateRequest"];
+
+export type SavedCSVPlanUpdateRequest = Schema["SavedCSVPlanUpdateRequest"];
+
 export type ModelProviderSettingsResponse = Schema["ModelProviderSettingsResponse"];
 
 export type ModelProviderSettingsUpdate = Schema["ModelProviderSettingsUpdate"];

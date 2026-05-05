@@ -83,10 +83,11 @@ def test_approve_intent_stores_intent(tmp_path) -> None:
 def test_mark_export_complete(tmp_path) -> None:
     session = create_session(tmp_path)
 
-    updated = mark_export_complete(session.id, "export123", tmp_path)
+    updated = mark_export_complete(session.id, "export123", "select email from customers limit 10", tmp_path)
 
     assert updated.status == SessionStatus.COMPLETE
     assert updated.export_id == "export123"
+    assert updated.last_export_sql == "select email from customers limit 10"
 
 
 def test_mark_session_failed(tmp_path) -> None:

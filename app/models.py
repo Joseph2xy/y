@@ -103,6 +103,17 @@ class SessionExportRequest(BaseModel):
     sql: str = Field(min_length=1)
 
 
+class SavedCSVPlanCreateRequest(BaseModel):
+    session_id: str = Field(min_length=1)
+    name: str = Field(min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=500)
+
+
+class SavedCSVPlanUpdateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=500)
+
+
 class CSVColumnIntent(BaseModel):
     name: str = Field(
         min_length=1,
@@ -196,8 +207,27 @@ class ExportSession(BaseModel):
     messages: list[ChatMessage] = Field(default_factory=list)
     approved_intent: CSVIntent | None = None
     export_id: str | None = None
+    last_export_sql: str | None = None
     last_error: str | None = None
     debug_traces: list[SessionDebugTrace] = Field(default_factory=list)
+
+
+class SavedCSVPlan(BaseModel):
+    id: str
+    name: str = Field(min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=500)
+    intent: CSVIntent
+    sql: str = Field(min_length=1)
+    created_at: datetime
+    updated_at: datetime
+    last_run_at: datetime | None = None
+    last_export_id: str | None = None
+    schema_fingerprint: str | None = None
+    row_limit: int = Field(gt=0)
+
+
+class SavedCSVPlanListResponse(BaseModel):
+    plans: list[SavedCSVPlan] = Field(default_factory=list)
 
 
 class ModelConfig(BaseModel):

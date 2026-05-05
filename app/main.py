@@ -21,6 +21,10 @@ from app.models import (
     HealthResponse,
     ModelProviderSettingsResponse,
     ModelProviderSettingsUpdate,
+    SavedCSVPlan,
+    SavedCSVPlanCreateRequest,
+    SavedCSVPlanListResponse,
+    SavedCSVPlanUpdateRequest,
     SessionDebugTrace,
     SessionCreateResponse,
     SessionExportRequest,
@@ -29,6 +33,15 @@ from app.models import (
     SetupCheck,
     SetupStatusResponse,
     SQLPreparationResponse,
+)
+from app.saved_csv_plan_store import (
+    SavedCSVPlanStoreError,
+    create_saved_csv_plan,
+    delete_saved_csv_plan,
+    list_saved_csv_plans,
+    load_saved_csv_plan,
+    mark_saved_csv_plan_run,
+    update_saved_csv_plan,
 )
 from app.provider_settings import (
     ProviderSettingsError,
@@ -364,7 +377,7 @@ async def create_session_export_endpoint(
                 details=response.model_dump(mode="json"),
             ),
         )
-        mark_export_complete(session_id, response.export_id)
+        mark_export_complete(session_id, response.export_id, request.sql)
         return response
     except HTTPException:
         raise
@@ -395,6 +408,102 @@ async def create_session_export_endpoint(
         )
         mark_session_failed(session_id, str(exc))
         raise HTTPException(status_code=500, detail="Export failed.") from exc
+
+
+@app.get("/saved-csv-plans", response_model=SavedCSVPlanListResponse)
+async def list_saved_csv_plans_endpoint() -> SavedCSVPlanListResponse:
+    try:
+        return SavedCSVPlanListResponse(plans=list_saved_csv_plans())
+    except SavedCSVPlanStoreError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/saved-csv-plans", response_model=SavedCSVPlan)
+async def create_saved_csv_plan_endpoint(request: SavedCSVPlanCreateRequest) -> SavedCSVPlan:
+    try:
+        session = load_session(request.session_id)
+        if session.approved_intent is None:
+            raise HTTPException(status_code=400, detail="CSV intent has not been approved.")
+        if session.export_id is None:
+            raise HTTPException(status_code=400, detail="CSV must be created before it can be saved.")
+        if session.last_export_sql is None:
+            raise HTTPException(status_code=400, detail="Completed CSV is missing the validated SQL.")
+
+        document = load_context()
+        return create_saved_csv_plan(
+            name=request.name,
+            description=request.description,
+            intent=session.approved_intent,
+            sql=session.last_export_sql,
+            schema_fingerprint=document.schema_context.source.fingerprint
+            if document.schema_context.source
+            else None,
+        )
+    except HTTPException:
+        raise
+    except (SessionStoreError, ContextStoreError, SavedCSVPlanStoreError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.get("/saved-csv-plans/{plan_id}", response_model=SavedCSVPlan)
+async def get_saved_csv_plan_endpoint(plan_id: str) -> SavedCSVPlan:
+    try:
+        return load_saved_csv_plan(plan_id)
+    except SavedCSVPlanStoreError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.put("/saved-csv-plans/{plan_id}", response_model=SavedCSVPlan)
+async def update_saved_csv_plan_endpoint(
+    plan_id: str,
+    request: SavedCSVPlanUpdateRequest,
+) -> SavedCSVPlan:
+    try:
+        return update_saved_csv_plan(plan_id, name=request.name, description=request.description)
+    except SavedCSVPlanStoreError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.post("/saved-csv-plans/{plan_id}/run", response_model=ExportCreateResponse)
+async def run_saved_csv_plan_endpoint(plan_id: str) -> ExportCreateResponse:
+    database_url = os.environ.get("DATABASE_URL")
+    if not database_url:
+        raise HTTPException(status_code=400, detail="DATABASE_URL is not configured.")
+
+    try:
+        plan = load_saved_csv_plan(plan_id)
+        document = load_context()
+        runner = read_only_query_runner(
+            database_url,
+            statement_timeout_ms=document.policy.statement_timeout_ms,
+            lock_timeout_ms=document.policy.lock_timeout_ms,
+        )
+        response = create_export(
+            intent=plan.intent,
+            sql=plan.sql,
+            policy=document.policy,
+            schema=document.schema_context,
+            query_runner=runner,
+        )
+        mark_saved_csv_plan_run(plan_id, export_id=response.export_id)
+        return response
+    except SavedCSVPlanStoreError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ContextStoreError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ExportError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Saved CSV run failed.") from exc
+
+
+@app.delete("/saved-csv-plans/{plan_id}", status_code=204)
+async def delete_saved_csv_plan_endpoint(plan_id: str) -> Response:
+    try:
+        delete_saved_csv_plan(plan_id)
+    except SavedCSVPlanStoreError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return Response(status_code=204)
 
 
 @app.get("/sessions/{session_id}", response_model=ExportSession)

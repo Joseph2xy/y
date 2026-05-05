@@ -5,41 +5,62 @@ import {
   DownloadIcon,
   FileSpreadsheetIcon,
   LockKeyholeIcon,
+  MoreHorizontalIcon,
   MoonIcon,
   PlusIcon,
+  PlayIcon,
   RefreshCwIcon,
+  SaveIcon,
   SettingsIcon,
   ShieldCheckIcon,
   SunIcon,
-  TerminalIcon
+  TerminalIcon,
+  Trash2Icon
 } from "lucide-react";
 import { ReactNode, useEffect, useRef, useState } from "react";
 import {
   addMessage,
   approveIntent,
   bootstrapSetup,
+  createSavedCSVPlan,
   createSession,
   createSessionExport,
+  deleteSavedCSVPlan,
   getContext,
   getModelProviderSettings,
   getSession,
   getSetupStatus,
+  listSavedCSVPlans,
   prepareSql,
   proposeIntent,
   rescanContext,
+  runSavedCSVPlan,
   testDatabaseConnection,
   updateContext,
+  updateSavedCSVPlan,
   updateModelProviderSettings
 } from "./api";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ChatContainerContent, ChatContainerRoot, ChatContainerScrollAnchor } from "@/components/prompt-kit/chat-container";
@@ -60,6 +81,7 @@ import type {
   ExportCreateResponse,
   ExportSession,
   ModelProviderSettingsResponse,
+  SavedCSVPlan,
   SQLPreparationResponse,
   SessionDebugTrace,
   SetupStatusResponse
@@ -68,6 +90,8 @@ import type {
 type Notice = { type: "error" | "info"; text: string } | null;
 type Theme = "light" | "dark";
 type ProviderKind = "openrouter" | "openai" | "opencode" | "custom";
+type AppView = "new" | "saved";
+type SavedCSVAction = "rename" | "details" | "delete";
 
 const EXAMPLE_REQUESTS = [
   "Active customer emails created this quarter",
@@ -93,6 +117,10 @@ export function App() {
   const [defaultRowLimit, setDefaultRowLimit] = useState("100000");
   const [databaseTest, setDatabaseTest] = useState<DatabaseConnectionTestResponse | null>(null);
   const [chatCollapsed, setChatCollapsed] = useState(false);
+  const [activeView, setActiveView] = useState<AppView>("new");
+  const [savedPlanForExportId, setSavedPlanForExportId] = useState<SavedCSVPlan | null>(null);
+  const [savedRunPlan, setSavedRunPlan] = useState<SavedCSVPlan | null>(null);
+  const [savedRunResult, setSavedRunResult] = useState<ExportCreateResponse | null>(null);
   const pendingSessionRef = useRef<Promise<ExportSession> | null>(null);
 
   const setupQuery = useQuery({
@@ -119,13 +147,23 @@ export function App() {
     enabled: Boolean(sessionId)
   });
 
+  const savedPlansQuery = useQuery({
+    queryKey: ["saved-csv-plans"],
+    queryFn: listSavedCSVPlans,
+    enabled: Boolean(setupQuery.data?.ready)
+  });
+
   const startSessionMutation = useMutation({
     mutationFn: createSession,
     onSuccess: (session) => {
+      setActiveView("new");
       setSessionId(session.id);
       setProposal(null);
       setSqlPrep(null);
       setExportResult(null);
+      setSavedPlanForExportId(null);
+      setSavedRunPlan(null);
+      setSavedRunResult(null);
       setNotice(null);
       setMessage("");
       queryClient.setQueryData(["session", session.id], session);
@@ -283,8 +321,66 @@ export function App() {
     },
     onSuccess: (response) => {
       setExportResult(response);
+      setSavedPlanForExportId(null);
       setNotice(null);
       void queryClient.invalidateQueries({ queryKey: ["session", sessionId] });
+    },
+    onError: showError
+  });
+
+  const savePlanMutation = useMutation({
+    mutationFn: async (request: { name: string; description: string | null }) => {
+      if (!sessionId) throw new Error("Start a session first.");
+      if (!sqlPrep?.sql) throw new Error("Prepare the CSV before saving it.");
+      return createSavedCSVPlan({
+        session_id: sessionId,
+        name: request.name,
+        description: request.description
+      });
+    },
+    onSuccess: (plan) => {
+      setSavedPlanForExportId(plan);
+      setNotice({ type: "info", text: `Saved as "${plan.name}".` });
+      queryClient.setQueryData<SavedCSVPlan[]>(["saved-csv-plans"], (plans) => [plan, ...(plans ?? [])]);
+      void queryClient.invalidateQueries({ queryKey: ["saved-csv-plans"] });
+    },
+    onError: showError
+  });
+
+  const runSavedPlanMutation = useMutation({
+    mutationFn: async (plan: SavedCSVPlan) => ({ plan, response: await runSavedCSVPlan(plan.id) }),
+    onMutate: (plan) => {
+      setActiveView("saved");
+      setSavedRunPlan(plan);
+      setSavedRunResult(null);
+      setNotice(null);
+    },
+    onSuccess: ({ plan, response }) => {
+      setSavedRunPlan(plan);
+      setSavedRunResult(response);
+      setNotice(null);
+      void queryClient.invalidateQueries({ queryKey: ["saved-csv-plans"] });
+    },
+    onError: showError
+  });
+
+  const updateSavedPlanMutation = useMutation({
+    mutationFn: (request: { planId: string; name: string; description: string | null }) =>
+      updateSavedCSVPlan(request.planId, { name: request.name, description: request.description }),
+    onSuccess: () => {
+      setNotice({ type: "info", text: "Saved CSV updated." });
+      void queryClient.invalidateQueries({ queryKey: ["saved-csv-plans"] });
+    },
+    onError: showError
+  });
+
+  const deleteSavedPlanMutation = useMutation({
+    mutationFn: deleteSavedCSVPlan,
+    onSuccess: () => {
+      setNotice({ type: "info", text: "Saved CSV deleted." });
+      setSavedRunPlan(null);
+      setSavedRunResult(null);
+      void queryClient.invalidateQueries({ queryKey: ["saved-csv-plans"] });
     },
     onError: showError
   });
@@ -320,6 +416,10 @@ export function App() {
     databaseTestMutation.isPending ||
     providerMutation.isPending ||
     safetyMutation.isPending ||
+    savePlanMutation.isPending ||
+    runSavedPlanMutation.isPending ||
+    updateSavedPlanMutation.isPending ||
+    deleteSavedPlanMutation.isPending ||
     sendMutation.isPending ||
     proposeMutation.isPending ||
     approveMutation.isPending ||
@@ -330,6 +430,7 @@ export function App() {
   const providerSettings = providerQuery.data;
   const contextDocument = contextQuery.data;
   const session = sessionQuery.data;
+  const savedPlans = savedPlansQuery.data ?? [];
   const workflowNotice = notice ?? (session?.last_error ? { type: "error" as const, text: session.last_error } : null);
 
   useEffect(() => {
@@ -416,6 +517,7 @@ export function App() {
         session={session ?? null}
         busy={busy}
         theme={theme}
+        activeView={activeView}
         contextDocument={contextDocument}
         providerSettings={providerSettings}
         provider={providerKind}
@@ -424,6 +526,7 @@ export function App() {
         apiKey={providerApiKey}
         defaultRowLimit={defaultRowLimit}
         onToggleTheme={toggleTheme}
+        onViewChange={setActiveView}
         onNewSession={() => startSessionMutation.mutate()}
         onDefaultRowLimitChange={setDefaultRowLimit}
         onSaveSafety={() => safetyMutation.mutate()}
@@ -436,44 +539,63 @@ export function App() {
         databaseTest={databaseTest}
         onTestDatabase={() => databaseTestMutation.mutate()}
       />
-      <section
-        className={cn(
-          "mx-auto grid min-h-0 w-full flex-1 grid-cols-1 gap-4 px-4 pb-4 transition-[max-width] duration-300 ease-out lg:px-6",
-          artifactFocused ? "max-w-2xl" : "max-w-7xl lg:grid-cols-[minmax(0,1fr)_minmax(360px,440px)]"
-        )}
-        aria-label="CSV Chat"
-      >
-        {showConversation ? (
-          <ConversationPane
-            session={session ?? null}
-            proposal={proposal}
-            notice={workflowNotice}
-            message={message}
-            busy={busy}
-            sending={sendMutation.isPending}
-            planning={proposeMutation.isPending}
-            onMessageChange={setMessage}
-            onSubmit={submitCurrentMessage}
-            onSuggestion={setMessage}
-            className={cn(exportRunningOrComplete && "pointer-events-none opacity-0 scale-[0.985]")}
-          />
-        ) : null}
-        <ArtifactPanel
-          session={session ?? null}
-          proposal={proposal}
-          sqlPrep={sqlPrep}
-          exportResult={exportResult}
-          traces={session?.debug_traces ?? []}
-          planning={proposeMutation.isPending}
-          approving={approveMutation.isPending}
-          preparing={prepareMutation.isPending}
-          exporting={exportMutation.isPending}
+      {activeView === "saved" ? (
+        <SavedCSVsView
+          plans={savedPlans}
+          loading={savedPlansQuery.isLoading}
           busy={busy}
-          onApprove={(intent) => approveMutation.mutate(intent)}
-          onPrepare={() => prepareMutation.mutate(sessionId ?? undefined)}
+          notice={notice}
+          runningPlan={savedRunPlan}
+          runResult={savedRunResult}
+          running={runSavedPlanMutation.isPending}
+          onRun={(plan) => runSavedPlanMutation.mutate(plan)}
+          onUpdate={(planId, name, description) => updateSavedPlanMutation.mutate({ planId, name, description })}
+          onDelete={(planId) => deleteSavedPlanMutation.mutate(planId)}
           onNewSession={() => startSessionMutation.mutate()}
         />
-      </section>
+      ) : (
+        <section
+          className={cn(
+            "mx-auto grid min-h-0 w-full flex-1 grid-cols-1 gap-4 px-4 pb-4 transition-[max-width] duration-300 ease-out lg:px-6",
+            artifactFocused ? "max-w-2xl" : "max-w-7xl lg:grid-cols-[minmax(0,1fr)_minmax(360px,440px)]"
+          )}
+          aria-label="CSV Chat"
+        >
+          {showConversation ? (
+            <ConversationPane
+              session={session ?? null}
+              proposal={proposal}
+              notice={workflowNotice}
+              message={message}
+              busy={busy}
+              sending={sendMutation.isPending}
+              planning={proposeMutation.isPending}
+              onMessageChange={setMessage}
+              onSubmit={submitCurrentMessage}
+              onSuggestion={setMessage}
+              className={cn(exportRunningOrComplete && "pointer-events-none opacity-0 scale-[0.985]")}
+            />
+          ) : null}
+          <ArtifactPanel
+            session={session ?? null}
+            proposal={proposal}
+            sqlPrep={sqlPrep}
+            exportResult={exportResult}
+            traces={session?.debug_traces ?? []}
+            planning={proposeMutation.isPending}
+            approving={approveMutation.isPending}
+            preparing={prepareMutation.isPending}
+            exporting={exportMutation.isPending}
+            busy={busy}
+            savedPlan={savedPlanForExportId}
+            saving={savePlanMutation.isPending}
+            onApprove={(intent) => approveMutation.mutate(intent)}
+            onPrepare={() => prepareMutation.mutate(sessionId ?? undefined)}
+            onSavePlan={(name, description) => savePlanMutation.mutate({ name, description })}
+            onNewSession={() => startSessionMutation.mutate()}
+          />
+        </section>
+      )}
     </main>
   );
 }
@@ -483,6 +605,7 @@ function AppHeader({
   session,
   busy,
   theme,
+  activeView,
   contextDocument,
   providerSettings,
   provider,
@@ -491,6 +614,7 @@ function AppHeader({
   apiKey,
   defaultRowLimit,
   onToggleTheme,
+  onViewChange,
   onNewSession,
   onDefaultRowLimitChange,
   onSaveSafety,
@@ -507,6 +631,7 @@ function AppHeader({
   session: ExportSession | null;
   busy: boolean;
   theme: Theme;
+  activeView: AppView;
   contextDocument?: ContextDocument;
   providerSettings?: ModelProviderSettingsResponse;
   provider: ProviderKind;
@@ -515,6 +640,7 @@ function AppHeader({
   apiKey: string;
   defaultRowLimit: string;
   onToggleTheme: () => void;
+  onViewChange: (view: AppView) => void;
   onNewSession: () => void;
   onDefaultRowLimitChange: (value: string) => void;
   onSaveSafety: () => void;
@@ -534,6 +660,18 @@ function AppHeader({
         <p className="truncate text-xs text-muted-foreground">{session ? statusLabel(session.status) : "Chat to validated CSV"}</p>
       </div>
       <div className="flex shrink-0 items-center gap-2">
+        <ToggleGroup
+          value={[activeView]}
+          onValueChange={(value) => {
+            const nextValue = value[value.length - 1];
+            if (nextValue === "new" || nextValue === "saved") onViewChange(nextValue);
+          }}
+          variant="outline"
+          size="sm"
+        >
+          <ToggleGroupItem value="new">New CSV</ToggleGroupItem>
+          <ToggleGroupItem value="saved">Saved CSVs</ToggleGroupItem>
+        </ToggleGroup>
         <ReadinessBadge status={status} />
         <SettingsDialog
           status={status}
@@ -863,8 +1001,11 @@ function ArtifactPanel({
   preparing,
   exporting,
   busy,
+  savedPlan,
+  saving,
   onApprove,
   onPrepare,
+  onSavePlan,
   onNewSession
 }: {
   session: ExportSession | null;
@@ -877,8 +1018,11 @@ function ArtifactPanel({
   preparing: boolean;
   exporting: boolean;
   busy: boolean;
+  savedPlan: SavedCSVPlan | null;
+  saving: boolean;
   onApprove: (intent: CSVIntent) => void;
   onPrepare: () => void;
+  onSavePlan: (name: string, description: string | null) => void;
   onNewSession: () => void;
 }) {
   const approved = session?.approved_intent ?? null;
@@ -921,8 +1065,11 @@ function ArtifactPanel({
           sqlPrep={sqlPrep}
           exportResult={exportResult}
           busy={busy}
+          savedPlan={savedPlan}
+          saving={saving}
           onApprove={onApprove}
           onPrepare={onPrepare}
+          onSavePlan={onSavePlan}
           onNewSession={onNewSession}
         />
       </div>
@@ -1021,8 +1168,11 @@ function ArtifactActions({
   sqlPrep,
   exportResult,
   busy,
+  savedPlan,
+  saving,
   onApprove,
   onPrepare,
+  onSavePlan,
   onNewSession
 }: {
   intent: CSVIntent | null;
@@ -1030,8 +1180,11 @@ function ArtifactActions({
   sqlPrep: SQLPreparationResponse | null;
   exportResult: ExportCreateResponse | null;
   busy: boolean;
+  savedPlan: SavedCSVPlan | null;
+  saving: boolean;
   onApprove: (intent: CSVIntent) => void;
   onPrepare: () => void;
+  onSavePlan: (name: string, description: string | null) => void;
   onNewSession: () => void;
 }) {
   if (!intent && !exportResult) return null;
@@ -1056,6 +1209,13 @@ function ArtifactActions({
             <DownloadIcon data-icon="inline-start" />
             Download CSV
           </a>
+          <SaveCSVPlanDialog
+            intent={intent}
+            savedPlan={savedPlan}
+            busy={busy}
+            saving={saving}
+            onSave={onSavePlan}
+          />
           <Button type="button" variant="outline" className="w-full" onClick={onNewSession} disabled={busy}>
             {busy ? <Spinner data-icon="inline-start" /> : <PlusIcon data-icon="inline-start" />}
             Start over
@@ -1063,6 +1223,82 @@ function ArtifactActions({
         </div>
       ) : null}
     </div>
+  );
+}
+
+function SaveCSVPlanDialog({
+  intent,
+  savedPlan,
+  busy,
+  saving,
+  onSave
+}: {
+  intent: CSVIntent | null;
+  savedPlan: SavedCSVPlan | null;
+  busy: boolean;
+  saving: boolean;
+  onSave: (name: string, description: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState(intent?.summary ?? "");
+  const [description, setDescription] = useState(intent?.row_meaning ?? "");
+
+  useEffect(() => {
+    if (!open) {
+      setName(intent?.summary ?? "");
+      setDescription(intent?.row_meaning ?? "");
+    }
+  }, [intent?.summary, intent?.row_meaning, open]);
+
+  useEffect(() => {
+    if (savedPlan) setOpen(false);
+  }, [savedPlan]);
+
+  if (savedPlan) {
+    return (
+      <Button type="button" variant="outline" className="w-full" disabled>
+        <CheckIcon data-icon="inline-start" />
+        Saved
+      </Button>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger render={<Button type="button" variant="outline" className="w-full" disabled={busy || !intent} />}>
+        {saving ? <Spinner data-icon="inline-start" /> : <SaveIcon data-icon="inline-start" />}
+        Save CSV Plan
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Save CSV Plan</DialogTitle>
+          <DialogDescription>Save this completed CSV so it can run again without chat.</DialogDescription>
+        </DialogHeader>
+        <FieldGroup>
+          <Field data-invalid={!name.trim() || undefined}>
+            <FieldLabel htmlFor="saved-csv-name">Name</FieldLabel>
+            <Input id="saved-csv-name" value={name} onChange={(event) => setName(event.target.value)} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="saved-csv-description">Description</FieldLabel>
+            <Input id="saved-csv-description" value={description} onChange={(event) => setDescription(event.target.value)} />
+          </Field>
+        </FieldGroup>
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            onClick={() => onSave(name.trim(), description.trim() || null)}
+            disabled={saving || !name.trim()}
+          >
+            {saving ? <Spinner data-icon="inline-start" /> : <SaveIcon data-icon="inline-start" />}
+            {saving ? "Saving" : "Save"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -1125,6 +1361,307 @@ function AdvancedDetails({ sqlPrep, traces }: { sqlPrep: SQLPreparationResponse 
         </div>
       ) : null}
     </div>
+  );
+}
+
+function SavedCSVsView({
+  plans,
+  loading,
+  busy,
+  notice,
+  runningPlan,
+  runResult,
+  running,
+  onRun,
+  onUpdate,
+  onDelete,
+  onNewSession
+}: {
+  plans: SavedCSVPlan[];
+  loading: boolean;
+  busy: boolean;
+  notice: Notice;
+  runningPlan: SavedCSVPlan | null;
+  runResult: ExportCreateResponse | null;
+  running: boolean;
+  onRun: (plan: SavedCSVPlan) => void;
+  onUpdate: (planId: string, name: string, description: string | null) => void;
+  onDelete: (planId: string) => void;
+  onNewSession: () => void;
+}) {
+  const [selectedAction, setSelectedAction] = useState<{ action: SavedCSVAction; plan: SavedCSVPlan } | null>(null);
+
+  return (
+    <section className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col gap-4 overflow-auto px-4 pb-4 lg:px-6" aria-label="Saved CSVs">
+      {notice ? <NoticeBanner notice={notice} /> : null}
+      {runningPlan || runResult ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{runResult ? "CSV ready" : "Running saved CSV"}</CardTitle>
+            <CardDescription>{runningPlan?.name ?? "Saved CSV"}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {running ? <ExportProgressStatus text="Creating CSV" /> : null}
+            {runResult ? (
+              <dl className="grid gap-2 text-sm text-muted-foreground">
+                <Line label="Rows" value={runResult.row_count} />
+                <Line label="Columns" value={runResult.columns.length} />
+              </dl>
+            ) : null}
+          </CardContent>
+          {runResult ? (
+            <CardFooter className="flex gap-2">
+              <a className={cn(buttonVariants({ variant: "default" }))} href={runResult.download_url}>
+                <DownloadIcon data-icon="inline-start" />
+                Download CSV
+              </a>
+              {runningPlan ? (
+                <Button type="button" variant="outline" onClick={() => onRun(runningPlan)} disabled={busy}>
+                  {busy ? <Spinner data-icon="inline-start" /> : <PlayIcon data-icon="inline-start" />}
+                  Run again
+                </Button>
+              ) : null}
+            </CardFooter>
+          ) : null}
+        </Card>
+      ) : null}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Saved CSVs</CardTitle>
+          <CardDescription>Run a previously approved CSV without going through chat.</CardDescription>
+          <CardAction>
+            <Button type="button" variant="outline" size="sm" onClick={onNewSession} disabled={busy}>
+              <PlusIcon data-icon="inline-start" />
+              New CSV
+            </Button>
+          </CardAction>
+        </CardHeader>
+        <CardContent>
+          {loading ? <InlineStatus text="Loading saved CSVs" /> : null}
+          {!loading && !plans.length ? <EmptySavedCSVs onNewSession={onNewSession} /> : null}
+          {plans.length ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Last run</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {plans.map((plan) => (
+                  <TableRow key={plan.id}>
+                    <TableCell>
+                      <div className="flex max-w-md flex-col gap-1">
+                        <span className="truncate font-medium">{plan.name}</span>
+                        <span className="truncate text-xs text-muted-foreground">{plan.description ?? plan.intent.summary}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>{plan.last_run_at ? formatDateTime(plan.last_run_at) : "Never"}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">Ready</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex justify-end gap-2">
+                        <Button type="button" size="sm" onClick={() => onRun(plan)} disabled={busy}>
+                          {running && runningPlan?.id === plan.id ? <Spinner data-icon="inline-start" /> : <PlayIcon data-icon="inline-start" />}
+                          Run
+                        </Button>
+                        <SavedCSVRowMenu plan={plan} busy={busy} onSelectAction={(action) => setSelectedAction({ action, plan })} />
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : null}
+        </CardContent>
+      </Card>
+      <RenameSavedCSVDialog
+        plan={selectedAction?.action === "rename" ? selectedAction.plan : null}
+        busy={busy}
+        onOpenChange={(open) => {
+          if (!open) setSelectedAction(null);
+        }}
+        onUpdate={onUpdate}
+      />
+      <SavedCSVDetailsDialog
+        plan={selectedAction?.action === "details" ? selectedAction.plan : null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedAction(null);
+        }}
+      />
+      <DeleteSavedCSVDialog
+        plan={selectedAction?.action === "delete" ? selectedAction.plan : null}
+        busy={busy}
+        onOpenChange={(open) => {
+          if (!open) setSelectedAction(null);
+        }}
+        onDelete={onDelete}
+      />
+    </section>
+  );
+}
+
+function EmptySavedCSVs({ onNewSession }: { onNewSession: () => void }) {
+  return (
+    <Empty>
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <FileSpreadsheetIcon />
+        </EmptyMedia>
+        <EmptyTitle>No saved CSVs yet</EmptyTitle>
+        <EmptyDescription>After a CSV is created successfully, save it from the download step.</EmptyDescription>
+      </EmptyHeader>
+      <Button type="button" variant="outline" onClick={onNewSession}>
+        <PlusIcon data-icon="inline-start" />
+        New CSV
+      </Button>
+    </Empty>
+  );
+}
+
+function SavedCSVRowMenu({
+  plan,
+  busy,
+  onSelectAction
+}: {
+  plan: SavedCSVPlan;
+  busy: boolean;
+  onSelectAction: (action: SavedCSVAction) => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon-sm" aria-label={`Actions for ${plan.name}`} disabled={busy} />}>
+        <MoreHorizontalIcon data-icon="inline-start" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuGroup>
+          <DropdownMenuItem onClick={() => onSelectAction("rename")}>Rename</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onSelectAction("details")}>View details</DropdownMenuItem>
+          <DropdownMenuItem variant="destructive" onClick={() => onSelectAction("delete")}>Delete</DropdownMenuItem>
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function RenameSavedCSVDialog({
+  plan,
+  busy,
+  onOpenChange,
+  onUpdate
+}: {
+  plan: SavedCSVPlan | null;
+  busy: boolean;
+  onOpenChange: (open: boolean) => void;
+  onUpdate: (planId: string, name: string, description: string | null) => void;
+}) {
+  const [name, setName] = useState(plan?.name ?? "");
+  const [description, setDescription] = useState(plan?.description ?? "");
+  const inputId = plan ? `rename-${plan.id}` : "rename-saved-csv";
+  const descriptionInputId = plan ? `rename-description-${plan.id}` : "rename-description-saved-csv";
+
+  useEffect(() => {
+    if (plan) {
+      setName(plan.name);
+      setDescription(plan.description ?? "");
+    }
+  }, [plan]);
+
+  return (
+    <Dialog open={Boolean(plan)} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Rename Saved CSV</DialogTitle>
+          <DialogDescription>Update the name shown in Saved CSVs.</DialogDescription>
+        </DialogHeader>
+        <FieldGroup>
+          <Field data-invalid={!name.trim() || undefined}>
+            <FieldLabel htmlFor={inputId}>Name</FieldLabel>
+            <Input id={inputId} value={name} onChange={(event) => setName(event.target.value)} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor={descriptionInputId}>Description</FieldLabel>
+            <Input id={descriptionInputId} value={description} onChange={(event) => setDescription(event.target.value)} />
+          </Field>
+        </FieldGroup>
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            onClick={() => {
+              if (!plan) return;
+              onUpdate(plan.id, name.trim(), description.trim() || null);
+              onOpenChange(false);
+            }}
+            disabled={busy || !plan || !name.trim()}
+          >
+            {busy ? <Spinner data-icon="inline-start" /> : <CheckIcon data-icon="inline-start" />}
+            Save
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SavedCSVDetailsDialog({ plan, onOpenChange }: { plan: SavedCSVPlan | null; onOpenChange: (open: boolean) => void }) {
+  return (
+    <Dialog open={Boolean(plan)} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90svh] overflow-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{plan?.name ?? "Saved CSV"}</DialogTitle>
+          <DialogDescription>{plan?.description ?? plan?.intent.summary ?? "Saved CSV details"}</DialogDescription>
+        </DialogHeader>
+        {plan ? (
+          <>
+            <PlanArtifact intent={plan.intent} approved />
+            <Separator />
+            <div className="flex flex-col gap-2">
+              <p className="font-medium">Advanced</p>
+              <CodeBlock>
+                <CodeBlockCode code={plan.sql} language="sql" />
+              </CodeBlock>
+            </div>
+          </>
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DeleteSavedCSVDialog({
+  plan,
+  busy,
+  onOpenChange,
+  onDelete
+}: {
+  plan: SavedCSVPlan | null;
+  busy: boolean;
+  onOpenChange: (open: boolean) => void;
+  onDelete: (planId: string) => void;
+}) {
+  return (
+    <AlertDialog open={Boolean(plan)} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete saved CSV?</AlertDialogTitle>
+          <AlertDialogDescription>This removes "{plan?.name ?? "this saved CSV"}" from Saved CSVs. Existing downloaded CSV files are not changed.</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction type="button" onClick={() => plan && onDelete(plan.id)} disabled={busy || !plan}>
+            {busy ? <Spinner data-icon="inline-start" /> : <Trash2Icon data-icon="inline-start" />}
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 

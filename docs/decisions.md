@@ -10,6 +10,7 @@ Resolved V0 product and architecture decisions. Revisit these only with evidence
 - **Two SQL repair attempts.** Keep two bounded server-side repair attempts after initial SQL validation failure.
 - **No export expiry workflow.** Once the CSV is ready, the user downloads it to their chosen location.
 - **Approved CSV labels own final headers.** The CSV writer uses the approved CSV plan column labels as the downloaded file headers. SQL must return the same number of selected outputs in the same order; exact SQL alias text is not the product boundary.
+- **Saved CSVs store intent plus SQL.** After a successful export, users may save a reusable CSV. The normal UX names and manages the saved CSV plan, while the app persists the approved intent and validated SQL internally. Reruns skip chat/model generation but never skip SQL validation or read-only execution limits.
 
 ## Safety
 

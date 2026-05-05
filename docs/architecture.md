@@ -24,6 +24,7 @@ The model helps interpret the request and propose SQL. The application owns cred
 12. App maps result values by position to the approved CSV headers.
 13. App escapes formula-like CSV cells.
 14. App writes the CSV and returns a download.
+15. User may save the completed CSV plan for future reruns without chat.
 
 ## Shape
 
@@ -74,6 +75,7 @@ Purpose:
 - validate SQL against safety policy, approved output shape, source hints, and scanned schema context
 - execute read-only SQL
 - validate and write CSVs
+- persist and rerun saved CSV plans after successful exports
 - keep enough debug trace information to inspect failures
 
 Stack:
@@ -177,6 +179,20 @@ Responsibilities:
 - provide a download endpoint
 
 There is no special export retention workflow in V0. Once the CSV is ready, the user downloads it to their chosen location.
+
+## Saved CSVs
+
+Saved CSVs let a user rerun the same approved CSV later without going through chat. A saved item stores the user-facing name, optional description, approved CSV intent, validated SQL, row limit, schema fingerprint when available, and last-run metadata.
+
+Saved CSVs do not make SQL trusted. Each rerun reuses the saved SQL but still validates it against the current policy, approved intent shape, source hints, and scanned schema before read-only execution. SQL remains hidden in normal UX and visible only in read-only details/Advanced.
+
+State remains filesystem JSON for V0:
+
+```text
+data/saved_csv_plans/*.json
+```
+
+There is no scheduling, editable SQL, parameter system, sharing, or separate approval workflow for Saved CSVs in V0.
 
 Formula-like string cells start with:
 

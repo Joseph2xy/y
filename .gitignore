@@ -12,4 +12,6 @@ data/exports/*
 !data/exports/.gitkeep
 data/context/*
 data/sessions/*
+data/saved_csv_plans/*
+!data/saved_csv_plans/.gitkeep
 data/settings/*
