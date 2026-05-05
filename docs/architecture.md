@@ -182,9 +182,9 @@ There is no special export retention workflow in V0. Once the CSV is ready, the 
 
 ## Saved CSVs
 
-Saved CSVs let a user rerun the same approved CSV later without going through chat. A saved item stores the user-facing name, optional description, approved CSV intent, validated SQL, row limit, schema fingerprint when available, and last-run metadata.
+Saved CSVs let a user rerun the same approved CSV later without going through chat. A saved item stores the user-facing name, optional description, approved CSV intent, validated SQL, row limit, schema fingerprint, and last-run metadata.
 
-Saved CSVs do not make SQL trusted. Each rerun reuses the saved SQL but still validates it against the current policy, approved intent shape, source hints, and scanned schema before read-only execution. SQL remains hidden in normal UX and visible only in read-only details/Advanced.
+Saved CSVs are tied to the database context they were created from. A rerun is blocked when the current scanned context fingerprint is missing or differs from the saved fingerprint, so a saved item does not silently run against another database. Matching reruns reuse the saved SQL but still validate it against the current policy, approved intent shape, source hints, and scanned schema before read-only execution. SQL remains hidden in normal UX and visible only in read-only details/Advanced.
 
 State remains filesystem JSON for V0:
 

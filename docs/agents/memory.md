@@ -14,7 +14,7 @@ Recent direction from product discussion:
 - Direct `source_hint` values are validated by output position when present.
 - Derived columns can have no direct source hint.
 - CSV-plan approval is terminal for chat in the current V0 run: hide chat immediately, show artifact progress, create the CSV automatically after validation passes, keep the artifact/download visible, and use Start over for changes or another CSV.
-- Successful exports can be saved as Saved CSVs. The completed artifact offers Save CSV Plan; the top-level Saved CSVs view lists saved items and can rerun them without chat/model generation. Reruns still validate saved SQL against the current context/policy before read-only execution.
+- Successful exports can be saved as Saved CSVs. The completed artifact offers Save CSV Plan; the top-level Saved CSVs view lists saved items and can rerun them without chat/model generation only when the current scanned database context fingerprint matches the saved fingerprint. Matching reruns still validate saved SQL against the current context/policy before read-only execution.
 - Do not add a query compiler or broad semantic layer unless calibration shows the raw-SQL validation approach is not enough.
 
 ## Recently Completed
@@ -33,6 +33,7 @@ Recent direction from product discussion:
 - Added `pnpm run doctor` and `pnpm db:test-url` for plain-language local setup and database URL diagnosis, and made rescan/setup database failures avoid raw tracebacks.
 - Added `pnpm db:import` as the preferred Windows real-data path: export a pgAdmin/Postgres backup, import it into the local WSL Postgres cluster, create a read-only CSV Chat user, write `.env`, then rescan context.
 - Added Saved CSVs: backend routes/store, generated API types, shadcn table/dropdown/alert-dialog UI, final-step Save CSV Plan dialog, and Saved CSVs rerun/rename/details/delete actions.
+- Tied Saved CSV reruns to the database context they were created from; mismatched or legacy saved items are blocked before SQL validation/execution and labeled in the UI.
 
 ## Last Verification
 

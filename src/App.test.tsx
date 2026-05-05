@@ -582,6 +582,31 @@ describe("App", () => {
     expect(screen.getByText("2")).toBeInTheDocument();
   });
 
+  it("marks saved CSVs from another database as not runnable", async () => {
+    const user = userEvent.setup();
+    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+    const staleSavedPlan = { ...savedPlanResponse, schema_fingerprint: "otherdb" };
+
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      if (url === "/setup/status") return jsonResponse(setupReadyResponse);
+      if (url === "/context") return jsonResponse(contextResponse);
+      if (url === "/saved-csv-plans" && method === "GET") return jsonResponse({ plans: [staleSavedPlan] });
+      if (url === "/sessions") return jsonResponse({ session: sessionResponse });
+      if (url === "/sessions/session123") return jsonResponse(sessionResponse);
+      return jsonResponse({ detail: "Not found" }, 404);
+    });
+
+    renderApp();
+
+    await user.click(await screen.findByRole("button", { name: "Saved CSVs" }));
+
+    expect(await screen.findByText("Different database")).toBeInTheDocument();
+    expect(screen.getByText("Create a new saved CSV for the current database.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Run" })).toBeDisabled();
+  });
+
   it("hides chat and shows progress while approval starts the export", async () => {
     const user = userEvent.setup();
     const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;

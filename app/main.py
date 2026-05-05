@@ -473,6 +473,25 @@ async def run_saved_csv_plan_endpoint(plan_id: str) -> ExportCreateResponse:
     try:
         plan = load_saved_csv_plan(plan_id)
         document = load_context()
+        context_source = document.schema_context.source
+        if plan.schema_fingerprint and (
+            context_source is None or context_source.fingerprint != plan.schema_fingerprint
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "This saved CSV was created for a different database context. "
+                    "Switch back to the original database or create a new saved CSV for the current database."
+                ),
+            )
+        if plan.schema_fingerprint is None:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "This saved CSV has no database context metadata. "
+                    "Create a new saved CSV after rescanning the current database."
+                ),
+            )
         runner = read_only_query_runner(
             database_url,
             statement_timeout_ms=document.policy.statement_timeout_ms,
@@ -487,6 +506,8 @@ async def run_saved_csv_plan_endpoint(plan_id: str) -> ExportCreateResponse:
         )
         mark_saved_csv_plan_run(plan_id, export_id=response.export_id)
         return response
+    except HTTPException:
+        raise
     except SavedCSVPlanStoreError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ContextStoreError as exc:

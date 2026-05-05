@@ -361,7 +361,11 @@ export function App() {
       setNotice(null);
       void queryClient.invalidateQueries({ queryKey: ["saved-csv-plans"] });
     },
-    onError: showError
+    onError: (error) => {
+      setSavedRunPlan(null);
+      setSavedRunResult(null);
+      showError(error);
+    }
   });
 
   const updateSavedPlanMutation = useMutation({
@@ -545,6 +549,7 @@ export function App() {
           loading={savedPlansQuery.isLoading}
           busy={busy}
           notice={notice}
+          contextDocument={contextDocument}
           runningPlan={savedRunPlan}
           runResult={savedRunResult}
           running={runSavedPlanMutation.isPending}
@@ -1369,6 +1374,7 @@ function SavedCSVsView({
   loading,
   busy,
   notice,
+  contextDocument,
   runningPlan,
   runResult,
   running,
@@ -1381,6 +1387,7 @@ function SavedCSVsView({
   loading: boolean;
   busy: boolean;
   notice: Notice;
+  contextDocument?: ContextDocument;
   runningPlan: SavedCSVPlan | null;
   runResult: ExportCreateResponse | null;
   running: boolean;
@@ -1452,27 +1459,16 @@ function SavedCSVsView({
               </TableHeader>
               <TableBody>
                 {plans.map((plan) => (
-                  <TableRow key={plan.id}>
-                    <TableCell>
-                      <div className="flex max-w-md flex-col gap-1">
-                        <span className="truncate font-medium">{plan.name}</span>
-                        <span className="truncate text-xs text-muted-foreground">{plan.description ?? plan.intent.summary}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>{plan.last_run_at ? formatDateTime(plan.last_run_at) : "Never"}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">Ready</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex justify-end gap-2">
-                        <Button type="button" size="sm" onClick={() => onRun(plan)} disabled={busy}>
-                          {running && runningPlan?.id === plan.id ? <Spinner data-icon="inline-start" /> : <PlayIcon data-icon="inline-start" />}
-                          Run
-                        </Button>
-                        <SavedCSVRowMenu plan={plan} busy={busy} onSelectAction={(action) => setSelectedAction({ action, plan })} />
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                  <SavedCSVTableRow
+                    key={plan.id}
+                    plan={plan}
+                    busy={busy}
+                    contextDocument={contextDocument}
+                    running={running}
+                    runningPlan={runningPlan}
+                    onRun={onRun}
+                    onSelectAction={(action) => setSelectedAction({ action, plan })}
+                  />
                 ))}
               </TableBody>
             </Table>
@@ -1505,6 +1501,54 @@ function SavedCSVsView({
   );
 }
 
+function SavedCSVTableRow({
+  plan,
+  busy,
+  contextDocument,
+  running,
+  runningPlan,
+  onRun,
+  onSelectAction
+}: {
+  plan: SavedCSVPlan;
+  busy: boolean;
+  contextDocument?: ContextDocument;
+  running: boolean;
+  runningPlan: SavedCSVPlan | null;
+  onRun: (plan: SavedCSVPlan) => void;
+  onSelectAction: (action: SavedCSVAction) => void;
+}) {
+  const status = savedCSVStatus(plan, contextDocument);
+  const canRun = status.kind === "ready";
+
+  return (
+    <TableRow>
+      <TableCell>
+        <div className="flex max-w-md flex-col gap-1">
+          <span className="truncate font-medium">{plan.name}</span>
+          <span className="truncate text-xs text-muted-foreground">{plan.description ?? plan.intent.summary}</span>
+        </div>
+      </TableCell>
+      <TableCell>{plan.last_run_at ? formatDateTime(plan.last_run_at) : "Never"}</TableCell>
+      <TableCell>
+        <div className="flex flex-col items-start gap-1">
+          <Badge variant={canRun ? "outline" : "secondary"}>{status.label}</Badge>
+          {!canRun ? <span className="max-w-64 text-xs text-muted-foreground">{status.description}</span> : null}
+        </div>
+      </TableCell>
+      <TableCell>
+        <div className="flex justify-end gap-2">
+          <Button type="button" size="sm" onClick={() => onRun(plan)} disabled={busy || !canRun}>
+            {running && runningPlan?.id === plan.id ? <Spinner data-icon="inline-start" /> : <PlayIcon data-icon="inline-start" />}
+            Run
+          </Button>
+          <SavedCSVRowMenu plan={plan} busy={busy} onSelectAction={onSelectAction} />
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+}
+
 function EmptySavedCSVs({ onNewSession }: { onNewSession: () => void }) {
   return (
     <Empty>
@@ -1521,6 +1565,32 @@ function EmptySavedCSVs({ onNewSession }: { onNewSession: () => void }) {
       </Button>
     </Empty>
   );
+}
+
+function savedCSVStatus(plan: SavedCSVPlan, contextDocument?: ContextDocument) {
+  if (!contextDocument) {
+    return {
+      kind: "blocked",
+      label: "Checking",
+      description: "Checking the current database."
+    };
+  }
+  const currentFingerprint = contextDocument?.schema.source?.fingerprint ?? null;
+  if (!plan.schema_fingerprint) {
+    return {
+      kind: "blocked",
+      label: "Needs rebuild",
+      description: "Saved before database matching was tracked."
+    };
+  }
+  if (!currentFingerprint || currentFingerprint !== plan.schema_fingerprint) {
+    return {
+      kind: "blocked",
+      label: "Different database",
+      description: "Create a new saved CSV for the current database."
+    };
+  }
+  return { kind: "ready", label: "Ready", description: null };
 }
 
 function SavedCSVRowMenu({

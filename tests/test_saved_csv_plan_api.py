@@ -2,7 +2,10 @@ from tools.api_client import APIClient
 
 import app.main as main
 from app.context_store import ensure_context_files
+from app.database_identity import database_source_from_url
 from app.main import app
+from app.models import SchemaContext
+from app.saved_csv_plan_store import load_saved_csv_plan, save_saved_csv_plan
 from app.session_store import mark_export_complete
 
 
@@ -29,7 +32,7 @@ def create_completed_session(client: APIClient) -> str:
 def test_saved_csv_plan_lifecycle_and_rerun(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("DATABASE_URL", "postgresql://readonly:password@localhost:5432/appdb")
-    ensure_context_files()
+    ensure_context_files(schema=SchemaContext(source=database_source_from_url("postgresql://readonly:password@localhost:5432/appdb")))
     monkeypatch.setattr(main, "read_only_query_runner", lambda *args, **kwargs: lambda sql: [{"email": "a@example.com"}])
     client = APIClient(app)
     session_id = create_completed_session(client)
@@ -75,6 +78,47 @@ def test_saved_csv_plan_lifecycle_and_rerun(tmp_path, monkeypatch) -> None:
     delete_response = client.request("DELETE", f"/saved-csv-plans/{plan['id']}")
     assert delete_response.status_code == 204
     assert client.get("/saved-csv-plans").json()["plans"] == []
+
+
+def test_saved_csv_plan_rerun_rejects_different_database_context(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("DATABASE_URL", "postgresql://readonly:password@localhost:5432/appdb")
+    ensure_context_files(schema=SchemaContext(source=database_source_from_url("postgresql://readonly:password@localhost:5432/appdb")))
+    monkeypatch.setattr(main, "read_only_query_runner", lambda *args, **kwargs: lambda sql: [{"email": "a@example.com"}])
+    client = APIClient(app)
+    session_id = create_completed_session(client)
+    plan = client.post("/saved-csv-plans", json={"session_id": session_id, "name": "Customer emails"}).json()
+
+    ensure_context_files(schema=SchemaContext(source=database_source_from_url("postgresql://readonly:password@localhost:5432/otherdb")))
+
+    response = client.post(f"/saved-csv-plans/{plan['id']}/run")
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "This saved CSV was created for a different database context. "
+        "Switch back to the original database or create a new saved CSV for the current database."
+    )
+
+
+def test_saved_csv_plan_rerun_rejects_missing_database_context_metadata(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("DATABASE_URL", "postgresql://readonly:password@localhost:5432/appdb")
+    ensure_context_files(schema=SchemaContext(source=database_source_from_url("postgresql://readonly:password@localhost:5432/appdb")))
+    monkeypatch.setattr(main, "read_only_query_runner", lambda *args, **kwargs: lambda sql: [{"email": "a@example.com"}])
+    client = APIClient(app)
+    session_id = create_completed_session(client)
+    plan = client.post("/saved-csv-plans", json={"session_id": session_id, "name": "Customer emails"}).json()
+    saved_plan = load_saved_csv_plan(plan["id"])
+    saved_plan.schema_fingerprint = None
+    save_saved_csv_plan(saved_plan)
+
+    response = client.post(f"/saved-csv-plans/{plan['id']}/run")
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "This saved CSV has no database context metadata. "
+        "Create a new saved CSV after rescanning the current database."
+    )
 
 
 def test_saved_csv_plan_requires_completed_export(tmp_path, monkeypatch) -> None:
