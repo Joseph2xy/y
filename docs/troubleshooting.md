@@ -2,13 +2,7 @@
 
 ## `pnpm check:setup` Says Database Is Not Configured
 
-Edit `.env` and set:
-
-```text
-DATABASE_URL=postgresql://readonly:password@localhost:5432/appdb
-```
-
-For the built-in local test databases, run:
+For demo data, start and seed the local WSL Postgres server:
 
 ```bash
 pnpm db:start
@@ -16,13 +10,64 @@ pnpm db:seed
 pnpm db:urls
 ```
 
-Then copy one of the printed `DATABASE_URL` values into `.env`.
+Then copy one printed `DATABASE_URL` value into `.env`.
+
+For real data from Windows pgAdmin, create a pgAdmin backup and import it into the local WSL Postgres server:
+
+```bash
+pnpm db:import /mnt/c/Users/YOU/Downloads/app.backup app_copy
+```
+
+The import command writes a working `DATABASE_URL` to `.env` by default.
+
+For advanced/manual setup, edit `.env` and set:
+
+```text
+DATABASE_URL=postgresql://readonly:password@localhost:5432/appdb
+```
 
 Restart `pnpm dev:app` after changing `.env`.
+
+## Importing A Windows pgAdmin Backup
+
+The recommended Windows path is to import a local copy into WSL Postgres instead of connecting from WSL to Windows Postgres over TCP.
+
+In pgAdmin on Windows:
+
+1. Right-click the database.
+2. Choose Backup.
+3. Prefer custom format, which usually creates a `.backup` file.
+4. Save it under your Windows user folder, such as Downloads.
+
+In WSL:
+
+```bash
+pnpm db:import /mnt/c/Users/YOU/Downloads/app.backup app_copy
+pnpm db:test-url
+pnpm rescan:context
+```
+
+Use letters, numbers, and underscores for the local database name. The command creates or replaces that local database, restores the backup, creates a read-only CSV Chat user, and updates `.env`.
+
+If the import fails because of missing roles or ownership statements, create a custom-format pgAdmin backup and import that file. CSV Chat runs `pg_restore` with `--no-owner --no-acl` for custom-format backups.
+
+If the import fails because an extension is missing, install the matching Postgres extension package in WSL or remove that extension from the copied database if it is not needed for CSV exports.
 
 ## Database Connection Fails
 
 If `pnpm check:setup` reports `configured=True`, `.env` has a `DATABASE_URL`, but the app cannot connect to it. For example, `Connection refused` on `127.0.0.1:5432` usually means Postgres is not running there, is listening on a different port, or the database is outside WSL.
+
+Run the focused database URL check:
+
+```bash
+pnpm db:test-url
+```
+
+For a broader local setup check, run:
+
+```bash
+pnpm run doctor
+```
 
 If you are using the built-in local test databases, start them and check status:
 
@@ -40,6 +85,37 @@ Check:
 - the user is read-only for normal tables
 
 Use a read-only database user. Do not use an admin account.
+
+## Advanced: Windows pgAdmin Database From WSL
+
+If the database is open in pgAdmin on Windows and this app is running in WSL, `localhost` inside `.env` usually points to WSL, not Windows.
+
+Find the Windows host IP from WSL:
+
+```bash
+ip route | awk '/default/ {print $3}'
+```
+
+Use that IP in `.env`:
+
+```text
+DATABASE_URL=postgresql://readonly:password@WINDOWS_HOST_IP:5432/appdb
+```
+
+Then run:
+
+```bash
+pnpm db:test-url
+```
+
+If it times out:
+
+- allow inbound TCP `5432` in Windows Firewall
+- set Postgres `listen_addresses = '*'`
+- add a `pg_hba.conf` rule for the WSL subnet, such as `172.16.0.0/12`
+- restart PostgreSQL on Windows
+
+If it reports `no pg_hba.conf entry`, the network path works but Postgres access rules still need to allow that WSL host/user/database.
 
 ## Local Test Databases Are Missing
 

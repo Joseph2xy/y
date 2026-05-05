@@ -7,6 +7,7 @@ from fastapi.responses import Response
 from app.context_store import ContextStoreError, load_context, save_scanned_schema, update_context
 from app.database_identity import database_source_from_url, database_source_label, database_sources_match
 from app.db import read_only_query_runner, test_database_connection
+from app.db_diagnostics import explain_database_failure
 from app.export_service import ExportError, create_export, export_path
 from app.model_provider import LiteLLMModelProvider, ModelProviderError
 from app.models import (
@@ -94,7 +95,7 @@ def setup_status() -> SetupStatusResponse:
             database = SetupCheck(
                 configured=True,
                 ready=False,
-                message=f"Database connection failed: {exc}",
+                message=f"Database connection failed: {explain_database_failure(exc, database_url)}",
             )
         else:
             database = SetupCheck(configured=True, ready=True)
@@ -212,7 +213,7 @@ async def test_database_settings_endpoint() -> DatabaseConnectionTestResponse:
         return DatabaseConnectionTestResponse(
             configured=True,
             ok=False,
-            message=f"Database connection failed: {exc}",
+            message=f"Database connection failed: {explain_database_failure(exc, database_url)}",
             current_database=current_database,
         )
 

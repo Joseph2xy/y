@@ -9,7 +9,9 @@ from fastapi import HTTPException
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.context_store import ContextStoreError
+from app.db_diagnostics import explain_database_failure
 from app.main import scan_context
+from app.main import configured_database_url
 
 
 def main() -> int:
@@ -20,6 +22,11 @@ def main() -> int:
         return 1
     except ContextStoreError as exc:
         print(f"Context rescan failed: {exc}", file=sys.stderr)
+        return 1
+    except Exception as exc:
+        print("Context rescan failed: could not scan the database.", file=sys.stderr)
+        print(explain_database_failure(exc, configured_database_url()), file=sys.stderr)
+        print("Run `pnpm db:test-url` for a focused database URL check.", file=sys.stderr)
         return 1
 
     print("Context rescan complete.")

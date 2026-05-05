@@ -1,16 +1,20 @@
 from __future__ import annotations
 
 import argparse
+import os
+import re
 import shutil
 import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import psycopg
+from psycopg import sql
 
 from tools.calibration import provision_database
 from tools.complex_calibration import MARKETPLACE_DOMAIN, SAAS_DOMAIN
@@ -22,6 +26,8 @@ DEFAULT_BASE_DIR = Path.home() / ".local" / "share" / "csv-chat-pg"
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 5432
 DEFAULT_READONLY_PASSWORD = "readonly"
+DEFAULT_IMPORTED_READONLY_USER = "csv_chat_import_readonly"
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def main() -> None:
@@ -40,12 +46,24 @@ def main() -> None:
         seed_databases(args.host, args.port, args.readonly_password)
     elif args.command == "urls":
         print_urls(args.host, args.port, args.readonly_password)
+    elif args.command == "import":
+        import_database(
+            backup_path=args.backup_path.expanduser(),
+            database=args.database,
+            base_dir=base_dir,
+            host=args.host,
+            port=args.port,
+            readonly_user=args.readonly_user,
+            readonly_password=args.readonly_password,
+            write_env=not args.no_write_env,
+            replace=not args.no_replace,
+        )
     else:
         raise SystemExit(f"Unknown command: {args.command}")
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Manage the persistent local CSV Chat Postgres test cluster.")
+    parser = argparse.ArgumentParser(description="Manage the persistent local CSV Chat Postgres cluster.")
     parser.add_argument(
         "--base-dir",
         type=Path,
@@ -55,7 +73,31 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--host", default=DEFAULT_HOST)
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     parser.add_argument("--readonly-password", default=DEFAULT_READONLY_PASSWORD)
-    parser.add_argument("command", choices=("init", "start", "stop", "status", "seed", "urls"))
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    for command in ("init", "start", "stop", "status", "seed", "urls"):
+        subparsers.add_parser(command)
+
+    import_parser = subparsers.add_parser(
+        "import",
+        help="Import a pgAdmin/Postgres backup into the local WSL Postgres cluster.",
+    )
+    import_parser.add_argument("backup_path", type=Path, help="Path to a .backup/.dump/.sql file.")
+    import_parser.add_argument("database", help="Local database name to create or replace.")
+    import_parser.add_argument(
+        "--readonly-user",
+        default=DEFAULT_IMPORTED_READONLY_USER,
+        help=f"Read-only user created for CSV Chat. Default: {DEFAULT_IMPORTED_READONLY_USER}",
+    )
+    import_parser.add_argument(
+        "--no-write-env",
+        action="store_true",
+        help="Print the DATABASE_URL without writing it to .env.",
+    )
+    import_parser.add_argument(
+        "--no-replace",
+        action="store_true",
+        help="Fail if the target database already exists instead of replacing it.",
+    )
     return parser.parse_args()
 
 
@@ -177,6 +219,197 @@ def print_urls(host: str, port: int, readonly_password: str) -> None:
     print("DATABASE_URL values:")
     for label, user, database in urls:
         print(f"{label}: postgresql://{user}:{readonly_password}@{host}:{port}/{database}")
+
+
+def import_database(
+    *,
+    backup_path: Path,
+    database: str,
+    base_dir: Path,
+    host: str,
+    port: int,
+    readonly_user: str,
+    readonly_password: str,
+    write_env: bool,
+    replace: bool,
+) -> None:
+    require_command("createdb")
+    require_command("psql")
+    validate_database_identifier(database, "database")
+    validate_database_identifier(readonly_user, "readonly user")
+    if not backup_path.exists():
+        raise SystemExit(f"Backup file not found: {backup_path}")
+    if not backup_path.is_file():
+        raise SystemExit(f"Backup path is not a file: {backup_path}")
+
+    start_cluster(base_dir, host, port)
+    admin_url = admin_database_url(host, port)
+    target_url = database_url(host, port, "postgres", database)
+
+    if replace:
+        drop_database_if_exists(admin_url, database)
+    elif database_exists(admin_url, database):
+        raise SystemExit(f"Database already exists: {database}. Use the default replace behavior or choose another name.")
+
+    run(["createdb", "-h", host, "-p", str(port), "-U", "postgres", database])
+    try:
+        restore_backup(backup_path, target_url)
+        configure_readonly_user(
+            admin_url=admin_url,
+            database_url=target_url,
+            database=database,
+            readonly_user=readonly_user,
+            readonly_password=readonly_password,
+        )
+    except Exception:
+        if replace:
+            drop_database_if_exists(admin_url, database)
+        raise
+
+    readonly_url = database_url(host, port, readonly_user, database, password=readonly_password)
+    print("")
+    print("Imported database for CSV Chat.")
+    print(f"Database: {database}")
+    print(f"Read-only user: {readonly_user}")
+    print(f"DATABASE_URL={readonly_url}")
+    if write_env:
+        write_database_url(ROOT / ".env", readonly_url)
+        os.environ["DATABASE_URL"] = readonly_url
+        print("Updated .env with this DATABASE_URL.")
+    else:
+        print("Skipped .env update.")
+    print("")
+    print("Next steps:")
+    print("1. Run: pnpm db:test-url")
+    print("2. Run: pnpm rescan:context")
+    print("3. Run: pnpm dev:app")
+
+
+def restore_backup(backup_path: Path, target_url: str) -> None:
+    suffix = backup_path.suffix.lower()
+    if suffix == ".sql":
+        run(["psql", target_url, "-v", "ON_ERROR_STOP=1", "-f", str(backup_path)])
+        return
+
+    require_command("pg_restore")
+    run(
+        [
+            "pg_restore",
+            "--dbname",
+            target_url,
+            "--no-owner",
+            "--no-acl",
+            "--exit-on-error",
+            str(backup_path),
+        ]
+    )
+
+
+def configure_readonly_user(
+    *,
+    admin_url: str,
+    database_url: str,
+    database: str,
+    readonly_user: str,
+    readonly_password: str,
+) -> None:
+    with psycopg.connect(admin_url, autocommit=True) as conn:
+        row = conn.execute("select 1 from pg_roles where rolname = %s", (readonly_user,)).fetchone()
+        if row is None:
+            conn.execute(
+                sql.SQL("create role {} login password {}").format(
+                    sql.Identifier(readonly_user),
+                    sql.Literal(readonly_password),
+                )
+            )
+        else:
+            conn.execute(
+                sql.SQL("alter role {} with login password {}").format(
+                    sql.Identifier(readonly_user),
+                    sql.Literal(readonly_password),
+                )
+            )
+        conn.execute(
+            sql.SQL("grant connect on database {} to {}").format(
+                sql.Identifier(database),
+                sql.Identifier(readonly_user),
+            )
+        )
+
+    with psycopg.connect(database_url, autocommit=True) as conn:
+        rows = conn.execute(
+            """
+            select schema_name
+            from information_schema.schemata
+            where schema_name <> 'information_schema'
+              and schema_name not like 'pg_%'
+            order by schema_name
+            """
+        ).fetchall()
+        schemas = [str(row[0]) for row in rows]
+        for schema_name in schemas:
+            conn.execute(
+                sql.SQL("grant usage on schema {} to {}").format(
+                    sql.Identifier(schema_name),
+                    sql.Identifier(readonly_user),
+                )
+            )
+            conn.execute(
+                sql.SQL("grant select on all tables in schema {} to {}").format(
+                    sql.Identifier(schema_name),
+                    sql.Identifier(readonly_user),
+                )
+            )
+            conn.execute(
+                sql.SQL("grant select on all sequences in schema {} to {}").format(
+                    sql.Identifier(schema_name),
+                    sql.Identifier(readonly_user),
+                )
+            )
+
+
+def drop_database_if_exists(admin_url: str, database: str) -> None:
+    with psycopg.connect(admin_url, autocommit=True) as conn:
+        conn.execute("select pg_terminate_backend(pid) from pg_stat_activity where datname = %s", (database,))
+        conn.execute(sql.SQL("drop database if exists {}").format(sql.Identifier(database)))
+
+
+def database_exists(admin_url: str, database: str) -> bool:
+    with psycopg.connect(admin_url, autocommit=True) as conn:
+        row = conn.execute("select 1 from pg_database where datname = %s", (database,)).fetchone()
+    return row is not None
+
+
+def database_url(host: str, port: int, user: str, database: str, *, password: str | None = None) -> str:
+    auth = quote(user, safe="")
+    if password is not None:
+        auth = f"{auth}:{quote(password, safe='')}"
+    return f"postgresql://{auth}@{host}:{port}/{quote(database, safe='')}"
+
+
+def validate_database_identifier(value: str, label: str) -> None:
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,62}", value):
+        raise SystemExit(
+            f"Invalid {label}: {value!r}. Use letters, numbers, and underscores, starting with a letter or underscore."
+        )
+
+
+def write_database_url(env_path: Path, database_url_value: str) -> None:
+    line = f"DATABASE_URL={database_url_value}"
+    if not env_path.exists():
+        env_path.write_text(line + "\n", encoding="utf-8")
+        return
+
+    lines = env_path.read_text(encoding="utf-8").splitlines()
+    for index, existing in enumerate(lines):
+        if existing.startswith("DATABASE_URL="):
+            lines[index] = line
+            break
+    else:
+        if lines and lines[-1].strip():
+            lines.append("")
+        lines.append(line)
+    env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def list_csv_chat_databases(host: str, port: int) -> list[str]:

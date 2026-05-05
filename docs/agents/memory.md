@@ -28,30 +28,21 @@ Recent direction from product discussion:
 - Added `tools/local_db.py` and `pnpm db:*` commands for a persistent local Postgres test cluster under `~/.local/share/csv-chat-pg`.
 - Removed the old Postgres smoke script and mock OpenAI-compatible server after moving demo database seeding into `tools/local_db.py`.
 - Removed the post-export summary card, removed the manual post-validation Create CSV action, and made approval hide chat immediately while the artifact shows progress through Download CSV plus Start over actions.
+- Hardened `tools/setup_local.sh` for fresh WSL setup: it now rejects `sudo`, checks Node 20.19+, and uses Corepack to activate the pnpm version pinned by `package.json`.
+- Added `pnpm run doctor` and `pnpm db:test-url` for plain-language local setup and database URL diagnosis, and made rescan/setup database failures avoid raw tracebacks.
+- Added `pnpm db:import` as the preferred Windows real-data path: export a pgAdmin/Postgres backup, import it into the local WSL Postgres cluster, create a read-only CSV Chat user, write `.env`, then rescan context.
 
 ## Last Verification
 
-Last documented backend/model-flow verification:
+Last documented verification on 2026-05-05:
 
 ```text
-.venv/bin/python -m pytest -q -> 145 passed
+.venv/bin/python -m pytest -q -> 151 passed
 .venv/bin/python -m compileall -q app tests tools -> passed
-.venv/bin/python tools/model_eval.py -> passed
-```
-
-Focused frontend verification on 2026-05-05:
-
-```text
-pnpm test -- --run src/App.test.tsx -> 12 passed
-```
-
-On 2026-05-05 for local DB helper:
-
-```text
-pnpm db:start -> initialized persistent local cluster and started Postgres
-pnpm db:seed -> seeded demo, retail, finance, SaaS complex, and marketplace complex databases
-pnpm db:status -> listed all five csv_chat_* databases
-.venv/bin/python -m compileall -q tools/local_db.py -> passed
+bash -n tools/setup_local.sh -> passed
+pnpm db:import --help -> passed
+pnpm test -> 13 passed
+pnpm build -> passed
 ```
 
 ## Next Step

@@ -155,6 +155,12 @@ Database execution uses:
 
 The model never receives credentials, directly connects to the database, directly executes SQL, or receives final CSV contents by default.
 
+## Windows Real-Data Setup
+
+For WSL-local development and early Windows users, the preferred real-data path is to import a pgAdmin/Postgres backup into the app-managed local WSL Postgres cluster. CSV Chat then connects to `127.0.0.1` inside WSL through a generated read-only user.
+
+This keeps the happy path away from Windows Firewall, WSL gateway IPs, Windows Postgres `listen_addresses`, and `pg_hba.conf` changes. Direct WSL-to-Windows Postgres connections remain an advanced fallback for users who need a live connection to an existing Windows server.
+
 ## CSV Output
 
 The final CSV is the product artifact.

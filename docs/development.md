@@ -10,6 +10,8 @@ Install dependencies:
 ./tools/setup_local.sh
 ```
 
+Run setup as your normal user, not with `sudo`. The script uses Corepack to activate the pnpm version pinned by `package.json` when pnpm is not already installed.
+
 Run backend and frontend together:
 
 ```bash
@@ -74,6 +76,13 @@ Run the local setup check:
 
 ```bash
 pnpm check:setup
+pnpm run doctor
+```
+
+Run only the database URL check:
+
+```bash
+pnpm db:test-url
 ```
 
 Rescan context after changing `DATABASE_URL`:

@@ -25,6 +25,8 @@ Backend state is still filesystem JSON under `data/`. There is no worker, queue,
 
 - CSV-plan approval now ends the chat phase for a run in V0. The UI hides chat immediately, shows export progress in the artifact panel, creates the CSV automatically after validation passes, then offers Download CSV and Start over.
 - Markdown docs were pruned: dated calibration reports and duplicated first-run guide content were removed from the active docs set. README is now the primary user setup guide; troubleshooting and development docs hold focused support material.
+- Fresh WSL onboarding is more defensive: setup rejects `sudo`, checks Node/Corepack/pnpm and Python venv/pip prerequisites, `pnpm run doctor` checks local setup end to end, and `pnpm db:test-url` diagnoses `.env` Postgres connectivity without exposing passwords.
+- Windows real-data onboarding now prefers importing a pgAdmin/Postgres backup into the local WSL Postgres cluster with `pnpm db:import`. This avoids Windows Firewall, WSL host IP, `listen_addresses`, and `pg_hba.conf` issues for the happy path while keeping direct Windows Postgres connections as an advanced fallback.
 - Approved CSV plan labels now own final CSV headers. SQL/result validation checks explicit output count and order, and direct `source_hint` values are validated by output position when present. This supports custom labels and derived columns such as averages without requiring exact SQL alias casing.
 - SQL validation allows derived/count expressions such as `COUNT(*)` while still rejecting `SELECT *`/`table.*`.
 - CSV intent parsing keeps `source_hint` only for concrete `table.column` or `schema.table.column` references; formulas, counts, filters, and prose hints are treated as derived/unknown sources.
@@ -61,7 +63,10 @@ Frontend:
 Tools:
 
 - `tools/setup_local.sh`: Linux/WSL first-run helper.
+- `tools/doctor.py`: local setup doctor for Python, Node, pnpm, `.env`, and database connectivity.
+- `tools/db_test_url.py`: focused `DATABASE_URL` reachability/login check.
 - `tools/local_db.py`: persistent local Postgres test-cluster helper with demo, retail, finance, SaaS complex, and marketplace complex databases.
+- `pnpm db:import`: imports a pgAdmin custom-format backup or plain SQL dump into the local WSL Postgres cluster, creates a read-only CSV Chat user, writes the resulting `DATABASE_URL` to `.env`, and prints the next setup commands.
 - `tools/dev.py`: starts backend and frontend together.
 - `tools/check_setup.py`: reports database, provider, and context readiness.
 - `tools/rescan_context.py`: regenerates schema context after changing `DATABASE_URL`.
@@ -105,18 +110,13 @@ pnpm test
 pnpm build
 ```
 
-Last documented backend/model-flow verification:
+Last documented verification on 2026-05-05:
 
 ```text
-.venv/bin/python -m pytest -q -> 145 passed
+.venv/bin/python -m pytest -q -> 151 passed
 .venv/bin/python -m compileall -q app tests tools -> passed
-.venv/bin/python tools/model_eval.py -> passed
-```
-
-Last documented frontend verification on 2026-05-03:
-
-```text
-pnpm test -> 10 passed
+pnpm db:import --help -> passed
+pnpm test -> 13 passed
 pnpm build -> passed
 ```
 
@@ -147,6 +147,14 @@ DATABASE_URL=postgresql://readonly:password@localhost:5432/appdb
 ```
 
 For local manual testing, run `pnpm db:start`, `pnpm db:seed`, and `pnpm db:urls`, then copy one of the generated read-only `DATABASE_URL` values into `.env`. The persistent local test cluster lives under `~/.local/share/csv-chat-pg`; seeded databases are disposable and may be recreated with `pnpm db:seed`.
+
+For real data from Windows pgAdmin, prefer exporting a custom-format backup and importing it into the local WSL Postgres cluster:
+
+```bash
+pnpm db:import /mnt/c/Users/YOU/Downloads/app.backup app_copy
+```
+
+This writes a local read-only `DATABASE_URL` to `.env`. Direct WSL-to-Windows Postgres connections remain documented as an advanced fallback because they can require Windows Firewall and Postgres access-rule changes outside the app.
 
 Model provider settings are saved through app Settings under:
 
