@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
@@ -298,6 +298,15 @@ describe("App", () => {
           attempts: [{ sql: "select email from customers limit 10", valid: true, errors: [], repair_changes: [] }]
         });
       }
+      if (url === "/sessions/session123/export") {
+        return jsonResponse({
+          export_id: "export123",
+          row_count: 3,
+          byte_count: 42,
+          columns: ["email"],
+          download_url: "/exports/export123/download"
+        });
+      }
       return jsonResponse({ detail: "Not found" }, 404);
     });
 
@@ -307,7 +316,7 @@ describe("App", () => {
     await user.click(screen.getByRole("button", { name: "Send" }));
     await user.click(await screen.findByRole("button", { name: "Approve CSV plan" }));
 
-    expect(await screen.findByText("Ready to create")).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Download CSV" })).toBeInTheDocument();
     expect(screen.queryByText("select email from customers limit 10")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Advanced" }));
@@ -363,6 +372,15 @@ describe("App", () => {
           attempts: [{ sql: "select email from customers limit 10", valid: true, errors: [], repair_changes: [] }]
         });
       }
+      if (url === "/sessions/session123/export") {
+        return jsonResponse({
+          export_id: "export123",
+          row_count: 3,
+          byte_count: 42,
+          columns: ["email"],
+          download_url: "/exports/export123/download"
+        });
+      }
       return jsonResponse({ detail: "Not found" }, 404);
     });
 
@@ -376,7 +394,7 @@ describe("App", () => {
 
     await user.click(screen.getByRole("button", { name: "Try again" }));
 
-    expect(await screen.findByText("Ready to create")).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Download CSV" })).toBeInTheDocument();
     expect(prepareCalls).toBe(2);
   });
 
@@ -384,12 +402,18 @@ describe("App", () => {
     const user = userEvent.setup();
     const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
     let currentSession: Record<string, unknown> = { ...sessionResponse };
+    const nextSession = { ...sessionResponse, id: "session456", messages: [], approved_intent: null };
+    let sessionCreates = 0;
 
     fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url === "/setup/status") return jsonResponse(setupReadyResponse);
-      if (url === "/sessions") return jsonResponse({ session: currentSession });
+      if (url === "/sessions") {
+        sessionCreates += 1;
+        return jsonResponse({ session: sessionCreates > 1 ? nextSession : currentSession });
+      }
       if (url === "/sessions/session123") return jsonResponse(currentSession);
+      if (url === "/sessions/session456") return jsonResponse(nextSession);
       if (url === "/sessions/session123/messages") {
         currentSession = { ...currentSession, messages: [{ role: "user", content: "Export customer emails" }] };
         return jsonResponse(currentSession);
@@ -426,11 +450,77 @@ describe("App", () => {
     await user.type(await screen.findByPlaceholderText("Describe the CSV you need"), "Export customer emails");
     await user.click(screen.getByRole("button", { name: "Send" }));
     await user.click(await screen.findByRole("button", { name: "Approve CSV plan" }));
-    await user.click(await screen.findByRole("button", { name: "Create CSV" }));
 
-    expect((await screen.findAllByText("CSV ready")).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText("ready")).length).toBeGreaterThan(0);
     expect(screen.getByRole("link", { name: "Download CSV" })).toHaveAttribute("href", "/exports/export123/download");
-    expect(screen.getByText("3 rows exported.")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByPlaceholderText("Describe the CSV you need")).not.toBeInTheDocument();
+    });
+    expect(screen.queryByText("3 rows exported.")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Start over" }));
+
+    expect(await screen.findByPlaceholderText("Describe the CSV you need")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Download CSV" })).not.toBeInTheDocument();
+  });
+
+  it("hides chat and shows progress while approval starts the export", async () => {
+    const user = userEvent.setup();
+    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+    let currentSession: Record<string, unknown> = { ...sessionResponse };
+    const approvalDeferred: { resolve?: (session: typeof currentSession) => void } = {};
+    const approvalPromise = new Promise<typeof currentSession>((resolve) => {
+      approvalDeferred.resolve = resolve;
+    });
+
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/setup/status") return jsonResponse(setupReadyResponse);
+      if (url === "/sessions") return jsonResponse({ session: currentSession });
+      if (url === "/sessions/session123") return jsonResponse(currentSession);
+      if (url === "/sessions/session123/messages") {
+        currentSession = { ...currentSession, messages: [{ role: "user", content: "Export customer emails" }] };
+        return jsonResponse(currentSession);
+      }
+      if (url === "/sessions/session123/propose-intent") {
+        return jsonResponse({ message: "Here is the CSV plan.", intent: approvedIntent, questions: [] });
+      }
+      if (url === "/sessions/session123/approve-intent") {
+        currentSession = { ...currentSession, status: "generating_sql", approved_intent: approvedIntent };
+        return jsonResponse(await approvalPromise);
+      }
+      if (url === "/sessions/session123/prepare-sql") {
+        return jsonResponse({
+          sql: "select email from customers limit 10",
+          valid: true,
+          errors: [],
+          attempts: [{ sql: "select email from customers limit 10", valid: true, errors: [], repair_changes: [] }]
+        });
+      }
+      if (url === "/sessions/session123/export") {
+        return jsonResponse({
+          export_id: "export123",
+          row_count: 3,
+          byte_count: 42,
+          columns: ["email"],
+          download_url: "/exports/export123/download"
+        });
+      }
+      return jsonResponse({ detail: "Not found" }, 404);
+    });
+
+    renderApp();
+
+    await user.type(await screen.findByPlaceholderText("Describe the CSV you need"), "Export customer emails");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    await user.click(await screen.findByRole("button", { name: "Approve CSV plan" }));
+
+    expect(await screen.findByText("Starting CSV export")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByPlaceholderText("Describe the CSV you need")).not.toBeInTheDocument();
+    });
+
+    approvalDeferred.resolve?.(currentSession);
   });
 
   it("shows clarification in chat instead of the artifact panel when the plan is not ready", async () => {

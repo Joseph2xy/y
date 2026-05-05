@@ -92,6 +92,7 @@ export function App() {
   const [providerApiKey, setProviderApiKey] = useState("");
   const [defaultRowLimit, setDefaultRowLimit] = useState("100000");
   const [databaseTest, setDatabaseTest] = useState<DatabaseConnectionTestResponse | null>(null);
+  const [chatCollapsed, setChatCollapsed] = useState(false);
   const pendingSessionRef = useRef<Promise<ExportSession> | null>(null);
 
   const setupQuery = useQuery({
@@ -265,15 +266,20 @@ export function App() {
       setSqlPrep(response);
       setNotice(response.valid ? null : { type: "error", text: "The CSV could not be prepared." });
       void queryClient.invalidateQueries({ queryKey: ["session", preparedSessionId] });
+      if (response.valid) {
+        exportMutation.mutate({ sessionId: preparedSessionId, sql: response.sql });
+      }
     },
     onError: showError
   });
 
   const exportMutation = useMutation({
-    mutationFn: async () => {
-      if (!sessionId) throw new Error("Start a session first.");
-      if (!sqlPrep?.valid) throw new Error("Prepare the export before running it.");
-      return createSessionExport(sessionId, sqlPrep.sql);
+    mutationFn: async (request?: { sessionId?: string; sql?: string }) => {
+      const activeSessionId = request?.sessionId ?? sessionId;
+      const sql = request?.sql ?? sqlPrep?.sql;
+      if (!activeSessionId) throw new Error("Start a session first.");
+      if (!sql) throw new Error("Prepare the export before running it.");
+      return createSessionExport(activeSessionId, sql);
     },
     onSuccess: (response) => {
       setExportResult(response);
@@ -344,8 +350,19 @@ export function App() {
     }
   }, [contextDocument?.policy.max_row_count]);
 
+  const exportRunningOrComplete = approveMutation.isPending || Boolean(session?.approved_intent) || Boolean(exportResult);
+
+  useEffect(() => {
+    if (!exportRunningOrComplete) {
+      setChatCollapsed(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setChatCollapsed(true), 260);
+    return () => window.clearTimeout(timer);
+  }, [exportRunningOrComplete]);
+
   function submitCurrentMessage() {
-    if (!message.trim() || busy || !setupStatus?.ready) return;
+    if (!message.trim() || busy || !setupStatus?.ready || exportResult) return;
     sendMutation.mutate();
   }
 
@@ -389,6 +406,9 @@ export function App() {
     );
   }
 
+  const artifactFocused = exportRunningOrComplete && chatCollapsed;
+  const showConversation = !exportRunningOrComplete || !chatCollapsed;
+
   return (
     <main className="flex h-svh min-w-0 flex-col overflow-hidden bg-background text-foreground">
       <AppHeader
@@ -416,19 +436,28 @@ export function App() {
         databaseTest={databaseTest}
         onTestDatabase={() => databaseTestMutation.mutate()}
       />
-      <section className="mx-auto grid min-h-0 w-full max-w-7xl flex-1 grid-cols-1 gap-4 px-4 pb-4 lg:grid-cols-[minmax(0,1fr)_minmax(360px,440px)] lg:px-6" aria-label="CSV Chat">
-        <ConversationPane
-          session={session ?? null}
-          proposal={proposal}
-          notice={workflowNotice}
-          message={message}
-          busy={busy}
-          sending={sendMutation.isPending}
-          planning={proposeMutation.isPending}
-          onMessageChange={setMessage}
-          onSubmit={submitCurrentMessage}
-          onSuggestion={setMessage}
-        />
+      <section
+        className={cn(
+          "mx-auto grid min-h-0 w-full flex-1 grid-cols-1 gap-4 px-4 pb-4 transition-[max-width] duration-300 ease-out lg:px-6",
+          artifactFocused ? "max-w-2xl" : "max-w-7xl lg:grid-cols-[minmax(0,1fr)_minmax(360px,440px)]"
+        )}
+        aria-label="CSV Chat"
+      >
+        {showConversation ? (
+          <ConversationPane
+            session={session ?? null}
+            proposal={proposal}
+            notice={workflowNotice}
+            message={message}
+            busy={busy}
+            sending={sendMutation.isPending}
+            planning={proposeMutation.isPending}
+            onMessageChange={setMessage}
+            onSubmit={submitCurrentMessage}
+            onSuggestion={setMessage}
+            className={cn(exportRunningOrComplete && "pointer-events-none opacity-0 scale-[0.985]")}
+          />
+        ) : null}
         <ArtifactPanel
           session={session ?? null}
           proposal={proposal}
@@ -436,12 +465,13 @@ export function App() {
           exportResult={exportResult}
           traces={session?.debug_traces ?? []}
           planning={proposeMutation.isPending}
+          approving={approveMutation.isPending}
           preparing={prepareMutation.isPending}
           exporting={exportMutation.isPending}
           busy={busy}
           onApprove={(intent) => approveMutation.mutate(intent)}
           onPrepare={() => prepareMutation.mutate(sessionId ?? undefined)}
-          onExport={() => exportMutation.mutate()}
+          onNewSession={() => startSessionMutation.mutate()}
         />
       </section>
     </main>
@@ -709,7 +739,8 @@ function ConversationPane({
   planning,
   onMessageChange,
   onSubmit,
-  onSuggestion
+  onSuggestion,
+  className
 }: {
   session: ExportSession | null;
   proposal: CSVIntentProposal | null;
@@ -721,12 +752,13 @@ function ConversationPane({
   onMessageChange: (value: string) => void;
   onSubmit: () => void;
   onSuggestion: (value: string) => void;
+  className?: string;
 }) {
   const messages = conversationMessages(session?.messages ?? [], proposal);
   const empty = !messages.length && !proposal && !planning;
 
   return (
-    <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border bg-card" aria-label="Conversation">
+    <section className={cn("flex min-h-0 flex-col overflow-hidden rounded-xl border bg-card transition-all duration-300 ease-out", className)} aria-label="Conversation">
       <ChatContainerRoot className="relative min-h-0 flex-1 px-4">
         <ChatContainerContent className="min-h-full py-6">
           <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
@@ -827,12 +859,13 @@ function ArtifactPanel({
   exportResult,
   traces,
   planning,
+  approving,
   preparing,
   exporting,
   busy,
   onApprove,
   onPrepare,
-  onExport
+  onNewSession
 }: {
   session: ExportSession | null;
   proposal: CSVIntentProposal | null;
@@ -840,19 +873,21 @@ function ArtifactPanel({
   exportResult: ExportCreateResponse | null;
   traces: SessionDebugTrace[];
   planning: boolean;
+  approving: boolean;
   preparing: boolean;
   exporting: boolean;
   busy: boolean;
   onApprove: (intent: CSVIntent) => void;
   onPrepare: () => void;
-  onExport: () => void;
+  onNewSession: () => void;
 }) {
   const approved = session?.approved_intent ?? null;
   const intent = approved ?? proposal?.intent ?? null;
   const hasAdvancedDetails = Boolean(sqlPrep || traces.length);
+  const progressText = exportProgressText({ approving, preparing, exporting, sqlPrep, exportResult });
 
   return (
-    <aside className="min-h-[420px] overflow-hidden rounded-xl border bg-card lg:min-h-0" aria-label="CSV artifact">
+    <aside className="min-h-[420px] overflow-hidden rounded-xl border bg-card transition-all duration-300 ease-out lg:min-h-0" aria-label="CSV artifact">
       <div className="flex h-full min-h-0 flex-col">
         <div className="flex shrink-0 items-start justify-between gap-3 border-b p-4">
           <div className="min-w-0">
@@ -861,7 +896,7 @@ function ArtifactPanel({
               <h2 className="truncate font-heading text-sm font-medium">CSV plan</h2>
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              {artifactSubtitle({ planning, preparing, exporting, approved, sqlPrep, exportResult, hasIntent: Boolean(intent) })}
+              {artifactSubtitle({ planning, approving, preparing, exporting, approved, sqlPrep, exportResult, hasIntent: Boolean(intent) })}
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-1">
@@ -875,11 +910,9 @@ function ArtifactPanel({
           {!intent && !planning ? <EmptyArtifact /> : null}
           {planning ? <InlineStatus text="Drafting CSV plan" /> : null}
           {intent ? <PlanArtifact intent={intent} approved={Boolean(approved)} /> : null}
+          {progressText ? <ExportProgressStatus text={progressText} /> : null}
           {preparing ? <SafetyStatus mode="checking" /> : null}
-          {sqlPrep?.valid && !exportResult ? <SafetyStatus mode="ready" /> : null}
           {sqlPrep && !sqlPrep.valid ? <SystemMessage variant="error">The CSV could not be prepared. Open Advanced for validation details.</SystemMessage> : null}
-          {exporting ? <InlineStatus text="Creating CSV" /> : null}
-          {exportResult ? <ExportSummary exportResult={exportResult} /> : null}
         </div>
 
         <ArtifactActions
@@ -890,7 +923,7 @@ function ArtifactPanel({
           busy={busy}
           onApprove={onApprove}
           onPrepare={onPrepare}
-          onExport={onExport}
+          onNewSession={onNewSession}
         />
       </div>
     </aside>
@@ -947,8 +980,8 @@ function SafetyStatus({ mode }: { mode: "checking" | "ready" }) {
   return (
     <div className="rounded-xl border bg-card p-4 text-card-foreground">
       <div className="flex flex-col gap-1">
-        <p className="text-sm font-medium">{mode === "checking" ? "Checking CSV" : "Ready to create"}</p>
-        <p className="text-sm text-muted-foreground">{mode === "checking" ? "The app is validating the export before anything runs." : "Validation passed. The app will create the file with read-only limits."}</p>
+        <p className="text-sm font-medium">{mode === "checking" ? "Checking CSV" : "Validation passed"}</p>
+        <p className="text-sm text-muted-foreground">{mode === "checking" ? "The app is validating the export before anything runs." : "The app is creating the file with read-only limits."}</p>
       </div>
       <div className="mt-4 flex flex-col gap-3 text-sm">
         <SafetyLine icon={<LockKeyholeIcon />} text="Read-only database access" done={mode === "ready"} />
@@ -968,20 +1001,17 @@ function SafetyLine({ icon, text, done }: { icon: ReactNode; text: string; done:
   );
 }
 
-function ExportSummary({ exportResult }: { exportResult: ExportCreateResponse }) {
+function ExportProgressStatus({ text }: { text: string }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>CSV ready</CardTitle>
-        <CardDescription>{exportResult.row_count} rows exported.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <dl className="grid gap-2 text-sm text-muted-foreground">
-          <Line label="Rows" value={exportResult.row_count} />
-          <Line label="Columns" value={exportResult.columns.length} />
-        </dl>
-      </CardContent>
-    </Card>
+    <div className="rounded-xl border bg-muted/30 p-4 text-card-foreground">
+      <div className="flex items-center gap-3">
+        <Spinner className="size-4 text-primary" />
+        <div className="min-w-0">
+          <ThinkingBar text={text} className="text-sm" />
+          <p className="mt-1 text-xs text-muted-foreground">Keep this window open while the app validates and creates the download.</p>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -993,7 +1023,7 @@ function ArtifactActions({
   busy,
   onApprove,
   onPrepare,
-  onExport
+  onNewSession
 }: {
   intent: CSVIntent | null;
   approved: boolean;
@@ -1002,7 +1032,7 @@ function ArtifactActions({
   busy: boolean;
   onApprove: (intent: CSVIntent) => void;
   onPrepare: () => void;
-  onExport: () => void;
+  onNewSession: () => void;
 }) {
   if (!intent && !exportResult) return null;
 
@@ -1012,12 +1042,6 @@ function ArtifactActions({
         <Button type="button" className="w-full" onClick={() => onApprove(intent)} disabled={busy}>
           {busy ? <Spinner data-icon="inline-start" /> : <CheckIcon data-icon="inline-start" />}
           Approve CSV plan
-        </Button>
-      ) : null}
-      {sqlPrep?.valid && !exportResult ? (
-        <Button type="button" className="w-full" onClick={onExport} disabled={busy}>
-          {busy ? <Spinner data-icon="inline-start" /> : <CheckIcon data-icon="inline-start" />}
-          Create CSV
         </Button>
       ) : null}
       {approved && sqlPrep && !sqlPrep.valid && !exportResult ? (
@@ -1032,6 +1056,10 @@ function ArtifactActions({
             <DownloadIcon data-icon="inline-start" />
             Download CSV
           </a>
+          <Button type="button" variant="outline" className="w-full" onClick={onNewSession} disabled={busy}>
+            {busy ? <Spinner data-icon="inline-start" /> : <PlusIcon data-icon="inline-start" />}
+            Start over
+          </Button>
         </div>
       ) : null}
     </div>
@@ -1492,6 +1520,7 @@ function providerKindFromSettings(provider: string): ProviderKind {
 
 function artifactSubtitle({
   planning,
+  approving,
   preparing,
   exporting,
   approved,
@@ -1500,6 +1529,7 @@ function artifactSubtitle({
   hasIntent
 }: {
   planning: boolean;
+  approving: boolean;
   preparing: boolean;
   exporting: boolean;
   approved: CSVIntent | null;
@@ -1511,10 +1541,31 @@ function artifactSubtitle({
   if (exporting) return "Creating the downloadable file.";
   if (sqlPrep?.valid) return "Validation passed.";
   if (preparing) return "Checking the approved plan.";
+  if (approving) return "Starting the export.";
   if (approved) return "Approved and ready for validation.";
   if (hasIntent) return "Review before anything runs.";
   if (planning) return "Drafting from your request.";
   return "The current CSV appears here.";
+}
+
+function exportProgressText({
+  approving,
+  preparing,
+  exporting,
+  sqlPrep,
+  exportResult
+}: {
+  approving: boolean;
+  preparing: boolean;
+  exporting: boolean;
+  sqlPrep: SQLPreparationResponse | null;
+  exportResult: ExportCreateResponse | null;
+}) {
+  if (exportResult || sqlPrep?.valid === false) return null;
+  if (exporting || sqlPrep?.valid) return "Creating CSV";
+  if (preparing) return "Validating CSV";
+  if (approving) return "Starting CSV export";
+  return null;
 }
 
 function initialTheme(): Theme {

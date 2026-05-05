@@ -15,14 +15,15 @@ The app has a working local V0 vertical slice:
 7. Validate SQL and attempt up to two bounded repairs.
 8. Execute safely with read-only limits.
 9. Write a formula-escaped CSV using approved CSV plan labels as headers.
-10. Return a download link.
+10. End the chat-driven run and return a download link.
 
-The normal ready-state UI is an Artifact Split layout: chat on the left, durable CSV plan/export state on the right, and SQL/debug details hidden in read-only Advanced. Settings handles database/context status, database connection testing, context rescans, model-provider setup, and export row limits.
+The normal ready-state UI is an Artifact Split layout: chat on the left, durable CSV plan/export state on the right, and SQL/debug details hidden in read-only Advanced. Once the user approves the CSV plan, the chat pane is hidden for that run and the centered artifact shows export progress. Once validation passes, the app creates the CSV automatically. Once an export is created, the completed artifact shows Download CSV and Start over actions. Settings handles database/context status, database connection testing, context rescans, model-provider setup, and export row limits.
 
 Backend state is still filesystem JSON under `data/`. There is no worker, queue, scheduler, SQLite store, SSE/WebSocket progress, editable SQL, or multi-database support in V0.
 
 ## Recent Changes
 
+- CSV-plan approval now ends the chat phase for a run in V0. The UI hides chat immediately, shows export progress in the artifact panel, creates the CSV automatically after validation passes, then offers Download CSV and Start over.
 - Markdown docs were pruned: dated calibration reports and duplicated first-run guide content were removed from the active docs set. README is now the primary user setup guide; troubleshooting and development docs hold focused support material.
 - Approved CSV plan labels now own final CSV headers. SQL/result validation checks explicit output count and order, and direct `source_hint` values are validated by output position when present. This supports custom labels and derived columns such as averages without requiring exact SQL alias casing.
 - SQL validation allows derived/count expressions such as `COUNT(*)` while still rejecting `SELECT *`/`table.*`.

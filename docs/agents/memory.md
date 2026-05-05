@@ -13,6 +13,7 @@ Recent direction from product discussion:
 - SQL/query results must match the approved plan by output count and order.
 - Direct `source_hint` values are validated by output position when present.
 - Derived columns can have no direct source hint.
+- CSV-plan approval is terminal for chat in the current V0 run: hide chat immediately, show artifact progress, create the CSV automatically after validation passes, keep the artifact/download visible, and use Start over for changes or another CSV.
 - Do not add a query compiler or broad semantic layer unless calibration shows the raw-SQL validation approach is not enough.
 
 ## Recently Completed
@@ -26,6 +27,7 @@ Recent direction from product discussion:
 - Updated SQL/repair prompts to require output count/order rather than exact SQL alias text.
 - Added `tools/local_db.py` and `pnpm db:*` commands for a persistent local Postgres test cluster under `~/.local/share/csv-chat-pg`.
 - Removed the old Postgres smoke script and mock OpenAI-compatible server after moving demo database seeding into `tools/local_db.py`.
+- Removed the post-export summary card, removed the manual post-validation Create CSV action, and made approval hide chat immediately while the artifact shows progress through Download CSV plus Start over actions.
 
 ## Last Verification
 
@@ -37,7 +39,11 @@ Last documented backend/model-flow verification:
 .venv/bin/python tools/model_eval.py -> passed
 ```
 
-Frontend was not rerun for the approved-header backend change. Last documented frontend verification was `pnpm test` and `pnpm build` passing on 2026-05-03.
+Focused frontend verification on 2026-05-05:
+
+```text
+pnpm test -- --run src/App.test.tsx -> 12 passed
+```
 
 On 2026-05-05 for local DB helper:
 
